@@ -119,6 +119,7 @@
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
         .filter-btn {
@@ -128,6 +129,7 @@
             border-radius: 6px;
             cursor: pointer;
             font-weight: 500;
+            transition: all 0.2s;
         }
 
         .filter-btn.active {
@@ -203,6 +205,16 @@
         .badge-odd { background: var(--badge-odd); color: var(--badge-odd-text); }
         .badge-even { background: var(--badge-even); color: var(--badge-even-text); }
         .badge-all { background: var(--badge-all); color: var(--badge-all-text); }
+
+        .empty-schedule-msg {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            color: #666;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            font-size: 1.05rem;
+        }
 
         /* Modal */
         .modal-overlay {
@@ -356,6 +368,7 @@
     <!-- Фильтр недель -->
     <div class="week-filter-bar">
         <button class="filter-btn active" onclick="setFilter('all', this)">Обе недели</button>
+        <button class="filter-btn" onclick="setFilter('current', this)">Текущая неделя</button>
         <button class="filter-btn" onclick="setFilter('odd', this)">Нечётная неделя</button>
         <button class="filter-btn" onclick="setFilter('even', this)">Чётная неделя</button>
     </div>
@@ -448,12 +461,9 @@
     let calMonth = 8;
     let calYear = 2026;
 
-    // Функция форматирования строки аудитории
     function parseRoom(roomStr) {
         if (!roomStr) return '';
         const cleaned = roomStr.replace(/^ауд\.\s*/i, '').trim();
-        
-        // Разбор шаблона "1.242" или "2а.455"
         const match = cleaned.match(/^([^\.]+)\.(\d)(\d+)$/);
         if (match) {
             const building = match[1];
@@ -461,7 +471,6 @@
             const roomNum = parseInt(match[3], 10);
             return `${building} корпус, ${floor} этаж, кабинет ${roomNum}`;
         }
-        
         return cleaned;
     }
 
@@ -482,16 +491,33 @@
         const container = document.getElementById('schedule-container');
         container.innerHTML = '';
 
+        const now = new Date();
+        const activeOdd = isOddWeek(now);
+        // JS getDay(): 0-Вс, 1-Пн, 2-Вт, 3-Ср, 4-Чт, 5-Пт, 6-Сб. Приводим Вс к 7.
+        const currentDayNum = now.getDay() === 0 ? 7 : now.getDay(); 
+
+        let renderedCount = 0;
+
         for (let dayIdx = 1; dayIdx <= 5; dayIdx++) {
+            // Если выбран режим "Текущая неделя", пропускаем прошедшие дни недели
+            if (currentFilter === 'current' && dayIdx < currentDayNum) {
+                continue;
+            }
+
             const lessons = scheduleData[dayIdx] || [];
             const filtered = lessons.filter(l => {
                 if (currentFilter === 'odd') return l.week === '*' || l.week === 'нечёт';
                 if (currentFilter === 'even') return l.week === '*' || l.week === 'чёт';
+                if (currentFilter === 'current') {
+                    const activeWeekType = activeOdd ? 'нечёт' : 'чёт';
+                    return l.week === '*' || l.week === activeWeekType;
+                }
                 return true;
             });
 
             if (filtered.length === 0) continue;
 
+            renderedCount++;
             const block = document.createElement('div');
             block.className = 'day-block';
             let html = `<div class="day-header">${daysNames[dayIdx - 1]}</div><table class="lesson-table">`;
@@ -514,6 +540,10 @@
             html += `</table>`;
             block.innerHTML = html;
             container.appendChild(block);
+        }
+
+        if (renderedCount === 0 && currentFilter === 'current') {
+            container.innerHTML = `<div class="empty-schedule-msg"><i class="fa fa-calendar-check"></i> На остаток текущей недели пар больше нет.</div>`;
         }
     }
 
@@ -619,7 +649,6 @@
         document.getElementById('m-name').innerText = lesson.name;
         document.getElementById('m-time').innerText = `${lesson.pair} пара (${lesson.start} - ${lesson.end})`;
         document.getElementById('m-teacher').innerText = lesson.teacher;
-        // Применение преобразования аудитории
         document.getElementById('m-room').innerText = parseRoom(lesson.room);
         document.getElementById('m-week').innerText = lesson.week === '*' ? 'Каждую неделю' : lesson.week;
         document.getElementById('lessonModal').classList.add('active');
