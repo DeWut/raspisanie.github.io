@@ -8,6 +8,34 @@
     <title>Интерактивное расписание СПбГЛТУ — ЛПб-ИСИТ-26-1</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        /* Фиксированные банки по бокам */
+.monster-side {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 65vh;             /* Размер банки (65% от высоты экрана) */
+    max-height: 550px;         /* Ограничение максимальной высоты */
+    z-index: 1;                /* Отображаем над фоном */
+    pointer-events: none;      /* Чтобы картинки не мешали кликать по сайту */
+    transition: opacity 0.3s;
+}
+
+/* Привязываем банки строго к краям вашего центрального блока (900px) */
+.monster-left {
+    right: calc(50% + 470px);  /* Центр + половина контейнера (450px) + отступ (20px) */
+}
+
+.monster-right {
+    left: calc(50% + 470px);
+    transform: translateY(-50%) scaleX(-1); /* Отражаем правую банку зеркально */
+}
+
+/* Автоматически скрываем банки на ноутбуках и телефонах, если экран слишком узкий */
+@media (max-width: 1250px) {
+    .monster-side {
+        display: none;
+    }
+}
         :root {
             --bg-color: #f4f6f9;
             --card-bg: #ffffff;
@@ -341,7 +369,8 @@
     </style>
 </head>
 <body>
-
+    <img src="monster.png" class="monster-side monster-left" alt="Monster Energy Left">
+    <img src="monster.png" class="monster-side monster-right" alt="Monster Energy Right">
 <div class="container">
     <div class="header-card">
         <div class="group-info">
