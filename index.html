@@ -1,1 +1,331 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1020">
+<title>Расписание · ЛПб-ИСИТ-26-1</title>
+<style>
+:root{
+ --bg:#070b16;--bg2:#0d1324;--card:rgba(18,25,45,.82);--card2:#111a30;
+ --text:#f5f7ff;--muted:#98a2b8;--line:rgba(255,255,255,.09);
+ --blue:#6ea8ff;--blue2:#3978ff;--green:#41d392;--orange:#ffb454;--red:#ff6577;
+ --shadow:0 20px 60px rgba(0,0,0,.28);--r:22px;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+ background:radial-gradient(circle at 15% 0%,#162650 0,transparent 34%),radial-gradient(circle at 90% 15%,#17233f 0,transparent 30%),var(--bg);
+ min-height:100vh}
+button,input{font:inherit}.app{max-width:1450px;margin:auto;padding:24px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}
+.logo{display:flex;gap:12px;align-items:center}.logo-icon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;
+ background:linear-gradient(135deg,var(--blue2),#7d5cff);box-shadow:0 10px 30px rgba(57,120,255,.28);font-size:23px}
+h1{font-size:25px;margin:0}.sub{color:var(--muted);font-size:13px;margin-top:3px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);
+ border-radius:13px;padding:10px 14px;cursor:pointer;transition:.2s}.btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.1)}
+.btn.primary{border:0;background:linear-gradient(135deg,var(--blue2),#6d5cff);box-shadow:0 10px 25px rgba(57,120,255,.2)}
+.grid-hero{display:grid;grid-template-columns:1.55fr .8fr .8fr;gap:14px}
+.card{background:linear-gradient(145deg,rgba(22,30,52,.92),rgba(13,19,35,.9));border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);backdrop-filter:blur(16px)}
+.hero{padding:22px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;
+right:-80px;top:-100px;background:rgba(74,125,255,.15);filter:blur(5px)}
+.kicker{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:800}
+.date{font-size:35px;font-weight:850;margin:6px 0 2px}.weekline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.badge{padding:6px 10px;border-radius:999px;background:rgba(110,168,255,.12);color:var(--blue);font-size:12px;font-weight:800}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:800;font-size:13px}.dot{width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 12px var(--green)}
+.hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px}.stat{padding:12px;border-radius:15px;background:rgba(255,255,255,.045)}
+.stat b{font-size:20px;display:block}.stat span{font-size:11px;color:var(--muted)}
+.focus{padding:20px;min-height:190px}.focus h3{margin:7px 0;font-size:18px}.bigtime{font-size:28px;font-weight:850}.muted{color:var(--muted)}
+.progress{height:7px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin:13px 0 9px}.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue2),#8c72ff);border-radius:99px;transition:width .5s}
+.countdown{font-size:13px;color:var(--muted)}.next-arrow{color:var(--blue);font-weight:800;margin-top:11px}
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:18px 0 13px}.seg{display:flex;background:rgba(255,255,255,.055);padding:4px;border:1px solid var(--line);border-radius:14px}
+.seg button{border:0;background:transparent;color:var(--muted);padding:8px 11px;border-radius:10px;cursor:pointer}.seg button.active{background:#fff;color:#111827;font-weight:800}
+.search{flex:1;min-width:220px;border:1px solid var(--line);background:rgba(255,255,255,.055);color:#fff;border-radius:13px;padding:10px 13px;outline:0}
+.search:focus{border-color:rgba(110,168,255,.7)}.select{border:1px solid var(--line);background:#11182a;color:#fff;border-radius:13px;padding:10px}
+.week{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.day{min-width:0;overflow:hidden}.day.today{border-color:rgba(110,168,255,.65);box-shadow:0 0 0 1px rgba(110,168,255,.18),var(--shadow)}
+.dayhead{padding:14px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.dayname{font-weight:850}.daynum{color:var(--muted);font-size:12px}.todaytag{font-size:10px;color:var(--blue);font-weight:900;text-transform:uppercase}
+.lesson{padding:14px 15px;border-bottom:1px solid var(--line);position:relative;cursor:pointer;transition:.18s}.lesson:hover{background:rgba(255,255,255,.035)}
+.lesson.current{background:linear-gradient(90deg,rgba(65,211,146,.12),transparent)}.lesson.current:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
+.lesson.next{background:linear-gradient(90deg,rgba(110,168,255,.12),transparent)}.lesson.next:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue)}
+.ltop{display:flex;justify-content:space-between;gap:8px}.time{color:var(--blue);font-size:11px;font-weight:900}.status{font-size:10px;font-weight:900}
+.status.now{color:var(--green)}.status.next{color:var(--blue)}.status.done{color:#68748d}
+.subject{font-weight:800;line-height:1.3;margin:6px 0 7px}.meta{font-size:11px;color:var(--muted);line-height:1.5}
+.empty{padding:38px 15px;text-align:center;color:#69748a;font-size:13px}
+.bottom-info{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:13px}.info{padding:17px}.info b{display:block;margin-bottom:5px}.info p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
+.overlay{position:fixed;inset:0;background:rgba(2,5,12,.7);display:none;align-items:center;justify-content:center;padding:16px;z-index:50;backdrop-filter:blur(8px)}.overlay.show{display:flex}
+.modal{width:min(760px,100%);max-height:90vh;overflow:auto;background:#0e1629;border:1px solid var(--line);border-radius:24px;box-shadow:0 30px 100px #000;padding:20px}
+.mhead{display:flex;align-items:center;justify-content:space-between}.close{width:38px;height:38px;border:0;border-radius:11px;background:rgba(255,255,255,.07);color:#fff;cursor:pointer;font-size:20px}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px}.calhead{text-align:center;color:var(--muted);font-size:11px;font-weight:800;padding:6px}
+.cal{min-height:58px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.035);color:#fff;text-align:left;padding:7px;cursor:pointer}.cal:hover{background:rgba(255,255,255,.08)}
+.cal.sel{background:linear-gradient(135deg,var(--blue2),#655cff);border-color:transparent}.cal.today{box-shadow:inset 0 -3px 0 var(--green)}.cal.has{font-weight:850}.cal small{color:var(--muted);font-size:9px}.cal.sel small{color:#dbe7ff}
+.detail-title{font-size:24px;font-weight:850;margin:5px 0 14px}.detail-row{padding:12px 0;border-bottom:1px solid var(--line);color:var(--muted)}.detail-row b{color:#fff;display:block;margin-bottom:3px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:#fff;color:#101827;padding:11px 15px;border-radius:12px;font-weight:750;z-index:100;transition:.25s;pointer-events:none}.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:1100px){.grid-hero{grid-template-columns:1fr 1fr}.grid-hero .hero{grid-column:span 2}.week{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.app{padding:13px}.top{align-items:flex-start;flex-direction:column}.grid-hero{grid-template-columns:1fr}.grid-hero .hero{grid-column:auto}.week{grid-template-columns:1fr}.bottom-info{grid-template-columns:1fr}.date{font-size:28px}.hero-stats{grid-template-columns:repeat(3,1fr)}}
+@media print{body{background:#fff;color:#111}.app{max-width:none}.actions,.toolbar,.bottom-info{display:none}.card,.day{box-shadow:none;background:#fff;color:#111;border-color:#ddd}.muted,.daynum,.meta{color:#666}.week{grid-template-columns:repeat(5,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+ <div class="logo"><div class="logo-icon">📚</div><div><h1>Моё расписание</h1><div class="sub">ЛПб-ИСИТ-26-1 · 2026–2027 · осенний семестр</div></div></div>
+ <div class="actions"><button class="btn primary" onclick="loadSchedule(true)">🔄 Обновить</button><button class="btn primary" onclick="goToday()">Сегодня</button><button class="btn" onclick="openCalendar()">📅 Календарь</button><button class="btn" onclick="window.print()">🖨 Печать</button></div>
+</header>
 
+<section class="grid-hero">
+ <div class="card hero">
+  <div class="kicker">Сегодня</div><div class="date" id="date"></div><div class="sub" id="day"></div>
+  <div class="weekline" style="margin-top:9px"><span class="badge" id="weekBadge"></span><span class="live"><i class="dot"></i><span id="clock">--:--:--</span></span></div>
+  <div class="hero-stats"><div class="stat"><b id="todayCount">0</b><span>занятий сегодня</span></div><div class="stat"><b id="freeUntil">—</b><span>свободно до</span></div><div class="stat"><b id="endDay">—</b><span>последняя пара</span></div></div>
+ </div>
+ <div class="card focus"><div class="kicker" id="currentLabel">Сейчас</div><h3 id="currentSubject">Нет занятия</h3><div class="bigtime" id="currentTime">—</div><div class="muted" id="currentMeta">—</div><div class="progress"><i id="progress"></i></div><div class="countdown" id="currentCountdown">—</div></div>
+ <div class="card focus"><div class="kicker">Следующая пара</div><h3 id="nextSubject">Нет следующих занятий</h3><div class="bigtime" id="nextTime">—</div><div class="muted" id="nextMeta">—</div><div class="next-arrow" id="nextCountdown">—</div></div>
+</section>
+
+<div class="toolbar">
+ <div class="seg" id="weekSeg"><button data-mode="current" class="active">Текущая</button><button data-mode="odd">Нечётная</button><button data-mode="even">Чётная</button><button data-mode="all">Все</button></div>
+ <div class="seg" id="viewSeg"><button data-view="week" class="active">Неделя</button><button data-view="day">День</button></div>
+ <input class="search" id="search" placeholder="⌕  Предмет, преподаватель или аудитория…">
+ <button class="btn" onclick="shiftWeek(-1)">←</button><button class="btn" onclick="shiftWeek(1)">→</button>
+</div>
+<section class="week" id="week"></section>
+
+<div class="bottom-info"><div class="card info"><b>⏱ Автоматический режим</b><p>Время на сайте обновляется каждую секунду. Занятие автоматически помечается как «сейчас», завершённые пары — как прошедшие, а ближайшая — как следующая.</p></div>
+<div class="card info"><b>📍 Быстрый доступ</b><p>Нажми на любую пару, чтобы увидеть подробности. Календарь позволяет выбрать конкретную дату и сразу перейти к её расписанию.</p></div></div>
+</div>
+
+<div class="overlay" id="calendarOverlay" onclick="if(event.target===this)closeCalendar()"><div class="modal">
+ <div class="mhead"><div><div class="kicker">Выбор даты</div><h2 style="margin:4px 0" id="monthTitle"></h2></div><button class="close" onclick="closeCalendar()">×</button></div>
+ <div style="display:flex;justify-content:space-between;margin-top:10px"><button class="btn" onclick="changeMonth(-1)">← Предыдущий</button><button class="btn" onclick="goToday();closeCalendar()">Сегодня</button><button class="btn" onclick="changeMonth(1)">Следующий →</button></div>
+ <div class="calendar" id="calendar"></div><div class="muted" id="calHint" style="margin-top:12px;font-size:12px"></div>
+</div></div>
+
+<div class="overlay" id="detailOverlay" onclick="if(event.target===this)closeDetail()"><div class="modal">
+ <div class="mhead"><div class="kicker">Детали занятия</div><button class="close" onclick="closeDetail()">×</button></div><div id="detail"></div>
+</div></div>
+
+<div class="overlay" id="dayDetailOverlay" onclick="if(event.target===this)closeDayDetail()"><div class="modal">
+ <div class="mhead"><div><div class="kicker">Расписание на день</div><h2 id="dayDetailTitle" style="margin:4px 0"></h2></div><button class="close" onclick="closeDayDetail()">×</button></div>
+ <div class="day-modal-content" id="dayDetailContent"></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Встроенное расписание (fallback, если schedule.json не загрузится)
+const fallbackSchedule = {
+ "Понедельник": [
+  {"time": "1 • 09:15–10:50", "subject": "Информатика Лек.", "teacher": "Васильев Н.П.", "room": "ауд. 1.231", "week": "нечёт"},
+  {"time": "2 • 11:10–12:45", "subject": "История России Лек.", "teacher": "Мельников Н.Н.", "room": "ауд. 2а.455", "week": "*"},
+  {"time": "3 • 13:30–15:05", "subject": "История России Пр.", "teacher": "Мельников Н.Н.", "room": "ауд. 2.415", "week": "*"},
+  {"time": "4 • 15:15–16:50", "subject": "Начертательная геометрия и инженерная графика Пр.", "teacher": "Вохмянин Н.А., Куликова Д.Р.", "room": "ауд. 2.210", "week": "*"}
+ ],
+ "Вторник": [
+  {"time": "1 • 09:15–10:50", "subject": "Управление личным временем Лек.", "teacher": "Подолянец Л.А.", "room": "ауд. 1.242", "week": "чёт"},
+  {"time": "2 • 11:10–12:45", "subject": "Физическая культура и спорт Лек.", "teacher": "Тарасеня Т.Ю.", "room": "ауд. 2а.451", "week": "*"},
+  {"time": "3 • 13:30–15:05", "subject": "Иностранный язык Пр.", "teacher": "Ломакина И.С.", "room": "ауд. 1.412", "week": "*"},
+  {"time": "4 • 15:15–16:50", "subject": "Межкультурное взаимодействие в современном мире Пр.", "teacher": "Михайлова А.И.", "room": "ауд. 1.321", "week": "чёт"},
+  {"time": "5 • 17:00–18:35", "subject": "Физика Лек.", "teacher": "Былев А.Б.", "room": "ауд. 1.010", "week": "чёт"}
+ ],
+ "Среда": [
+  {"time": "1 • 09:15–10:50", "subject": "Межкультурное взаимодействие в современном мире Лек.", "teacher": "Михайлова А.И.", "room": "ауд. 1.318", "week": "чёт"},
+  {"time": "2 • 11:10–12:45", "subject": "Математика Лек.", "teacher": "Одинцова Н.А.", "room": "ауд. 1.318", "week": "*"},
+  {"time": "3 • 13:30–15:05", "subject": "Математика Пр.", "teacher": "Одинцова Н.А.", "room": "ауд. 1.337", "week": "*"},
+  {"time": "4 • 15:15–16:50", "subject": "История России Пр.", "teacher": "Мельников Н.Н.", "room": "ауд. 2.419", "week": "*"},
+  {"time": "5 • 17:00–18:35", "subject": "История России Пр.", "teacher": "Мельников Н.Н.", "room": "ауд. 2.419", "week": "чёт"}
+ ],
+ "Четверг": [
+  {"time": "1 • 09:15–10:50", "subject": "Экспедиция обучения служением (Факультатив) 8ч Пр.", "teacher": "Шлапакова С.Н.", "room": "ауд. 1.026", "week": "чёт"},
+  {"time": "2 • 11:10–12:45", "subject": "Ознакомительный практикум Пр.", "teacher": "Басова Е.Н.", "room": "ауд. 1.213", "week": "чёт"},
+  {"time": "3 • 13:30–15:05", "subject": "Информатика Лаб.", "teacher": "Мартын К.А.", "room": "ауд. 1.310", "week": "*"},
+  {"time": "4 • 15:15–16:50", "subject": "Физическая культура и спорт Пр.", "teacher": "Лешева Н.С.", "room": "ауд. Открытый стадион", "week": "*"}
+ ],
+ "Пятница": [
+  {"time": "1 • 09:15–10:50", "subject": "Начертательная геометрия и инженерная графика Лек.", "teacher": "Вохмянин Н.А.", "room": "ауд. 2.409", "week": "чёт"},
+  {"time": "1 • 09:15–10:50", "subject": "Основы российской государственности Лек.", "teacher": "Нуруллина Р.В.", "room": "ауд. 2.409", "week": "нечёт"},
+  {"time": "2 • 11:10–12:45", "subject": "Основы российской государственности Пр.", "teacher": "Нуруллина Р.В.", "room": "ауд. 2.415", "week": "*"},
+  {"time": "3 • 13:30–15:05", "subject": "Межкультурное взаимодействие в современном мире Пр.", "teacher": "Михайлова А.И.", "room": "ауд. 1.342", "week": "чёт"},
+  {"time": "3 • 13:30–15:05", "subject": "Физика Лаб.", "teacher": "Совтус Н.В., Гаврилов С.П.", "room": "ауд. 1.025", "week": "нечёт"}
+ ],
+ "Суббота": [],
+ "Воскресенье": []
+};
+
+let schedule = {...fallbackSchedule};
+const DAYS=["Понедельник","Вторник","Среда","Четверг","Пятница"];
+const SHORT=["Пн","Вт","Ср","Чт","Пт"];
+const MONTHS=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+const MONTHS_N=["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+let selectedDate=new Date(), calDate=new Date(new Date().getFullYear(),new Date().getMonth(),1), weekMode="current", viewMode="week";
+
+function loadSchedule(showToast=false){
+ fetch('schedule.json', {cache:'no-store'})
+ .then(r=>{
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
+ })
+ .then(data=>{
+  if(data && typeof data === 'object'){
+   schedule = data;
+   if(showToast) showToastMsg('Расписание обновлено');
+   render();
+  } else {
+   throw new Error('Неверный формат');
+  }
+ })
+ .catch(err=>{
+  console.warn('Не удалось загрузить schedule.json, используем встроенное расписание', err);
+  if(showToast) showToastMsg('Не удалось обновить: '+err.message);
+ });
+}
+function showToastMsg(msg){
+ const t=document.getElementById('toast');
+ t.textContent=msg;
+ t.classList.add('show');
+ setTimeout(()=>t.classList.remove('show'),2500);
+}
+function semesterStart(){return new Date(2026,8,1)}
+function weekNumber(d){
+ let x=new Date(d.getFullYear(),d.getMonth(),d.getDate()),s=semesterStart();
+ x.setHours(0,0,0,0);s.setHours(0,0,0,0);
+ return Math.floor(Math.floor((x-s)/86400000)/7)+1;
+}
+function parity(d){return weekNumber(d)%2===0?"чёт":"нечёт"}
+function dayIdx(d){return (d.getDay()+6)%7}
+function fmt(d){return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function parseTime(x){
+ const m=x.time.match(/(\d+)\s*•\s*(\d{1,2}):(\d{2})[–-](\d{1,2}):(\d{2})/);
+ return m?{num:+m[1],sh:+m[2],sm:+m[3],eh:+m[4],em:+m[5]}:null;
+}
+function dateTime(d,h,m){let x=new Date(d);x.setHours(h,m,0,0);return x}
+function actualLessons(d){
+ const day=DAYS[dayIdx(d)];if(!day)return[];
+ return (schedule[day]||[]).filter(x=>x.week==="*"||x.week===parity(d)).map(x=>({...x,t:parseTime(x)}));
+}
+function matches(x,d){
+ if(weekMode==="all")return true;
+ if(weekMode==="current")return x.week==="*"||x.week===parity(d);
+ if(weekMode==="odd")return x.week==="*"||x.week==="нечёт";
+ return x.week==="*"||x.week==="чёт";
+}
+function lessonsFor(day,d){
+ const q=document.getElementById("search").value.toLowerCase().trim();
+ return (schedule[day]||[]).filter(x=>matches(x,d)&&(!q||`${x.subject} ${x.teacher} ${x.room}`.toLowerCase().includes(q)));
+}
+function sameDay(a,b){return a.toDateString()===b.toDateString()}
+function statusFor(x,d,now){
+ if(!sameDay(d,now)||!x.t)return"";
+ const st=dateTime(d,x.t.sh,x.t.sm),en=dateTime(d,x.t.eh,x.t.em);
+ if(now>=st&&now<en)return"now";
+ if(now>=en)return"done";
+ return"next";
+}
+function render(){
+ const now=new Date(),idx=dayIdx(selectedDate);
+ document.getElementById("date").textContent=fmt(selectedDate);
+ document.getElementById("day").textContent=DAYS[idx]||"Выходной";
+ document.getElementById("weekBadge").textContent=`${weekNumber(selectedDate)}-я неделя · ${parity(selectedDate)}`;
+ const today=actualLessons(now), upcoming=today.filter(x=>x.t&&dateTime(now,x.t.sh,x.t.sm)>now), current=today.find(x=>x.t&&now>=dateTime(now,x.t.sh,x.t.sm)&&now<dateTime(now,x.t.eh,x.t.em));
+ document.getElementById("todayCount").textContent=today.length;
+ document.getElementById("endDay").textContent=today.length?today[today.length-1].time.split("–")[1]:"—";
+ const free=document.getElementById("freeUntil");
+ if(current)free.textContent=current.time.split("–")[1]; else if(upcoming.length)free.textContent=upcoming[0].time.split("–")[0]; else free.textContent="весь день";
+ updateFocus(current,upcoming[0],now);
+ renderWeek();
+}
+function updateFocus(cur,nxt,now){
+ const cs=document.getElementById("currentSubject"),ct=document.getElementById("currentTime"),cm=document.getElementById("currentMeta"),cd=document.getElementById("currentCountdown"),p=document.getElementById("progress");
+ if(cur&&cur.t){
+  const st=dateTime(now,cur.t.sh,cur.t.sm),en=dateTime(now,cur.t.eh,cur.t.em),pct=Math.max(0,Math.min(100,(now-st)/(en-st)*100));
+  cs.textContent=cur.subject;ct.textContent=cur.time;cm.textContent=`${cur.teacher}${cur.room?" · "+cur.room:""}`;
+  p.style.width=pct+"%";cd.textContent=`Осталось ${human(en-now)} · ${Math.round(pct)}% пары`;document.getElementById("currentLabel").textContent="Сейчас · идёт";
+ }else{
+  cs.textContent="Сейчас пары нет";ct.textContent="—";cm.textContent="Свободное время";p.style.width="0";cd.textContent="";document.getElementById("currentLabel").textContent="Сейчас";
+ }
+ const ns=document.getElementById("nextSubject"),nt=document.getElementById("nextTime"),nm=document.getElementById("nextMeta"),nc=document.getElementById("nextCountdown");
+ if(nxt&&nxt.t){const st=dateTime(now,nxt.t.sh,nxt.t.sm);ns.textContent=nxt.subject;nt.textContent=nxt.time;nm.textContent=`${nxt.teacher}${nxt.room?" · "+nxt.room:""}`;nc.textContent=`Начнётся через ${human(st-now)}`}
+ else {ns.textContent="Следующих занятий нет";nt.textContent="—";nm.textContent="";nc.textContent="На сегодня всё 🎉"}
+}
+function human(ms){if(ms<0)ms=0;let s=Math.floor(ms/1000),h=Math.floor(s/3600);s%=3600;let m=Math.floor(s/60),sec=s%60;if(h)return`${h} ч ${m} мин`;if(m)return`${m} мин ${sec} сек`;return`${sec} сек`}
+function renderWeek(){
+ const root=document.getElementById("week"),now=new Date(),base=new Date(selectedDate);
+ let days=viewMode==="day"?[DAYS[dayIdx(base)]]:DAYS;
+ root.innerHTML=days.map(day=>{
+  const di=DAYS.indexOf(day),d=new Date(base);d.setDate(d.getDate()-dayIdx(base)+di);
+  const arr=lessonsFor(day,d),ist=sameDay(d,now);
+  return `<article class="card day ${ist?"today":""}">
+   <div class="dayhead"><div><div class="dayname">${SHORT[di]} · ${d.getDate()}</div><div class="daynum">${ist?'<span class="todaytag">Сегодня · </span>':""}${parity(d)} · ${weekNumber(d)} нед.</div></div><div class="daynum">${d.getMonth()+1}.${d.getFullYear()}</div></div>
+   ${arr.length?arr.map(x=>{
+    const st=statusFor(x,d,now),label=st==="now"?"СЕЙЧАС":st==="next"?"СЛЕДУЮЩАЯ":st==="done"?"ЗАВЕРШЕНО":"";
+    return `<div class="lesson ${st}" onclick='openDetail(${JSON.stringify(x)})'><div class="ltop"><span class="time">${esc(x.time)}</span><span class="status ${st}">${label}</span></div><div class="subject">${esc(x.subject)}</div><div class="meta">${esc(x.teacher)}${x.room?" · "+esc(x.room):""}${x.week!=="*"?" · "+esc(x.week)+" нед.":""}</div></div>`
+   }).join(""):`<div class="empty">Нет занятий</div>`}
+  </article>`
+ }).join("");
+}
+function tick(){
+ const now=new Date();document.getElementById("clock").textContent=now.toLocaleTimeString("ru-RU");
+ render();
+}
+function goToday(){selectedDate=new Date();calDate=new Date(selectedDate.getFullYear(),selectedDate.getMonth(),1);render();renderCalendar()}
+function shiftWeek(n){selectedDate=new Date(selectedDate);selectedDate.setDate(selectedDate.getDate()+n*7);render()}
+function openCalendar(){document.getElementById("calendarOverlay").classList.add("show");renderCalendar()}
+function closeCalendar(){document.getElementById("calendarOverlay").classList.remove("show")}
+function changeMonth(n){calDate.setMonth(calDate.getMonth()+n);renderCalendar()}
+function renderCalendar(){
+ const y=calDate.getFullYear(),m=calDate.getMonth(),first=new Date(y,m,1),start=dayIdx(first),days=new Date(y,m+1,0).getDate();
+ document.getElementById("monthTitle").textContent=`${MONTHS_N[m]} ${y}`;
+ let s=SHORT.concat(["Сб","Вс"]).map(x=>`<div class="calhead">${x}</div>`).join("");
+ for(let i=0;i<start;i++)s+=`<div></div>`;
+ for(let n=1;n<=days;n++){let d=new Date(y,m,n),has=actualLessons(d).length,sel=sameDay(d,selectedDate),tod=sameDay(d,new Date());s+=`<button class="cal ${sel?"sel":""} ${tod?"today":""} ${has?"has":""}" onclick="selectDate(${n})">${n}<br><small>${parity(d)}${has?" · "+actualLessons(d).length+" пар.":""}</small></button>`}
+ document.getElementById("calendar").innerHTML=s;document.getElementById("calHint").textContent=`Выбрано: ${fmt(selectedDate)} · ${weekNumber(selectedDate)}-я ${parity(selectedDate)} неделя`;
+}
+function selectDate(n){
+ const d=new Date(calDate.getFullYear(),calDate.getMonth(),n);
+ selectedDate=d;
+ closeCalendar();
+ showDayDetail(d);
+ render();
+}
+function showDayDetail(d){
+ const now=new Date();
+ const dayName=DAYS[dayIdx(d)]||"Выходной";
+ document.getElementById("dayDetailTitle").textContent=`${fmt(d)} · ${dayName}`;
+ const lessons=actualLessons(d);
+ const content=document.getElementById("dayDetailContent");
+ if(!lessons.length){
+  content.innerHTML=`<div class="empty">В этот день занятий нет 🎉</div>`;
+ } else {
+  content.innerHTML=lessons.map(x=>{
+    const st=statusFor(x,d,now);
+    const cls=st==="now"?"current":st==="next"?"next":"";
+    const label=st==="now"?"ИДЁТ СЕЙЧАС":st==="next"?"СЛЕДУЮЩАЯ":st==="done"?"ЗАВЕРШЕНО":"";
+    return `<div class="day-modal-item ${cls}">
+      <div class="ltop"><span class="time">${esc(x.time)}</span><span class="status ${st}">${label}</span></div>
+      <div class="subject">${esc(x.subject)}</div>
+      <div class="meta">${esc(x.teacher)}${x.room?" · "+esc(x.room):""}${x.week!=="*"?" · "+esc(x.week)+" нед.":""}</div>
+    </div>`;
+  }).join("");
+ }
+ document.getElementById("dayDetailOverlay").classList.add("show");
+}
+function closeDayDetail(){document.getElementById("dayDetailOverlay").classList.remove("show")}
+function openDetail(x){
+ document.getElementById("detail").innerHTML=`<div class="detail-title">${esc(x.subject)}</div>
+ <div class="detail-row"><b>Время</b>${esc(x.time)}</div><div class="detail-row"><b>Преподаватель</b>${esc(x.teacher)}</div>
+ <div class="detail-row"><b>Аудитория</b>${esc(x.room||"—")}</div><div class="detail-row"><b>Неделя</b>${x.week==="*"?"Каждую неделю":esc(x.week)}</div>`;
+ document.getElementById("detailOverlay").classList.add("show")
+}
+function closeDetail(){document.getElementById("detailOverlay").classList.remove("show")}
+document.querySelectorAll("#weekSeg button").forEach(b=>b.onclick=()=>{weekMode=b.dataset.mode;document.querySelectorAll("#weekSeg button").forEach(x=>x.classList.toggle("active",x===b));render()});
+document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>{viewMode=b.dataset.view;document.querySelectorAll("#viewSeg button").forEach(x=>x.classList.toggle("active",x===b));render()});
+document.getElementById("search").addEventListener("input",render);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeCalendar();closeDetail();closeDayDetail()}});
+renderCalendar();
+loadSchedule(false);
+render();
+setInterval(tick,1000);
+</script>
+</body>
+</html>
