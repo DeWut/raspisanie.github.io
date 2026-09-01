@@ -2,40 +2,11 @@
 <html lang="ru">
 <head>
     <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="apple-touch-icon" href="favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Интерактивное расписание СПбГЛТУ — ЛПб-ИСИТ-26-1</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* Фиксированные банки по бокам */
-.monster-side {
-    position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 65vh;             /* Размер банки (65% от высоты экрана) */
-    max-height: 550px;         /* Ограничение максимальной высоты */
-    z-index: 1;                /* Отображаем над фоном */
-    pointer-events: none;      /* Чтобы картинки не мешали кликать по сайту */
-    transition: opacity 0.3s;
-}
-
-/* Привязываем банки строго к краям вашего центрального блока (900px) */
-.monster-left {
-    right: calc(50% + 470px);  /* Центр + половина контейнера (450px) + отступ (20px) */
-}
-
-.monster-right {
-    left: calc(50% + 470px);
-    transform: translateY(-50%) scaleX(-1); /* Отражаем правую банку зеркально */
-}
-
-/* Автоматически скрываем банки на ноутбуках и телефонах, если экран слишком узкий */
-@media (max-width: 1250px) {
-    .monster-side {
-        display: none;
-    }
-}
         :root {
             --bg-color: #f4f6f9;
             --card-bg: #ffffff;
@@ -57,11 +28,69 @@
             color: var(--text-color);
             margin: 0;
             padding: 20px;
+            overflow-x: hidden;
         }
 
+        /* --- Банки Monster Energy по бокам --- */
+        .monster-wrapper {
+            position: fixed;
+            top: 50%;
+            z-index: 10;
+            pointer-events: none; /* Чтобы не мешали кликать по кнопкам сайта */
+        }
+
+        .monster-wrapper img {
+            height: 60vh;
+            max-height: 520px;
+            width: auto;
+            /* Неоновое зеленое свечение Monster */
+            filter: drop-shadow(0 0 25px rgba(57, 255, 20, 0.45)) drop-shadow(0 10px 15px rgba(0,0,0,0.2));
+        }
+
+        /* Левая банка */
+        .monster-left {
+            right: calc(50% + 470px);
+            animation: float-left 4s ease-in-out infinite;
+        }
+
+        /* Правая банка (зеркальная) */
+        .monster-right {
+            left: calc(50% + 470px);
+            animation: float-right 4s ease-in-out infinite;
+        }
+
+        /* Анимация плавного парения в воздухе */
+        @keyframes float-left {
+            0%, 100% {
+                transform: translateY(-50%) rotate(-8deg);
+            }
+            50% {
+                transform: translateY(-56%) rotate(-5deg);
+            }
+        }
+
+        @keyframes float-right {
+            0%, 100% {
+                transform: translateY(-50%) rotate(8deg) scaleX(-1);
+            }
+            50% {
+                transform: translateY(-56%) rotate(5deg) scaleX(-1);
+            }
+        }
+
+        /* Скрытие банок на узких экранах, чтобы не перекрывать расписание */
+        @media (max-width: 1280px) {
+            .monster-wrapper {
+                display: none;
+            }
+        }
+
+        /* --- Основные стили страницы --- */
         .container {
             max-width: 900px;
             margin: 0 auto;
+            position: relative;
+            z-index: 2;
         }
 
         .header-card {
@@ -369,8 +398,15 @@
     </style>
 </head>
 <body>
-    <img src="monster.png" class="monster-side monster-left" alt="Monster Energy Left">
-    <img src="monster.png" class="monster-side monster-right" alt="Monster Energy Right">
+
+<!-- Банки Monster Energy по бокам -->
+<div class="monster-wrapper monster-left">
+    <img src="monster.png" alt="Monster Energy Left">
+</div>
+<div class="monster-wrapper monster-right">
+    <img src="monster.png" alt="Monster Energy Right">
+</div>
+
 <div class="container">
     <div class="header-card">
         <div class="group-info">
@@ -530,7 +566,6 @@
         let renderedCount = 0;
 
         for (let dayIdx = 1; dayIdx <= 5; dayIdx++) {
-            // Пропускаем прошлые дни недели при выбранном фильтре "Текущая неделя"
             if (currentFilter === 'current' && dayIdx < currentDayNum) {
                 continue;
             }
@@ -546,11 +581,10 @@
                 return true;
             });
 
-            // Если рассматриваем сегодняшний день в "Текущей неделе", проверяем завершились ли все пары
             if (currentFilter === 'current' && dayIdx === currentDayNum && filtered.length > 0) {
                 const lastEnd = Math.max(...filtered.map(l => timeToMin(l.end)));
                 if (currentMin > lastEnd) {
-                    continue; // Пропускаем сегодняшний день, т.к. пары уже прошли
+                    continue;
                 }
             }
 
@@ -594,7 +628,6 @@
 
         document.getElementById('current-week-info').innerText = `${isOdd ? '1 (нечётная)' : '2 (чётная)'} неделя`;
 
-        // Обновляем расписание в реальном времени, если активен фильтр "Текущая неделя"
         if (currentFilter === 'current') {
             renderSchedule();
         }
