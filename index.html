@@ -403,15 +403,14 @@
 </div>
 
 <script>
-    // Точные данные расписания группы ЛПб-ИСИТ-26-1 из оригинального HTML
     const scheduleData = {
-        1: [ // Понедельник
+        1: [
             { pair: 1, start: "09:15", end: "10:50", name: "Информатика Лек.", teacher: "Васильев Н.П.", room: "ауд. 1.231", week: "нечёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "История России Лек.", teacher: "Мельников Н.Н.", room: "ауд. 2а.455", week: "*" },
             { pair: 3, start: "13:30", end: "15:05", name: "История России Пр.", teacher: "Мельников Н.Н.", room: "ауд. 2.415", week: "*" },
             { pair: 4, start: "15:15", end: "16:50", name: "Начертательная геометрия и инженерная графика Пр.", teacher: "Вохмянин Н.А., Куликова Д.Р.", room: "ауд. 2.210", week: "*" }
         ],
-        2: [ // Вторник
+        2: [
             { pair: 1, start: "09:15", end: "10:50", name: "Управление личным временем Лек.", teacher: "Подолянец Л.А.", room: "ауд. 1.242", week: "чёт" },
             { pair: 1, start: "09:15", end: "10:50", name: "Управление личным временем Пр.", teacher: "Подолянец Л.А.", room: "ауд. 1.242", week: "нечёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "Физическая культура и спорт Лек.", teacher: "Тарасеня Т.Ю.", room: "ауд. 2а.451", week: "*" },
@@ -421,21 +420,21 @@
             { pair: 4, start: "15:15", end: "16:50", name: "Начертательная геометрия и инженерная графика Пр.", teacher: "Вохмянин Н.А., Куликова Д.Р.", room: "ауд. 2.210", week: "нечёт" },
             { pair: 5, start: "17:00", end: "18:35", name: "Физика Лек.", teacher: "Былев А.Б.", room: "ауд. 1.010", week: "чёт" }
         ],
-        3: [ // Среда
+        3: [
             { pair: 1, start: "09:15", end: "10:50", name: "Межкультурное взаимодействие в современном мире Лек.", teacher: "Михайлова А.И.", room: "ауд. 1.318", week: "чёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "Математика Лек.", teacher: "Одинцова Н.А.", room: "ауд. 1.318", week: "*" },
             { pair: 3, start: "13:30", end: "15:05", name: "Математика Пр.", teacher: "Одинцова Н.А.", room: "ауд. 1.337", week: "*" },
             { pair: 4, start: "15:15", end: "16:50", name: "История России Пр.", teacher: "Мельников Н.Н.", room: "ауд. 2.419", week: "*" },
             { pair: 5, start: "17:00", end: "18:35", name: "История России Пр.", teacher: "Мельников Н.Н.", room: "ауд. 2.419", week: "чёт" }
         ],
-        4: [ // Четверг
+        4: [
             { pair: 1, start: "09:15", end: "10:50", name: "Экспедиция обучения служением (Факультатив) 8ч Пр.", teacher: "Шлапакова С.Н.", room: "ауд. 1.026", week: "чёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "Ознакомительный практикум Пр.", teacher: "Басова Е.Н.", room: "ауд. 1.213", week: "чёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "Физика Пр.", teacher: "Гущина Е.В.", room: "ауд. 1.026", week: "нечёт" },
             { pair: 3, start: "13:30", end: "15:05", name: "Информатика Лаб.", teacher: "Мартын К.А.", room: "ауд. 1.310", week: "*" },
             { pair: 4, start: "15:15", end: "16:50", name: "Физическая культура и спорт Пр.", teacher: "Лешева Н.С.", room: "ауд. Открытый стадион", week: "*" }
         ],
-        5: [ // Пятница
+        5: [
             { pair: 1, start: "09:15", end: "10:50", name: "Начертательная геометрия и инженерная графика Лек.", teacher: "Вохмянин Н.А.", room: "ауд. 2.409", week: "чёт" },
             { pair: 1, start: "09:15", end: "10:50", name: "Основы российской государственности Лек.", teacher: "Нуруллина Р.В.", room: "ауд. 2.409", week: "нечёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "Основы российской государственности Пр.", teacher: "Нуруллина Р.В.", room: "ауд. 2.415", week: "*" },
@@ -446,12 +445,28 @@
 
     const daysNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"];
     let currentFilter = 'all';
-    let calMonth = 8; // Сентябрь (0-indexed = 8)
+    let calMonth = 8;
     let calYear = 2026;
 
-    // Расчет нечетности недели от начала осеннего семестра 2026 (1 сентября 2026 = 1 неделя, нечетная)
+    // Функция форматирования строки аудитории
+    function parseRoom(roomStr) {
+        if (!roomStr) return '';
+        const cleaned = roomStr.replace(/^ауд\.\s*/i, '').trim();
+        
+        // Разбор шаблона "1.242" или "2а.455"
+        const match = cleaned.match(/^([^\.]+)\.(\d)(\d+)$/);
+        if (match) {
+            const building = match[1];
+            const floor = match[2];
+            const roomNum = parseInt(match[3], 10);
+            return `${building} корпус, ${floor} этаж, кабинет ${roomNum}`;
+        }
+        
+        return cleaned;
+    }
+
     function isOddWeek(date) {
-        const startSemester = new Date(2026, 7, 31); // Понедельник 1-й учебной недели (31 августа 2026)
+        const startSemester = new Date(2026, 7, 31);
         const diffMs = date - startSemester;
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         const weekNum = Math.floor(diffDays / 7) + 1;
@@ -505,7 +520,7 @@
     function updateLiveStatus() {
         const now = new Date();
         const isOdd = isOddWeek(now);
-        const dayOfWeek = now.getDay(); // 0-Вс, 1-Пн...
+        const dayOfWeek = now.getDay();
         const currentMin = now.getHours() * 60 + now.getMinutes();
 
         document.getElementById('current-week-info').innerText = `${isOdd ? '1 (нечётная)' : '2 (чётная)'} неделя`;
@@ -549,7 +564,7 @@
             statusNowTitle.innerText = "Пары ещё не начались";
             statusNowSub.innerText = `Первая пара в ${todayLessons[0].start}`;
             statusNextTitle.innerText = todayLessons[0].name;
-            statusNextSub.innerText = `${todayLessons[0].start} - ${todayLessons[0].end} (${todayLessons[0].room})`;
+            statusNextSub.innerText = `${todayLessons[0].start} - ${todayLessons[0].end} (${parseRoom(todayLessons[0].room)})`;
             return;
         }
 
@@ -577,11 +592,11 @@
 
         if (currentLesson) {
             statusNowTitle.innerText = currentLesson.name;
-            statusNowSub.innerText = `${currentLesson.start} - ${currentLesson.end} | ${currentLesson.room}`;
+            statusNowSub.innerText = `${currentLesson.start} - ${currentLesson.end} | ${parseRoom(currentLesson.room)}`;
             
             if (nextLesson) {
                 statusNextTitle.innerText = nextLesson.name;
-                statusNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${nextLesson.room}`;
+                statusNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${parseRoom(nextLesson.room)}`;
             } else {
                 statusNextCard.style.display = "none";
             }
@@ -589,7 +604,7 @@
             statusNowTitle.innerText = "Перерыв";
             statusNowSub.innerText = `Следующая пара в ${nextLesson.start}`;
             statusNextTitle.innerText = nextLesson.name;
-            statusNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${nextLesson.room}`;
+            statusNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${parseRoom(nextLesson.room)}`;
         }
     }
 
@@ -604,7 +619,8 @@
         document.getElementById('m-name').innerText = lesson.name;
         document.getElementById('m-time').innerText = `${lesson.pair} пара (${lesson.start} - ${lesson.end})`;
         document.getElementById('m-teacher').innerText = lesson.teacher;
-        document.getElementById('m-room').innerText = lesson.room;
+        // Применение преобразования аудитории
+        document.getElementById('m-room').innerText = parseRoom(lesson.room);
         document.getElementById('m-week').innerText = lesson.week === '*' ? 'Каждую неделю' : lesson.week;
         document.getElementById('lessonModal').classList.add('active');
     }
@@ -613,7 +629,6 @@
         document.getElementById(id).classList.remove('active');
     }
 
-    // Календарь
     function openCalendarModal() {
         renderCalendar();
         document.getElementById('calendarModal').classList.add('active');
@@ -621,7 +636,7 @@
 
     function changeMonth(delta) {
         calMonth += delta;
-        if (calMonth < 8) calMonth = 8; // Ограничение осенним семестром
+        if (calMonth < 8) calMonth = 8;
         if (calMonth > 11) calMonth = 11;
         renderCalendar();
     }
@@ -683,7 +698,7 @@
             } else {
                 html += `<ul style="padding-left:20px; margin-top:5px;">`;
                 lessons.forEach(l => {
-                    html += `<li><strong>${l.start}-${l.end}</strong>: ${l.name} (${l.room})</li>`;
+                    html += `<li><strong>${l.start}-${l.end}</strong>: ${l.name} (${parseRoom(l.room)})</li>`;
                 });
                 html += `</ul>`;
             }
@@ -691,10 +706,9 @@
         details.innerHTML = html;
     }
 
-    // Инициализация
     renderSchedule();
     updateLiveStatus();
-    setInterval(updateLiveStatus, 30000); // Автообновление каждую минуту
+    setInterval(updateLiveStatus, 30000);
 </script>
 </body>
 </html>
