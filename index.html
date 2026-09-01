@@ -493,13 +493,13 @@
 
         const now = new Date();
         const activeOdd = isOddWeek(now);
-        // JS getDay(): 0-Вс, 1-Пн, 2-Вт, 3-Ср, 4-Чт, 5-Пт, 6-Сб. Приводим Вс к 7.
         const currentDayNum = now.getDay() === 0 ? 7 : now.getDay(); 
+        const currentMin = now.getHours() * 60 + now.getMinutes();
 
         let renderedCount = 0;
 
         for (let dayIdx = 1; dayIdx <= 5; dayIdx++) {
-            // Если выбран режим "Текущая неделя", пропускаем прошедшие дни недели
+            // Пропускаем прошлые дни недели при выбранном фильтре "Текущая неделя"
             if (currentFilter === 'current' && dayIdx < currentDayNum) {
                 continue;
             }
@@ -514,6 +514,14 @@
                 }
                 return true;
             });
+
+            // Если рассматриваем сегодняшний день в "Текущей неделе", проверяем завершились ли все пары
+            if (currentFilter === 'current' && dayIdx === currentDayNum && filtered.length > 0) {
+                const lastEnd = Math.max(...filtered.map(l => timeToMin(l.end)));
+                if (currentMin > lastEnd) {
+                    continue; // Пропускаем сегодняшний день, т.к. пары уже прошли
+                }
+            }
 
             if (filtered.length === 0) continue;
 
@@ -554,6 +562,11 @@
         const currentMin = now.getHours() * 60 + now.getMinutes();
 
         document.getElementById('current-week-info').innerText = `${isOdd ? '1 (нечётная)' : '2 (чётная)'} неделя`;
+
+        // Обновляем расписание в реальном времени, если активен фильтр "Текущая неделя"
+        if (currentFilter === 'current') {
+            renderSchedule();
+        }
 
         const statusNowTitle = document.getElementById('status-now-title');
         const statusNowSub = document.getElementById('status-now-sub');
