@@ -1,1 +1,37 @@
+name: Update schedule
 
+on:
+  schedule:
+    - cron: '0 * * * *'  # каждый час
+  workflow_dispatch:      # возможность запуска вручную
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run parser
+        run: python update_schedule.py
+
+      - name: Commit and push if changed
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add schedule.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Auto-update schedule.json"
+            git push
+          fi
