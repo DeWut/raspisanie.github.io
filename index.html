@@ -3,7 +3,7 @@
 <head>
     <link rel="icon" type="image/png" href="favicon.png">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>Интерактивное расписание СПбГЛТУ — ЛПб-ИСИТ-26-1</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -22,16 +22,37 @@
             --badge-all-text: #1b5e20;
         }
 
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 20px 20px 100px 20px; /* Дополнительный отступ снизу */
+            padding: 16px 12px 80px 12px;
             overflow-x: hidden;
+            position: relative;
         }
 
-        /* --- Выглядывающие банки Monster Energy --- */
+        /* --- Диагональный повторяющийся фоновый текст (Самый низкий приоритет) --- */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1; /* Самый задний план */
+            pointer-events: none; /* Не перехватывает клики */
+            opacity: 0.045; /* Легкая ненавязчивая прозрачность */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='130'%3E%3Ctext x='50%25' y='50%25' fill='%23000000' font-family='Arial, sans-serif' font-size='15' font-weight='bold' text-anchor='middle' transform='rotate(-25 130 65)'%3EP.S: Я люблю монстер%3C/text%3E%3C/svg%3E");
+            background-repeat: repeat;
+        }
+
+        /* --- Выглядывающие банки Monster Energy (для больших экранов) --- */
         .monster-peek {
             position: fixed;
             bottom: -30px;
@@ -45,19 +66,12 @@
             height: 55vh;
             max-height: 480px;
             width: auto;
-            /* Неоновое зелёное свечение */
             filter: drop-shadow(0 0 25px rgba(57, 255, 20, 0.5)) drop-shadow(0 15px 20px rgba(0,0,0,0.3));
         }
 
-        .monster-peek-left {
-            left: -20px;
-        }
+        .monster-peek-left { left: -20px; }
+        .monster-peek-right { right: -20px; }
 
-        .monster-peek-right {
-            right: -20px;
-        }
-
-        /* Автоматически прячем банки на маленьких экранах, чтобы не заслоняли текст */
         @media (max-width: 1100px) {
             .monster-peek {
                 display: none;
@@ -75,9 +89,9 @@
         .header-card {
             background: var(--card-bg);
             border-radius: 12px;
-            padding: 20px;
+            padding: 18px 20px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             display: flex;
             flex-wrap: wrap;
             justify-content: space-between;
@@ -86,45 +100,54 @@
         }
 
         .group-info h2 {
-            margin: 0 0 5px 0;
-            font-size: 1.4rem;
+            margin: 0 0 6px 0;
+            font-size: 1.3rem;
+            line-height: 1.3;
         }
 
         .group-info p {
             margin: 0;
             color: #666;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
         }
 
         .calendar-btn {
             background-color: var(--accent-color);
             color: #fff;
             border: none;
-            padding: 10px 18px;
+            padding: 12px 20px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
+            font-size: 0.95rem;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
-            transition: background 0.2s;
+            transition: background 0.2s, transform 0.1s;
+            width: auto;
+        }
+
+        .calendar-btn:active {
+            transform: scale(0.98);
         }
 
         .calendar-btn:hover {
             background-color: var(--accent-hover);
         }
 
+        /* --- Статусы --- */
         .status-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
         }
 
         .status-card {
             background: var(--card-bg);
             border-radius: 12px;
-            padding: 16px 20px;
+            padding: 14px 16px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             border-left: 5px solid var(--accent-color);
         }
@@ -134,39 +157,50 @@
         }
 
         .status-card h4 {
-            margin: 0 0 8px 0;
-            font-size: 0.85rem;
+            margin: 0 0 6px 0;
+            font-size: 0.8rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #777;
         }
 
         .status-card .status-content {
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             font-weight: 600;
+            line-height: 1.3;
         }
 
         .status-card .status-sub {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #555;
             margin-top: 4px;
-            font-weight: normal;
         }
 
+        /* --- Панель фильтров недели (Горизонтальный скролл для телефонов) --- */
         .week-filter-bar {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .week-filter-bar::-webkit-scrollbar {
+            display: none;
         }
 
         .filter-btn {
             background: #eef2f5;
             border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 10px 16px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 500;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            flex-shrink: 0;
             transition: all 0.2s;
         }
 
@@ -175,20 +209,21 @@
             color: white;
         }
 
+        /* --- Карточки дней и таблица расписания --- */
         .day-block {
             background: var(--card-bg);
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             overflow: hidden;
         }
 
         .day-header {
             background: #2d323e;
             color: #fff;
-            padding: 12px 20px;
+            padding: 12px 16px;
             font-weight: 600;
-            font-size: 1.05rem;
+            font-size: 1rem;
         }
 
         .lesson-table {
@@ -211,7 +246,7 @@
         }
 
         .lesson-cell {
-            padding: 12px 15px;
+            padding: 12px 14px;
             vertical-align: middle;
             font-size: 0.95rem;
         }
@@ -229,15 +264,16 @@
 
         .cell-teacher {
             color: #666;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
         }
 
         .badge {
             display: inline-block;
-            padding: 3px 8px;
+            padding: 4px 8px;
             border-radius: 4px;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         .badge-odd { background: var(--badge-odd); color: var(--badge-odd-text); }
@@ -246,26 +282,90 @@
 
         .empty-schedule-msg {
             background: var(--card-bg);
-            padding: 30px;
+            padding: 24px 16px;
             border-radius: 12px;
             text-align: center;
             color: #666;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            font-size: 1.05rem;
+            font-size: 1rem;
         }
 
-        /* Modal Styles */
+        /* --- Адаптация расписания для мобильных устройств (экраны до 640px) --- */
+        @media (max-width: 640px) {
+            body {
+                padding: 10px 8px 60px 8px;
+            }
+
+            .header-card {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 14px;
+            }
+
+            .calendar-btn {
+                width: 100%;
+            }
+
+            .lesson-table, 
+            .lesson-table tbody, 
+            .lesson-row, 
+            .lesson-cell {
+                display: block;
+                width: 100%;
+            }
+
+            .lesson-row {
+                position: relative;
+                padding: 12px 14px;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .lesson-cell {
+                padding: 2px 0;
+            }
+
+            .cell-time {
+                width: auto;
+                font-size: 0.85rem;
+                color: var(--accent-color);
+                margin-bottom: 4px;
+            }
+
+            .cell-subject {
+                font-size: 0.98rem;
+                font-weight: 600;
+                padding-right: 65px; /* Запас места для плавающего бейджа */
+                margin-bottom: 4px;
+            }
+
+            .cell-teacher {
+                font-size: 0.85rem;
+                color: #666;
+            }
+
+            /* Размещение бейджа недели в верхнем правом углу карточки */
+            .lesson-row .lesson-cell:nth-child(4) {
+                position: absolute;
+                top: 12px;
+                right: 14px;
+                width: auto;
+                padding: 0;
+            }
+        }
+
+        /* --- Модальные окна --- */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.55);
             display: flex;
             align-items: center;
             justify-content: center;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.2s;
+            transition: opacity 0.2s ease;
             z-index: 1000;
+            padding: 12px;
         }
 
         .modal-overlay.active {
@@ -275,13 +375,13 @@
 
         .modal {
             background: #fff;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            padding: 24px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            transform: translateY(20px);
-            transition: transform 0.2s;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            transform: translateY(15px);
+            transition: transform 0.2s ease;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -294,53 +394,56 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 14px;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 10px;
         }
 
         .modal-header h3 {
             margin: 0;
-            font-size: 1.2rem;
+            font-size: 1.15rem;
         }
 
         .close-btn {
             background: none;
             border: none;
-            font-size: 1.2rem;
+            font-size: 1.4rem;
             cursor: pointer;
             color: #888;
+            padding: 0 8px;
+            line-height: 1;
         }
 
         .modal-body p {
-            margin: 8px 0;
+            margin: 10px 0;
             font-size: 0.95rem;
-            line-height: 1.4;
+            line-height: 1.45;
         }
 
-        /* Calendar Grid */
+        /* --- Сетка календаря --- */
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
-            margin-top: 15px;
+            gap: 4px;
+            margin-top: 12px;
             text-align: center;
         }
 
         .calendar-day-head {
             font-weight: bold;
-            padding: 5px;
-            font-size: 0.85rem;
+            padding: 4px 2px;
+            font-size: 0.8rem;
             color: #666;
         }
 
         .calendar-day {
-            padding: 8px 4px;
+            padding: 8px 2px;
             border-radius: 6px;
             background: #f8f9fa;
             font-size: 0.85rem;
             cursor: pointer;
             border: 1px solid transparent;
+            user-select: none;
         }
 
         .calendar-day:hover {
@@ -358,17 +461,11 @@
             border: 2px solid var(--accent-color);
             font-weight: bold;
         }
-
-        @media (max-width: 600px) {
-            .cell-teacher { display: block; margin-top: 4px; }
-            .cell-time { width: 90px; font-size: 0.85rem; }
-            .lesson-cell { padding: 10px; }
-        }
     </style>
 </head>
 <body>
 
-<!-- Выглядывающие из углов банки Monster Energy -->
+<!-- Выглядывающие банки Monster Energy -->
 <div class="monster-peek monster-peek-left" id="monsterLeft">
     <img src="monster.png" alt="Monster Energy Left">
 </div>
@@ -432,19 +529,19 @@
 
 <!-- Модальное окно Календаря на осень -->
 <div class="modal-overlay" id="calendarModal">
-    <div class="modal" style="max-width: 600px;">
+    <div class="modal" style="max-width: 550px;">
         <div class="modal-header">
-            <h3>Календарь занятий на осень 2026</h3>
+            <h3>Календарь занятий</h3>
             <button class="close-btn" onclick="closeModal('calendarModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <button class="filter-btn" onclick="changeMonth(-1)">&lt;</button>
-                <strong id="calendar-month-name" style="font-size:1.1rem;">Сентябрь 2026</strong>
-                <button class="filter-btn" onclick="changeMonth(1)">&gt;</button>
+                <button class="filter-btn" style="padding: 6px 14px;" onclick="changeMonth(-1)">&lt;</button>
+                <strong id="calendar-month-name" style="font-size:1.05rem;">Сентябрь 2026</strong>
+                <button class="filter-btn" style="padding: 6px 14px;" onclick="changeMonth(1)">&gt;</button>
             </div>
             <div class="calendar-grid" id="calendar-grid-container"></div>
-            <div id="calendar-day-details" style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px;">
+            <div id="calendar-day-details" style="margin-top: 16px; border-top: 1px solid #ddd; padding-top: 12px; font-size: 0.9rem;">
                 <em>Выберите день в календаре для просмотра расписания.</em>
             </div>
         </div>
@@ -500,20 +597,16 @@
 
     /* --- Скрипт прокрутки для выезжающего монстра --- */
     function handleMonsterScroll() {
+        if (window.innerWidth <= 1100) return;
+
         const scrollTop = window.scrollY || document.documentElement.scrollTop;
         const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-        
-        // Коэффициент прокрутки от 0 (верх страницы) до 1 (самый низ)
         const progress = maxScroll > 0 ? Math.min(1, Math.max(0, scrollTop / maxScroll)) : 0;
 
-        // Расчет позиции для левой банки:
-        // Вверху (progress=0): утоплена на 180px влево/вниз, повернута на 35 град
-        // Внизу (progress=1): выезжает вперед, повернута ближе к вертикали
         const leftX = -150 + (progress * 130); 
         const leftY = 160 - (progress * 160);
         const leftRotate = 35 - (progress * 20);
 
-        // Расчет позиции для правой банки (зеркальный сабж)
         const rightX = 150 - (progress * 130);
         const rightY = 160 - (progress * 160);
         const rightRotate = -35 + (progress * 20);
@@ -521,12 +614,8 @@
         const mLeft = document.getElementById('monsterLeft');
         const mRight = document.getElementById('monsterRight');
 
-        if (mLeft) {
-            mLeft.style.transform = `translate(${leftX}px, ${leftY}px) rotate(${leftRotate}deg)`;
-        }
-        if (mRight) {
-            mRight.style.transform = `translate(${rightX}px, ${rightY}px) rotate(${rightRotate}deg) scaleX(-1)`;
-        }
+        if (mLeft) mLeft.style.transform = `translate(${leftX}px, ${leftY}px) rotate(${leftRotate}deg)`;
+        if (mRight) mRight.style.transform = `translate(${rightX}px, ${rightY}px) rotate(${rightRotate}deg) scaleX(-1)`;
     }
 
     window.addEventListener('scroll', handleMonsterScroll, { passive: true });
@@ -571,9 +660,7 @@
         let renderedCount = 0;
 
         for (let dayIdx = 1; dayIdx <= 5; dayIdx++) {
-            if (currentFilter === 'current' && dayIdx < currentDayNum) {
-                continue;
-            }
+            if (currentFilter === 'current' && dayIdx < currentDayNum) continue;
 
             const lessons = scheduleData[dayIdx] || [];
             const filtered = lessons.filter(l => {
@@ -588,9 +675,7 @@
 
             if (currentFilter === 'current' && dayIdx === currentDayNum && filtered.length > 0) {
                 const lastEnd = Math.max(...filtered.map(l => timeToMin(l.end)));
-                if (currentMin > lastEnd) {
-                    continue;
-                }
+                if (currentMin > lastEnd) continue;
             }
 
             if (filtered.length === 0) continue;
@@ -607,7 +692,7 @@
 
                 html += `
                     <tr class="lesson-row" onclick='openLessonModal(${JSON.stringify(l)})'>
-                        <td class="lesson-cell cell-time">${l.pair} пара<br>${l.start} - ${l.end}</td>
+                        <td class="lesson-cell cell-time">${l.pair} пара (${l.start} - ${l.end})</td>
                         <td class="lesson-cell cell-subject">${l.name}</td>
                         <td class="lesson-cell cell-teacher">${l.teacher}<br><small>${l.room}</small></td>
                         <td class="lesson-cell"><span class="badge ${badgeClass}">${l.week}</span></td>
@@ -624,7 +709,6 @@
             container.innerHTML = `<div class="empty-schedule-msg"><i class="fa fa-calendar-check"></i> На остаток текущей недели пар больше нет.</div>`;
         }
 
-        // Обновляем позиции банок после перерисовки контента
         setTimeout(handleMonsterScroll, 50);
     }
 
@@ -636,9 +720,7 @@
 
         document.getElementById('current-week-info').innerText = `${isOdd ? '1 (нечётная)' : '2 (чётная)'} неделя`;
 
-        if (currentFilter === 'current') {
-            renderSchedule();
-        }
+        if (currentFilter === 'current') renderSchedule();
 
         const statusNowTitle = document.getElementById('status-now-title');
         const statusNowSub = document.getElementById('status-now-sub');
@@ -810,7 +892,7 @@
             if (lessons.length === 0) {
                 html += `<p style="color:#777; margin-top:5px;">Занятий на этот день нет.</p>`;
             } else {
-                html += `<ul style="padding-left:20px; margin-top:5px;">`;
+                html += `<ul style="padding-left:18px; margin-top:5px;">`;
                 lessons.forEach(l => {
                     html += `<li><strong>${l.start}-${l.end}</strong>: ${l.name} (${parseRoom(l.room)})</li>`;
                 });
@@ -820,7 +902,7 @@
         details.innerHTML = html;
     }
 
-    // Инициализация при загрузке
+    // Инициализация
     renderSchedule();
     updateLiveStatus();
     handleMonsterScroll();
