@@ -182,6 +182,7 @@
             padding-bottom: 4px;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: none;
+            align-items: center;
         }
 
         .week-filter-bar::-webkit-scrollbar { display: none; }
@@ -202,6 +203,17 @@
         .filter-btn.active {
             background: var(--accent-color);
             color: white;
+        }
+
+        /* Красная кнопка ДЗ */
+        .filter-btn.hw-btn {
+            background-color: #dc3545;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .filter-btn.hw-btn:hover {
+            background-color: #bb2d3b;
         }
 
         /* --- Расписание --- */
@@ -367,6 +379,15 @@
         .calendar-day.odd-week { background-color: var(--badge-odd); }
         .calendar-day.even-week { background-color: var(--badge-even); }
         .calendar-day.today { border: 2px solid var(--accent-color); font-weight: bold; }
+
+        /* Стиль для сообщения "ДЗ не найдено" */
+        .hw-empty-msg {
+            text-align: center;
+            padding: 24px 12px;
+            color: #888;
+            font-size: 0.98rem;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -412,12 +433,26 @@
         <button class="filter-btn" onclick="setFilter('current', this)">Текущая неделя</button>
         <button class="filter-btn" onclick="setFilter('odd', this)">Нечётная неделя</button>
         <button class="filter-btn" onclick="setFilter('even', this)">Чётная неделя</button>
+        <button class="filter-btn hw-btn" onclick="openHwModal()"><i class="fa fa-book-open"></i> ДЗ</button>
     </div>
 
     <div id="schedule-container"></div>
 </div>
 
 <!-- Модальные окна -->
+<div class="modal-overlay" id="hwModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Домашнее задание</h3>
+            <button class="close-btn" onclick="closeModal('hwModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="hw-container">
+            <!-- ДЗ ЗАПОЛНЯЕТСЯ ВРУЧНУЮ МЕЖДУ ЭТИМИ ТЕГАМИ -->
+            <!-- Если оставить пустым — выводится надпись "ДЗ не найдено" -->
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="lessonModal">
     <div class="modal">
         <div class="modal-header">
@@ -711,6 +746,15 @@
         renderSchedule();
     }
 
+    /* Модальное окно для ДЗ */
+    function openHwModal() {
+        const container = document.getElementById('hw-container');
+        if (!container.innerHTML.trim()) {
+            container.innerHTML = `<div class="hw-empty-msg"><i class="fa fa-info-circle"></i> ДЗ не найдено</div>`;
+        }
+        document.getElementById('hwModal').classList.add('active');
+    }
+
     function openLessonModal(lesson) {
         document.getElementById('m-name').innerText = lesson.name;
         document.getElementById('m-time').innerText = `${lesson.pair} пара (${lesson.start} - ${lesson.end})`;
@@ -789,11 +833,11 @@
         } else {
             const lessons = scheduleData[dayIdx].filter(l => l.week === '*' || (odd ? l.week === 'нечёт' : l.week === 'чёт'));
             if (lessons.length === 0) {
-                html += `<p style="color:#777; margin-top:5px;">Занятий на этот день нет.</p>`;
+                html += `<p style="color:#777; margin-top:5px;">Пар на этот день нет.</p>`;
             } else {
-                html += `<ul style="padding-left:18px; margin-top:5px;">`;
+                html += `<ul style="margin: 5px 0 0 18px; padding: 0;">`;
                 lessons.forEach(l => {
-                    html += `<li><strong>${l.start}-${l.end}</strong>: ${l.name} (${parseRoom(l.room)})</li>`;
+                    html += `<li><b>${l.pair} пара (${l.start}-${l.end}):</b> ${l.name} (${parseRoom(l.room)})</li>`;
                 });
                 html += `</ul>`;
             }
@@ -801,9 +845,9 @@
         details.innerHTML = html;
     }
 
-    renderSchedule();
+    // Инициализация
     updateLiveStatus();
-    handleMonsterScroll();
+    renderSchedule();
     setInterval(updateLiveStatus, 30000);
 </script>
 </body>
