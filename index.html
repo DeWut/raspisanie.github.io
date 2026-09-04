@@ -94,20 +94,20 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         }
 
-        /* Плавающее меню действий (Speed Dial) */
+        /* Плавающее меню действий (Speed Dial) строго в правом нижнем углу */
         .fab-container {
-            position: fixed;
-            bottom: 25px;
-            right: 25px;
+            position: fixed !important;
+            bottom: 20px !important;
+            right: 20px !important;
             display: flex;
-            flex-direction: column-reverse;
+            flex-direction: column-reverse; /* Элементы строятся снизу вверх над главным плюсом */
             align-items: center;
-            gap: 15px;
-            z-index: 1000;
+            gap: 12px;
+            z-index: 10000;
         }
         .fab-main {
-            width: 65px;
-            height: 65px;
+            width: 60px;
+            height: 60px;
             background-color: var(--accent-color);
             color: #fff;
             border-radius: 50%;
@@ -117,7 +117,7 @@
             justify-content: center;
             box-shadow: 0 6px 16px rgba(0,0,0,0.25);
             cursor: pointer;
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s;
         }
         .fab-main:hover { background-color: var(--accent-hover); }
@@ -125,12 +125,12 @@
         
         .fab-menu {
             display: flex;
-            flex-direction: column-reverse;
+            flex-direction: column-reverse; /* Доп. кнопки открываются вверх */
             gap: 12px;
             opacity: 0;
             pointer-events: none;
             transform: translateY(20px) scale(0.9);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .fab-menu.active {
             opacity: 1;
@@ -138,8 +138,8 @@
             transform: translateY(0) scale(1);
         }
         .fab-child {
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
             background-color: #fff;
             color: var(--accent-color);
             border-radius: 50%;
@@ -147,7 +147,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
             cursor: pointer;
             font-size: 1.2rem;
             transition: transform 0.2s, background-color 0.2s;
@@ -156,11 +156,14 @@
             transform: scale(1.1);
             background-color: #f8f9fa;
         }
+        .fab-child.hw-child {
+            color: #dc3545;
+        }
 
         @media (max-width: 640px) {
-            .fab-container { bottom: 20px; right: 20px; }
-            .fab-main { width: 55px; height: 55px; font-size: 1.5rem; }
-            .fab-child { width: 45px; height: 45px; font-size: 1.1rem; }
+            .fab-container { bottom: 16px !important; right: 16px !important; }
+            .fab-main { width: 55px; height: 55px; font-size: 1.4rem; }
+            .fab-child { width: 44px; height: 44px; font-size: 1.1rem; }
         }
 
         .status-grid {
@@ -191,8 +194,6 @@
             cursor: pointer; font-weight: 500; font-size: 0.9rem; white-space: nowrap; transition: all 0.2s;
         }
         .filter-btn.active { background: var(--accent-color); color: white; }
-        .filter-btn.hw-btn { background-color: #dc3545; color: #ffffff; font-weight: 600; }
-        .filter-btn.hw-btn:hover { background-color: #bb2d3b; }
 
         .day-block {
             background: var(--card-bg); border-radius: 12px;
@@ -245,7 +246,7 @@
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center;
-            opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 2000; padding: 12px;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 20000; padding: 12px;
         }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         .modal {
@@ -269,7 +270,27 @@
         .calendar-day.even-week { background-color: var(--badge-even); }
         .calendar-day.today { border: 2px solid var(--accent-color); font-weight: bold; }
 
-        .hw-empty-msg { text-align: center; padding: 24px 12px; color: #888; font-size: 0.98rem; font-weight: 500; }
+        .hw-card {
+            background: #f8f9fa;
+            border-left: 4px solid var(--accent-color);
+            padding: 14px 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .hw-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .hw-badge-date {
+            font-size: 0.8rem;
+            background: #ffebee;
+            color: #c62828;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
         
         .map-wrapper { width: 100%; height: 450px; border-radius: 8px; overflow: hidden; }
         .map-wrapper iframe { width: 100%; height: 100%; border: 0; }
@@ -306,20 +327,38 @@
         <button class="filter-btn" onclick="setFilter('current', this)">Текущая неделя</button>
         <button class="filter-btn" onclick="setFilter('odd', this)">Нечётная неделя</button>
         <button class="filter-btn" onclick="setFilter('even', this)">Чётная неделя</button>
-        <button class="filter-btn hw-btn" onclick="openHwModal()"><i class="fa fa-book-open"></i> ДЗ</button>
     </div>
 
     <div id="schedule-container"></div>
 </div>
 
+<!-- Плавающее меню кнопок строго в правом нижнем углу (открывается ВВЕРХ) -->
 <div class="fab-container">
     <div class="fab-menu" id="fabMenu">
+        <button class="fab-child hw-child" onclick="openHwModal()" title="Домашнее задание"><i class="fa fa-book-open"></i></button>
         <button class="fab-child" onclick="openMapModal()" title="Карта"><i class="fa fa-map-marked-alt"></i></button>
         <button class="fab-child" onclick="openCalendarModal()" title="Календарь"><i class="fa fa-calendar-alt"></i></button>
+        <button class="fab-child" onclick="openWeatherModal()" title="Погода в СПб"><i class="fa fa-cloud-sun"></i></button>
     </div>
     <button class="fab-main" onclick="toggleFab()" title="Меню">
         <i class="fa fa-plus"></i>
     </button>
+</div>
+
+<!-- Модальные окна -->
+<div class="modal-overlay" id="weatherModal">
+    <div class="modal" style="max-width: 440px;">
+        <div class="modal-header">
+            <h3><i class="fa fa-cloud-sun" style="color:var(--accent-color);"></i> Погода в СПб</h3>
+            <button class="close-btn" onclick="closeModal('weatherModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="weather-content">
+            <div style="text-align:center; padding: 20px;">
+                <i class="fa fa-spinner fa-spin fa-2x" style="color:var(--accent-color);"></i>
+                <p style="margin-top:10px; color:#666;">Загрузка погоды...</p>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="modal-overlay" id="mapModal">
@@ -337,12 +376,31 @@
 </div>
 
 <div class="modal-overlay" id="hwModal">
-    <div class="modal">
+    <div class="modal" style="max-width: 520px;">
         <div class="modal-header">
             <h3>Домашнее задание</h3>
             <button class="close-btn" onclick="closeModal('hwModal')">&times;</button>
         </div>
-        <div class="modal-body" id="hw-container"></div>
+        <div class="modal-body" id="hw-container">
+            <div class="hw-card">
+                <div class="hw-card-header">
+                    <strong style="font-size: 1.02rem; color: var(--text-color);">Основы российской государственности</strong>
+                    <span class="hw-badge-date">До 11 сентября (Пт)</span>
+                </div>
+                <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.88rem; line-height: 1.5;">
+                    <div style="font-weight: bold; margin-bottom: 8px; color: var(--accent-color);">
+                        ВИРТУАЛЬНАЯ ЭКСКУРСИЯ "С ЧЕГО НАЧИНАЕТСЯ РОДИНА?"
+                    </div>
+                    <ol style="margin: 0; padding-left: 18px; color: #333;">
+                        <li style="margin-bottom: 6px;">Объединиться в группы (по месту проживания либо просто по желанию, всего 5 групп)</li>
+                        <li style="margin-bottom: 6px;">Каждой группе выбрать регион РФ либо населенный пункт для проведения виртуальной экскурсии (просьба не повторяться!)</li>
+                        <li style="margin-bottom: 6px;">Сообща подготовить материал по теме для визуализации в любом доступном формате (наглядный, словесный, виртуальный и др.)</li>
+                        <li style="margin-bottom: 6px;">Подготовить конспект виртуальной экскурсии и презентацию.</li>
+                        <li>Представить материал (провести виртуальную экскурсию) на следующем практическом занятии.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -441,10 +499,7 @@
         "Мартын К.А.": { name: "Мартын Кристина Андреевна", url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/martyn-kristina-andreevna" },
         "Нуруллина Р.В.": { name: "Нуруллина Роза Вагизовна", url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/nurullina-roza-vagizovna" },
         "Совтус Н.В.": { name: "Совтус Никита Владимирович", url: "https://spbftu.ru/allchairs/chairs-fiziki/sovtus-nikita-vladimirovich" },
-        "Гаврилов С.П.": { name: "Гаврилов Сергей Петрович", url: "https://spbftu.ru/allchairs/chairs-fiziki/gavrilov-sergey-petrovich" },
-        "Вохмянин Н.А": { name: "Вохмянин Николай Александрович", url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/vokhmyanin-nikolay-aleksandrovich" },
-        "Тарасеня Т.Ю": { name: "Тарасеня Татьяна Юрьевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/tarasenya-tatyana-yurevna" },
-        "Лешева Н.С": { name: "Лешева Наталья Сергеевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/lesheva-natalya-sergeevna" }
+        "Гаврилов С.П.": { name: "Гаврилов Сергей Петрович", url: "https://spbftu.ru/allchairs/chairs-fiziki/gavrilov-sergey-petrovich" }
     };
 
     const daysNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"];
@@ -488,7 +543,6 @@
         }
     });
 
-    // Открытие сайта преподавателя в компактном всплывающем окне по центру
     function openTeacherModal(event, url, name) {
         event.preventDefault();
         event.stopPropagation();
@@ -504,6 +558,105 @@
             'TeacherProfile',
             `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
         );
+    }
+
+    async function loadWeather() {
+        const container = document.getElementById('weather-content');
+        container.innerHTML = `
+            <div style="text-align:center; padding:20px;">
+                <i class="fa fa-spinner fa-spin fa-2x" style="color:var(--accent-color);"></i>
+                <p style="margin-top:10px; color:#666;">Получение данных о погоде...</p>
+            </div>`;
+
+        try {
+            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=59.9386&longitude=30.3141&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Europe%2FMoscow');
+            if (!res.ok) throw new Error('Ошибка сети');
+            const data = await res.json();
+
+            const weatherMap = {
+                0: { text: "Ясно", icon: "fa-sun", color: "#f39c12" },
+                1: { text: "Преимущественно ясно", icon: "fa-cloud-sun", color: "#f39c12" },
+                2: { text: "Переменная облачность", icon: "fa-cloud-sun", color: "#7f8c8d" },
+                3: { text: "Пасмурно", icon: "fa-cloud", color: "#7f8c8d" },
+                45: { text: "Туман", icon: "fa-smog", color: "#95a5a6" },
+                48: { text: "Изморозь", icon: "fa-smog", color: "#95a5a6" },
+                51: { text: "Лёгкая морось", icon: "fa-cloud-rain", color: "#3498db" },
+                53: { text: "Морось", icon: "fa-cloud-rain", color: "#3498db" },
+                55: { text: "Плотная морось", icon: "fa-cloud-showers-heavy", color: "#2980b9" },
+                61: { text: "Небольшой дождь", icon: "fa-cloud-rain", color: "#3498db" },
+                63: { text: "Умеренный дождь", icon: "fa-cloud-showers-heavy", color: "#2980b9" },
+                65: { text: "Сильный дождь", icon: "fa-cloud-showers-heavy", color: "#1a5276" },
+                71: { text: "Небольшой снег", icon: "fa-snowflake", color: "#aed6f1" },
+                73: { text: "Снегопад", icon: "fa-snowflake", color: "#5dade2" },
+                75: { text: "Сильный снегопад", icon: "fa-snowflake", color: "#2e86c1" },
+                80: { text: "Ливень", icon: "fa-cloud-showers-water", color: "#2980b9" },
+                95: { text: "Гроза", icon: "fa-bolt", color: "#f1c40f" }
+            };
+
+            const current = data.current;
+            const code = current.weather_code;
+            const info = weatherMap[code] || { text: "Облачно", icon: "fa-cloud", color: "#7f8c8d" };
+            const temp = Math.round(current.temperature_2m);
+            const feels = Math.round(current.apparent_temperature);
+            const wind = (current.wind_speed_10m / 3.6).toFixed(1);
+            const humidity = current.relative_humidity_2m;
+
+            let dailyHtml = '';
+            if (data.daily) {
+                for (let i = 0; i < Math.min(5, data.daily.time.length); i++) {
+                    const dDate = new Date(data.daily.time[i]);
+                    const dayName = i === 0 ? "Сегодня" : dDate.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'numeric' });
+                    const dCode = data.daily.weather_code[i];
+                    const dInfo = weatherMap[dCode] || { icon: "fa-cloud", color: "#7f8c8d" };
+                    const maxT = Math.round(data.daily.temperature_2m_max[i]);
+                    const minT = Math.round(data.daily.temperature_2m_min[i]);
+                    dailyHtml += `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <span style="font-weight:500; width:100px; text-transform:capitalize;">${dayName}</span>
+                            <i class="fa ${dInfo.icon}" style="color:${dInfo.color}; font-size:1.1rem;"></i>
+                            <span><strong>${maxT > 0 ? '+' + maxT : maxT}°</strong> / <span style="color:#777;">${minT > 0 ? '+' + minT : minT}°</span></span>
+                        </div>
+                    `;
+                }
+            }
+
+            container.innerHTML = `
+                <div style="text-align:center; margin-bottom: 16px; background: linear-gradient(135deg, #1a73e8, #1557b0); color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(26,115,232,0.25);">
+                    <div style="font-size: 0.9rem; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px;">Санкт-Петербург</div>
+                    <div style="display:flex; justify-content:center; align-items:center; gap: 15px; margin: 8px 0;">
+                        <i class="fa ${info.icon}" style="font-size: 2.8rem;"></i>
+                        <div style="font-size: 2.8rem; font-weight: bold;">${temp > 0 ? '+' + temp : temp}°C</div>
+                    </div>
+                    <div style="font-size: 1.1rem; font-weight: 500;">${info.text}</div>
+                    <div style="font-size: 0.85rem; opacity: 0.85; margin-top: 4px;">Ощущается как ${feels > 0 ? '+' + feels : feels}°C</div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; text-align:center;">
+                    <div style="background:#f8f9fa; padding: 10px; border-radius: 8px;">
+                        <i class="fa fa-wind" style="color:var(--accent-color);"></i>
+                        <div style="font-size: 0.8rem; color:#666; margin-top:2px;">Ветер</div>
+                        <strong>${wind} м/с</strong>
+                    </div>
+                    <div style="background:#f8f9fa; padding: 10px; border-radius: 8px;">
+                        <i class="fa fa-tint" style="color:var(--accent-color);"></i>
+                        <div style="font-size: 0.8rem; color:#666; margin-top:2px;">Влажность</div>
+                        <strong>${humidity}%</strong>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="margin: 0 0 8px 0; font-size: 0.95rem; color: #555;">Прогноз на ближайшие дни</h4>
+                    ${dailyHtml}
+                </div>
+            `;
+        } catch (err) {
+            container.innerHTML = `<div style="text-align:center; color:#dc3545; padding:20px;"><i class="fa fa-exclamation-triangle fa-2x"></i><p style="margin-top:10px;">Не удалось загрузить данные о погоде.</p></div>`;
+        }
+    }
+
+    function openWeatherModal() {
+        loadWeather();
+        document.getElementById('weatherModal').classList.add('active');
+        document.getElementById('fabMenu').classList.remove('active');
+        document.querySelector('.fab-main').classList.remove('active');
     }
 
     function parseRoom(roomStr) {
@@ -692,9 +845,9 @@
     }
     
     function openHwModal() {
-        const c = document.getElementById('hw-container');
-        if (!c.innerHTML.trim()) c.innerHTML = `<div class="hw-empty-msg"><i class="fa fa-info-circle"></i> ДЗ не найдено</div>`;
         document.getElementById('hwModal').classList.add('active');
+        document.getElementById('fabMenu').classList.remove('active');
+        document.querySelector('.fab-main').classList.remove('active');
     }
 
     function openLessonModal(lesson) {
