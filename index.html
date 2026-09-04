@@ -100,7 +100,7 @@
             bottom: 20px !important;
             right: 20px !important;
             display: flex;
-            flex-direction: column-reverse; /* Элементы строятся снизу вверх над главным плюсом */
+            flex-direction: column-reverse;
             align-items: center;
             gap: 12px;
             z-index: 10000;
@@ -125,7 +125,7 @@
         
         .fab-menu {
             display: flex;
-            flex-direction: column-reverse; /* Доп. кнопки открываются вверх */
+            flex-direction: column-reverse;
             gap: 12px;
             opacity: 0;
             pointer-events: none;
@@ -382,24 +382,7 @@
             <button class="close-btn" onclick="closeModal('hwModal')">&times;</button>
         </div>
         <div class="modal-body" id="hw-container">
-            <div class="hw-card">
-                <div class="hw-card-header">
-                    <strong style="font-size: 1.02rem; color: var(--text-color);">Основы российской государственности</strong>
-                    <span class="hw-badge-date">До 11 сентября (Пт)</span>
-                </div>
-                <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.88rem; line-height: 1.5;">
-                    <div style="font-weight: bold; margin-bottom: 8px; color: var(--accent-color);">
-                        ВИРТУАЛЬНАЯ ЭКСКУРСИЯ "С ЧЕГО НАЧИНАЕТСЯ РОДИНА?"
-                    </div>
-                    <ol style="margin: 0; padding-left: 18px; color: #333;">
-                        <li style="margin-bottom: 6px;">Объединиться в группы (по месту проживания либо просто по желанию, всего 5 групп)</li>
-                        <li style="margin-bottom: 6px;">Каждой группе выбрать регион РФ либо населенный пункт для проведения виртуальной экскурсии (просьба не повторяться!)</li>
-                        <li style="margin-bottom: 6px;">Сообща подготовить материал по теме для визуализации в любом доступном формате (наглядный, словесный, виртуальный и др.)</li>
-                        <li style="margin-bottom: 6px;">Подготовить конспект виртуальной экскурсии и презентацию.</li>
-                        <li>Представить материал (провести виртуальную экскурсию) на следующем практическом занятии.</li>
-                    </ol>
-                </div>
-            </div>
+            <!-- Динамически рендерится из JS -->
         </div>
     </div>
 </div>
@@ -441,6 +424,44 @@
 </div>
 
 <script>
+    // Массив с домашними заданиями. 
+    // deadline: дата и время, ПОСЛЕ которых ДЗ удаляется с экрана (например, в 15:05 после 3-й пары по истории).
+    const hwList = [
+        {
+            id: "history-portraits",
+            subject: "История России",
+            badgeText: "До 7 сентября (Пн)",
+            deadline: "2026-09-07T15:05:00", // Понедельник 7 сентября, 15:05 (конец 3-й пары)
+            borderColor: "#ff9800",
+            title: "СООБЩЕНИЕ «ПОРТРЕТЫ ИСТОРИКОВ»",
+            content: `
+                <p style="margin: 0 0 8px 0; color: #333;">
+                    Подготовить краткое сообщение (биография, научные труды и вклад) по <strong>одному</strong> из историков на выбор:
+                </p>
+                <div style="background: #f8f9fa; padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--border-color); color: #555; font-size: 0.84rem; line-height: 1.4;">
+                    Татищев, Карамзин, Соловьев, Ключевский, Костомаров, Покровский, Греков, Рыбаков, Лев Гумилёв, Мавродин, Окунь, Фроянов, Соболев.
+                </div>
+            `
+        },
+        {
+            id: "statehood-excursion",
+            subject: "Основы российской государственности",
+            badgeText: "До 11 сентября (Пт)",
+            deadline: "2026-09-11T12:45:00", // Пятница 11 сентября, 12:45 (конец 2-й пары)
+            borderColor: "var(--accent-color)",
+            title: "ВИРТУАЛЬНАЯ ЭКСКУРСИЯ «С ЧЕГО НАЧИНАЕТСЯ РОДИНА?»",
+            content: `
+                <ol style="margin: 0; padding-left: 18px; color: #333;">
+                    <li style="margin-bottom: 6px;">Объединиться в группы (по месту проживания либо просто по желанию, всего 5 групп)</li>
+                    <li style="margin-bottom: 6px;">Каждой группе выбрать регион РФ либо населенный пункт для проведения виртуальной экскурсии (просьба не повторяться!)</li>
+                    <li style="margin-bottom: 6px;">Сообща подготовить материал по теме для визуализации в любом доступном формате (наглядный, словесный, виртуальный и др.)</li>
+                    <li style="margin-bottom: 6px;">Подготовить конспект виртуальной экскурсии и презентацию.</li>
+                    <li>Представить материал (провести виртуальную экскурсию) на следующем практическом занятии.</li>
+                </ol>
+            `
+        }
+    ];
+
     const scheduleData = {
         1: [
             { pair: 1, start: "09:15", end: "10:50", name: "Информатика Лек.", teacher: "Васильев Н.П.", room: "ауд. 1.231", week: "нечёт" },
@@ -506,6 +527,44 @@
     let currentFilter = 'all';
     let calMonth = 8;
     let calYear = 2026;
+
+    function renderHomework() {
+        const hwContainer = document.getElementById('hw-container');
+        if (!hwContainer) return;
+
+        const now = new Date();
+        // Фильтруем задания: оставляем только те, дедлайн которых ещё не наступил
+        const activeHW = hwList.filter(item => new Date(item.deadline) > now);
+
+        if (activeHW.length === 0) {
+            hwContainer.innerHTML = `
+                <div style="text-align: center; padding: 24px 12px; color: #666;">
+                    <i class="fa fa-check-circle fa-2x" style="color: #2e7d32; margin-bottom: 8px;"></i>
+                    <p style="margin: 0; font-weight: 500;">Актуальных домашних заданий нет!</p>
+                </div>`;
+            return;
+        }
+
+        let html = '';
+        activeHW.forEach(item => {
+            html += `
+                <div class="hw-card" style="border-left-color: ${item.borderColor};">
+                    <div class="hw-card-header">
+                        <strong style="font-size: 1.02rem; color: var(--text-color);">${item.subject}</strong>
+                        <span class="hw-badge-date">${item.badgeText}</span>
+                    </div>
+                    <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.88rem; line-height: 1.5;">
+                        <div style="font-weight: bold; margin-bottom: 6px; color: var(--accent-color);">
+                            ${item.title}
+                        </div>
+                        ${item.content}
+                    </div>
+                </div>
+            `;
+        });
+
+        hwContainer.innerHTML = html;
+    }
 
     function handleMonsterScroll() {
         if (window.innerWidth <= 1100) return;
@@ -776,6 +835,8 @@
         document.getElementById('current-week-info').innerText = `${isOdd ? '1 (нечётная)' : '2 (чётная)'} неделя`;
         if (currentFilter === 'current') renderSchedule();
 
+        renderHomework(); // Автоматически перепроверяет актуальность ДЗ каждую минуту
+
         const sNowTitle = document.getElementById('status-now-title');
         const sNowSub = document.getElementById('status-now-sub');
         const sNextCard = document.getElementById('status-next-card');
@@ -845,6 +906,7 @@
     }
     
     function openHwModal() {
+        renderHomework();
         document.getElementById('hwModal').classList.add('active');
         document.getElementById('fabMenu').classList.remove('active');
         document.querySelector('.fab-main').classList.remove('active');
@@ -942,6 +1004,7 @@
 
     updateLiveStatus();
     renderSchedule();
+    renderHomework();
     setInterval(updateLiveStatus, 30000);
 </script>
 </body>
