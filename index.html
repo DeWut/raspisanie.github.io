@@ -4,7 +4,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>Интерактивное расписание СПбГЛТУ — ЛПб-ИСИТ-26-1</title>
+    <title>Интерактивное расписание</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -37,7 +37,6 @@
             position: relative;
         }
 
-        /* --- Фоновый текст --- */
         body::before {
             content: "";
             position: fixed;
@@ -52,7 +51,6 @@
             background-repeat: repeat;
         }
 
-        /* --- Банки Monster Energy --- */
         .monster-peek {
             position: fixed;
             bottom: -30px;
@@ -61,22 +59,16 @@
             will-change: transform;
             transition: transform 0.1s cubic-bezier(0.25, 1, 0.5, 1);
         }
-
         .monster-peek img {
             height: 55vh;
             max-height: 480px;
             width: auto;
             filter: drop-shadow(0 0 25px rgba(57, 255, 20, 0.5)) drop-shadow(0 15px 20px rgba(0,0,0,0.3));
         }
-
         .monster-peek-left { left: -20px; }
         .monster-peek-right { right: -20px; }
+        @media (max-width: 1100px) { .monster-peek { display: none; } }
 
-        @media (max-width: 1100px) {
-            .monster-peek { display: none; }
-        }
-
-        /* --- Контейнер --- */
         .container {
             max-width: 900px;
             margin: 0 auto;
@@ -84,65 +76,99 @@
             z-index: 2;
         }
 
-        .header-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 18px 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            margin-bottom: 16px;
+        .week-indicator {
             display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
+            justify-content: flex-end;
+            align-items: center;
+            font-size: 0.85rem;
+            color: #777;
+            margin-bottom: 12px;
+            padding-right: 4px;
+        }
+        .week-indicator span {
+            background: var(--badge-odd);
+            color: var(--badge-odd-text);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+
+        /* Плавающее меню действий (Speed Dial) */
+        .fab-container {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            display: flex;
+            flex-direction: column-reverse;
             align-items: center;
             gap: 15px;
+            z-index: 1000;
         }
-
-        .group-info h2 {
-            margin: 0 0 6px 0;
-            font-size: 1.3rem;
-            line-height: 1.3;
-        }
-
-        .group-info p {
-            margin: 0;
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .calendar-btn {
+        .fab-main {
+            width: 65px;
+            height: 65px;
             background-color: var(--accent-color);
             color: #fff;
-            text-decoration: none;
+            border-radius: 50%;
             border: none;
-            padding: 12px 18px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.95rem;
-            display: inline-flex;
+            display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+            cursor: pointer;
+            font-size: 1.8rem;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s;
+        }
+        .fab-main:hover { background-color: var(--accent-hover); }
+        .fab-main.active { transform: rotate(45deg); background-color: #dc3545; }
+        
+        .fab-menu {
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 12px;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(20px) scale(0.9);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .fab-menu.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0) scale(1);
+        }
+        .fab-child {
+            width: 50px;
+            height: 50px;
+            background-color: #fff;
+            color: var(--accent-color);
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        .fab-child:hover {
+            transform: scale(1.1);
+            background-color: #f8f9fa;
         }
 
-        .calendar-btn:active { transform: scale(0.98); }
-        .calendar-btn:hover { background-color: var(--accent-hover); }
+        @media (max-width: 640px) {
+            .fab-container { bottom: 20px; right: 20px; }
+            .fab-main { width: 55px; height: 55px; font-size: 1.5rem; }
+            .fab-child { width: 45px; height: 45px; font-size: 1.1rem; }
+        }
 
-        /* --- Статусы --- */
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 12px;
             margin-bottom: 20px;
         }
-
         .status-card {
             background: var(--card-bg);
             border-radius: 12px;
@@ -150,286 +176,116 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             border-left: 5px solid var(--accent-color);
         }
-
         .status-card.next { border-left-color: #ff9800; }
+        .status-card h4 { margin: 0 0 6px 0; font-size: 0.8rem; text-transform: uppercase; color: #777; }
+        .status-card .status-content { font-size: 1.05rem; font-weight: 600; line-height: 1.3; }
+        .status-card .status-sub { font-size: 0.85rem; color: #555; margin-top: 4px; }
 
-        .status-card h4 {
-            margin: 0 0 6px 0;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #777;
-        }
-
-        .status-card .status-content {
-            font-size: 1.05rem;
-            font-weight: 600;
-            line-height: 1.3;
-        }
-
-        .status-card .status-sub {
-            font-size: 0.85rem;
-            color: #555;
-            margin-top: 4px;
-        }
-
-        /* --- Фильтры недели --- */
         .week-filter-bar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
-            overflow-x: auto;
-            padding-bottom: 4px;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-            align-items: center;
+            display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto;
+            padding-bottom: 4px; scrollbar-width: none; align-items: center;
         }
-
         .week-filter-bar::-webkit-scrollbar { display: none; }
-
         .filter-btn {
-            background: #eef2f5;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 0.9rem;
-            white-space: nowrap;
-            flex-shrink: 0;
-            transition: all 0.2s;
+            background: #eef2f5; border: none; padding: 10px 16px; border-radius: 8px;
+            cursor: pointer; font-weight: 500; font-size: 0.9rem; white-space: nowrap; transition: all 0.2s;
         }
+        .filter-btn.active { background: var(--accent-color); color: white; }
+        .filter-btn.hw-btn { background-color: #dc3545; color: #ffffff; font-weight: 600; }
+        .filter-btn.hw-btn:hover { background-color: #bb2d3b; }
 
-        .filter-btn.active {
-            background: var(--accent-color);
-            color: white;
-        }
-
-        /* Красная кнопка ДЗ */
-        .filter-btn.hw-btn {
-            background-color: #dc3545;
-            color: #ffffff;
-            font-weight: 600;
-        }
-
-        .filter-btn.hw-btn:hover {
-            background-color: #bb2d3b;
-        }
-
-        /* --- Расписание --- */
         .day-block {
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            margin-bottom: 16px;
-            overflow: hidden;
+            background: var(--card-bg); border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden;
         }
-
-        .day-header {
-            background: #2d323e;
-            color: #fff;
-            padding: 12px 16px;
-            font-weight: 600;
-            font-size: 1rem;
-        }
-
-        .lesson-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .lesson-row {
-            border-bottom: 1px solid var(--border-color);
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-
+        .day-header { background: #2d323e; color: #fff; padding: 12px 16px; font-weight: 600; font-size: 1rem; }
+        .lesson-table { width: 100%; border-collapse: collapse; }
+        .lesson-row { border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; }
         .lesson-row:last-child { border-bottom: none; }
-        .lesson-row:hover { background-color: #f8f9fa; }
+        
+        .lesson-row.easy { background-color: #e8f5e9; }
+        .lesson-row.easy:hover { background-color: #c8e6c9; }
+        .lesson-row.medium { background-color: #fff3e0; }
+        .lesson-row.medium:hover { background-color: #ffe0b2; }
+        .lesson-row.hard { background-color: #ffebee; }
+        .lesson-row.hard:hover { background-color: #ffcdd2; }
+        .lesson-row.black { background-color: #2c2c2c; color: #ffffff; }
+        .lesson-row.black:hover { background-color: #404040; }
+        .lesson-row.black .cell-time { color: #f0f0f0; }
+        .lesson-row.black .cell-teacher { color: #bbbbbb; }
+        .lesson-row.black .badge { filter: brightness(0.9); }
 
-        .lesson-cell {
-            padding: 12px 14px;
-            vertical-align: middle;
-            font-size: 0.95rem;
-        }
-
-        .cell-time {
-            width: 120px;
-            font-weight: 600;
-            color: #333;
-            white-space: nowrap;
-        }
-
+        .lesson-cell { padding: 12px 14px; vertical-align: middle; font-size: 0.95rem; }
+        .cell-time { width: 120px; font-weight: 600; color: #333; white-space: nowrap; }
         .cell-subject { font-weight: 500; }
         .cell-teacher { color: #666; font-size: 0.88rem; }
 
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
         .badge-odd { background: var(--badge-odd); color: var(--badge-odd-text); }
         .badge-even { background: var(--badge-even); color: var(--badge-even-text); }
         .badge-all { background: var(--badge-all); color: var(--badge-all-text); }
 
         .empty-schedule-msg {
-            background: var(--card-bg);
-            padding: 24px 16px;
-            border-radius: 12px;
-            text-align: center;
-            color: #666;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            font-size: 1rem;
+            background: var(--card-bg); padding: 24px 16px; border-radius: 12px;
+            text-align: center; color: #666; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         @media (max-width: 640px) {
-            body { padding: 10px 8px 60px 8px; }
-            .header-card { flex-direction: column; align-items: stretch; padding: 14px; }
-            .header-actions { flex-direction: column; width: 100%; }
-            .calendar-btn { width: 100%; }
             .lesson-table, .lesson-table tbody, .lesson-row, .lesson-cell { display: block; width: 100%; }
             .lesson-row { position: relative; padding: 12px 14px; border-bottom: 1px solid var(--border-color); }
             .lesson-cell { padding: 2px 0; }
-            .cell-time { width: auto; font-size: 0.85rem; color: var(--accent-color); margin-bottom: 4px; }
+            .cell-time { width: auto; font-size: 0.85rem; margin-bottom: 4px; }
+            .lesson-row:not(.black) .cell-time { color: var(--accent-color); }
             .cell-subject { font-size: 0.98rem; font-weight: 600; padding-right: 65px; margin-bottom: 4px; }
-            .cell-teacher { font-size: 0.85rem; color: #666; }
+            .lesson-row.black .cell-teacher { color: #bbb; }
             .lesson-row .lesson-cell:nth-child(4) { position: absolute; top: 12px; right: 14px; width: auto; padding: 0; }
         }
 
-        /* --- Модальные окна --- */
+        /* Модальные окна */
         .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.55);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-            z-index: 1000;
-            padding: 12px;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 2000; padding: 12px;
         }
-
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-
         .modal {
-            background: #fff;
-            border-radius: 16px;
-            width: 100%;
-            max-width: 480px;
-            padding: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
-            transform: translateY(15px);
-            transition: transform 0.2s ease;
-            max-height: 85vh;
-            overflow-y: auto;
+            background: #fff; border-radius: 16px; width: 100%; max-width: 480px;
+            padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            transform: translateY(15px); transition: transform 0.2s ease;
+            max-height: 85vh; overflow-y: auto; color: var(--text-color);
         }
-
         .modal-overlay.active .modal { transform: translateY(0); }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 14px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 10px;
-        }
-
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
         .modal-header h3 { margin: 0; font-size: 1.15rem; }
-
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 1.4rem;
-            cursor: pointer;
-            color: #888;
-            padding: 0 8px;
-            line-height: 1;
-        }
-
+        .close-btn { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #888; padding: 0 8px; line-height: 1; }
         .modal-body p { margin: 10px 0; font-size: 0.95rem; line-height: 1.45; }
 
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 4px;
-            margin-top: 12px;
-            text-align: center;
-        }
-
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 12px; text-align: center; }
         .calendar-day-head { font-weight: bold; padding: 4px 2px; font-size: 0.8rem; color: #666; }
-        .calendar-day {
-            padding: 8px 2px;
-            border-radius: 6px;
-            background: #f8f9fa;
-            font-size: 0.85rem;
-            cursor: pointer;
-            border: 1px solid transparent;
-            user-select: none;
-        }
-
+        .calendar-day { padding: 8px 2px; border-radius: 6px; background: #f8f9fa; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; user-select: none; }
         .calendar-day:hover { border-color: var(--accent-color); }
         .calendar-day.other-month { opacity: 0.3; cursor: default; }
         .calendar-day.odd-week { background-color: var(--badge-odd); }
         .calendar-day.even-week { background-color: var(--badge-even); }
         .calendar-day.today { border: 2px solid var(--accent-color); font-weight: bold; }
 
-        /* Стиль для сообщения "ДЗ не найдено" */
-        .hw-empty-msg {
-            text-align: center;
-            padding: 24px 12px;
-            color: #888;
-            font-size: 0.98rem;
-            font-weight: 500;
-        }
-
-        /* Контейнер для карты */
-        .map-wrapper {
-            width: 100%;
-            height: 450px;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .map-wrapper iframe {
-            width: 100%;
-            height: 100%;
-            border: 0;
-        }
+        .hw-empty-msg { text-align: center; padding: 24px 12px; color: #888; font-size: 0.98rem; font-weight: 500; }
+        
+        .map-wrapper { width: 100%; height: 450px; border-radius: 8px; overflow: hidden; }
+        .map-wrapper iframe { width: 100%; height: 100%; border: 0; }
+        
+        .teacher-link { color: var(--accent-color); text-decoration: none; font-weight: 500; cursor: pointer; }
+        .teacher-link:hover { text-decoration: underline; color: var(--accent-hover); }
     </style>
 </head>
 <body>
 
-<div class="monster-peek monster-peek-left" id="monsterLeft">
-    <img src="monster.png" alt="Monster Energy Left">
-</div>
-<div class="monster-peek monster-peek-right" id="monsterRight">
-    <img src="monster.png" alt="Monster Energy Right">
-</div>
+<div class="monster-peek monster-peek-left" id="monsterLeft"><img src="monster.png" alt="Monster"></div>
+<div class="monster-peek monster-peek-right" id="monsterRight"><img src="monster.png" alt="Monster"></div>
 
 <div class="container">
-    <div class="header-card">
-        <div class="group-info">
-            <h2>Группа: ЛПб-ИСИТ-26-1</h2>
-            <p>Осенний семестр 2026-2027 | <span id="current-week-info">Загрузка недели...</span></p>
-        </div>
-        <div class="header-actions">
-            <button class="calendar-btn" onclick="openCalendarModal()">
-                <i class="fa fa-calendar-alt"></i> Календарь
-            </button>
-            <button class="calendar-btn" style="background-color: #d97706;" onclick="openMapModal()">
-                <i class="fa fa-map-marked-alt"></i> Карта
-            </button>
-            <a href="index2.html" class="calendar-btn" style="background-color: #2b8a3e;">
-                <i class="fa fa-route"></i> Видеомаршруты
-            </a>
-        </div>
+    <div class="week-indicator">
+        <span id="current-week-info">загрузка...</span>
     </div>
 
     <div class="status-grid">
@@ -456,7 +312,16 @@
     <div id="schedule-container"></div>
 </div>
 
-<!-- Модальные окна -->
+<div class="fab-container">
+    <div class="fab-menu" id="fabMenu">
+        <button class="fab-child" onclick="openMapModal()" title="Карта"><i class="fa fa-map-marked-alt"></i></button>
+        <button class="fab-child" onclick="openCalendarModal()" title="Календарь"><i class="fa fa-calendar-alt"></i></button>
+    </div>
+    <button class="fab-main" onclick="toggleFab()" title="Меню">
+        <i class="fa fa-plus"></i>
+    </button>
+</div>
+
 <div class="modal-overlay" id="mapModal">
     <div class="modal" style="max-width: 750px;">
         <div class="modal-header">
@@ -477,10 +342,7 @@
             <h3>Домашнее задание</h3>
             <button class="close-btn" onclick="closeModal('hwModal')">&times;</button>
         </div>
-        <div class="modal-body" id="hw-container">
-            <!-- ДЗ ЗАПОЛНЯЕТСЯ ВРУЧНУЮ МЕЖДУ ЭТИМИ ТЕГАМИ -->
-            <!-- Если оставить пустым — выводится надпись "ДЗ не найдено" -->
-        </div>
+        <div class="modal-body" id="hw-container"></div>
     </div>
 </div>
 
@@ -513,7 +375,7 @@
                 <button class="filter-btn" style="padding: 6px 14px;" onclick="changeMonth(1)">&gt;</button>
             </div>
             <div class="calendar-grid" id="calendar-grid-container"></div>
-            <div id="calendar-day-details" style="margin-top: 16px; border-top: 1px solid #ddd; padding-top: 12px; font-size: 0.9rem;">
+            <div id="calendar-day-details" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px; font-size: 0.9rem;">
                 <em>Выберите день в календаре для просмотра расписания.</em>
             </div>
         </div>
@@ -561,6 +423,30 @@
         ]
     };
 
+    const teachersDB = {
+        "Васильев Н.П.": { name: "Васильев Николай Павлович", url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/vasilev-nikolay-pavlovich" },
+        "Мельников Н.Н.": { name: "Мельников Николай Николаевич", url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/melnikov-nikolay-nikolaevich" },
+        "Вохмянин Н.А.": { name: "Вохмянин Николай Александрович", url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/vokhmyanin-nikolay-aleksandrovich" },
+        "Куликова Д.Р.": { name: "Куликова Дарья Романовна", url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/kulikova-darya-romanovna" },
+        "Подолянец Л.А.": { name: "Подолянец Лада Авенировна", url: "https://spbftu.ru/allchairs/chairs-ekonomiki-ucheta-i-analiza-khozyaystvennoy-deyatelnosti/podolyanets-lada-avenirovna" },
+        "Тарасеня Т.Ю.": { name: "Тарасеня Татьяна Юрьевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/tarasenya-tatyana-yurevna" },
+        "Лешева Н.С.": { name: "Лешева Наталья Сергеевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/lesheva-natalya-sergeevna" },
+        "Ломакина И.С.": { name: "Ломакина Ирина Сергеевна", url: "https://spbftu.ru/allchairs/chairs-inostrannykh-yazykov/lomakina-irina-sergeevna" },
+        "Михайлова А.И.": { name: "Михайлова Анна Ивановна", url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/mikhaylova-anna-ivanovna" },
+        "Былев А.Б.": { name: "Былев Александр Борисович", url: "https://spbftu.ru/allchairs/chairs-fiziki/bylev-aleksandr-borisovich" },
+        "Одинцова Н.А.": { name: "Одинцова Н.А.", url: null },
+        "Шлапакова С.Н.": { name: "Шлапакова Светлана Николаевна", url: "https://spbftu.ru/university/administration/shlapakova-svetlana-nikolaevna" },
+        "Басова Е.Н.": { name: "Басова Елизавета Николаевна", url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/basova-elizaveta-nikolaevna" },
+        "Гущина Е.В.": { name: "Гущина Екатерина Владимировна", url: "https://spbftu.ru/allchairs/chairs-fiziki/gushchina-ekaterina-vladimirovna" },
+        "Мартын К.А.": { name: "Мартын Кристина Андреевна", url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/martyn-kristina-andreevna" },
+        "Нуруллина Р.В.": { name: "Нуруллина Роза Вагизовна", url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/nurullina-roza-vagizovna" },
+        "Совтус Н.В.": { name: "Совтус Никита Владимирович", url: "https://spbftu.ru/allchairs/chairs-fiziki/sovtus-nikita-vladimirovich" },
+        "Гаврилов С.П.": { name: "Гаврилов Сергей Петрович", url: "https://spbftu.ru/allchairs/chairs-fiziki/gavrilov-sergey-petrovich" },
+        "Вохмянин Н.А": { name: "Вохмянин Николай Александрович", url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/vokhmyanin-nikolay-aleksandrovich" },
+        "Тарасеня Т.Ю": { name: "Тарасеня Татьяна Юрьевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/tarasenya-tatyana-yurevna" },
+        "Лешева Н.С": { name: "Лешева Наталья Сергеевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/lesheva-natalya-sergeevna" }
+    };
+
     const daysNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"];
     let currentFilter = 'all';
     let calMonth = 8;
@@ -586,16 +472,56 @@
         if (mLeft) mLeft.style.transform = `translate(${leftX}px, ${leftY}px) rotate(${leftRotate}deg)`;
         if (mRight) mRight.style.transform = `translate(${rightX}px, ${rightY}px) rotate(${rightRotate}deg) scaleX(-1)`;
     }
-
     window.addEventListener('scroll', handleMonsterScroll, { passive: true });
     window.addEventListener('resize', handleMonsterScroll);
+
+    function toggleFab() {
+        document.getElementById('fabMenu').classList.toggle('active');
+        document.querySelector('.fab-main').classList.toggle('active');
+    }
+
+    document.addEventListener('click', function(event) {
+        const fabContainer = document.querySelector('.fab-container');
+        if (!fabContainer.contains(event.target)) {
+            document.getElementById('fabMenu').classList.remove('active');
+            document.querySelector('.fab-main').classList.remove('active');
+        }
+    });
+
+    // Открытие сайта преподавателя в компактном всплывающем окне по центру
+    function openTeacherModal(event, url, name) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!url) return;
+
+        const width = 950;
+        const height = 750;
+        const left = Math.max(0, (window.screen.width - width) / 2);
+        const top = Math.max(0, (window.screen.height - height) / 2);
+
+        window.open(
+            url,
+            'TeacherProfile',
+            `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+        );
+    }
 
     function parseRoom(roomStr) {
         if (!roomStr) return '';
         const cleaned = roomStr.replace(/^ауд\.\s*/i, '').trim();
         const match = cleaned.match(/^([^\.]+)\.(\d)(\d+)$/);
+        
         if (match) {
-            return `${match[1]} корпус, ${match[2]} этаж, кабинет ${parseInt(match[3], 10)}`;
+            const corp = match[1];
+            const firstDigit = parseInt(match[2], 10);
+
+            if (firstDigit === 0 || firstDigit === 1) {
+                const cabNumber = parseInt(match[2] + match[3], 10);
+                return `${corp} корпус, 1 этаж, кабинет ${cabNumber}`;
+            } else {
+                const cabNumber = match[2] + match[3];
+                return `${corp} корпус, ${firstDigit} этаж, кабинет ${cabNumber}`;
+            }
         }
         return cleaned;
     }
@@ -607,10 +533,25 @@
         const weekNum = Math.floor(diffDays / 7) + 1;
         return (weekNum % 2 !== 0);
     }
+    function timeToMin(timeStr) { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m; }
 
-    function timeToMin(timeStr) {
-        const [h, m] = timeStr.split(':').map(Number);
-        return h * 60 + m;
+    function getDifficultyClass(name) {
+        const n = name.toLowerCase();
+        if (n.includes("информатика")) return "medium";
+        if (n.includes("математика")) return "medium";
+        if (n.includes("история")) return "easy";
+        if (n.includes("начертательная")) return "hard";
+        if (n.includes("управление личным временем")) return "easy";
+        if (n.includes("физическая культура")) return "easy";
+        if (n.includes("иностранный")) return "medium";
+        if (n.includes("межкультурное взаимодействие")) return "easy";
+        if (n.includes("основы российской государственности")) return "easy";
+        if (n.includes("физика пр")) return "easy";
+        if (n.includes("физика лек")) return "hard";
+        if (n.includes("физика лаб")) return "medium";
+        if (n.includes("экспедиция")) return "black";
+        if (n.includes("ознакомительный")) return "black";
+        return "";
     }
 
     function renderSchedule() {
@@ -621,7 +562,6 @@
         const activeOdd = isOddWeek(now);
         const currentDayNum = now.getDay() === 0 ? 7 : now.getDay(); 
         const currentMin = now.getHours() * 60 + now.getMinutes();
-
         let renderedCount = 0;
 
         for (let dayIdx = 1; dayIdx <= 5; dayIdx++) {
@@ -631,10 +571,7 @@
             const filtered = lessons.filter(l => {
                 if (currentFilter === 'odd') return l.week === '*' || l.week === 'нечёт';
                 if (currentFilter === 'even') return l.week === '*' || l.week === 'чёт';
-                if (currentFilter === 'current') {
-                    const activeWeekType = activeOdd ? 'нечёт' : 'чёт';
-                    return l.week === '*' || l.week === activeWeekType;
-                }
+                if (currentFilter === 'current') return l.week === '*' || l.week === (activeOdd ? 'нечёт' : 'чёт');
                 return true;
             });
 
@@ -642,7 +579,6 @@
                 const lastEnd = Math.max(...filtered.map(l => timeToMin(l.end)));
                 if (currentMin > lastEnd) continue;
             }
-
             if (filtered.length === 0) continue;
 
             renderedCount++;
@@ -654,9 +590,11 @@
                 let badgeClass = 'badge-all';
                 if (l.week === 'нечёт') badgeClass = 'badge-odd';
                 if (l.week === 'чёт') badgeClass = 'badge-even';
+                
+                const diffClass = getDifficultyClass(l.name);
 
                 html += `
-                    <tr class="lesson-row" onclick='openLessonModal(${JSON.stringify(l)})'>
+                    <tr class="lesson-row ${diffClass}" onclick='openLessonModal(${JSON.stringify(l)})'>
                         <td class="lesson-cell cell-time">${l.pair} пара (${l.start} - ${l.end})</td>
                         <td class="lesson-cell cell-subject">${l.name}</td>
                         <td class="lesson-cell cell-teacher">${l.teacher}<br><small>${l.room}</small></td>
@@ -673,7 +611,6 @@
         if (renderedCount === 0 && currentFilter === 'current') {
             container.innerHTML = `<div class="empty-schedule-msg"><i class="fa fa-calendar-check"></i> На остаток текущей недели пар больше нет.</div>`;
         }
-
         setTimeout(handleMonsterScroll, 50);
     }
 
@@ -684,89 +621,60 @@
         const currentMin = now.getHours() * 60 + now.getMinutes();
 
         document.getElementById('current-week-info').innerText = `${isOdd ? '1 (нечётная)' : '2 (чётная)'} неделя`;
-
         if (currentFilter === 'current') renderSchedule();
 
-        const statusNowTitle = document.getElementById('status-now-title');
-        const statusNowSub = document.getElementById('status-now-sub');
-        const statusNextCard = document.getElementById('status-next-card');
-        const statusNextTitle = document.getElementById('status-next-title');
-        const statusNextSub = document.getElementById('status-next-sub');
+        const sNowTitle = document.getElementById('status-now-title');
+        const sNowSub = document.getElementById('status-now-sub');
+        const sNextCard = document.getElementById('status-next-card');
+        const sNextTitle = document.getElementById('status-next-title');
+        const sNextSub = document.getElementById('status-next-sub');
 
         if (dayOfWeek === 0 || dayOfWeek === 6 || !scheduleData[dayOfWeek]) {
-            statusNowTitle.innerText = "Занятия кончились";
-            statusNowSub.innerText = "Сегодня нет пар";
-            statusNextCard.style.display = "none";
-            return;
+            sNowTitle.innerText = "Занятия кончились"; sNowSub.innerText = "Сегодня нет пар"; sNextCard.style.display = "none"; return;
         }
 
         const todayLessons = scheduleData[dayOfWeek].filter(l => l.week === '*' || (isOdd ? l.week === 'нечёт' : l.week === 'чёт'));
         if (todayLessons.length === 0) {
-            statusNowTitle.innerText = "Занятия кончились";
-            statusNowSub.innerText = "На сегодня пар нет";
-            statusNextCard.style.display = "none";
-            return;
+            sNowTitle.innerText = "Занятия кончились"; sNowSub.innerText = "На сегодня пар нет"; sNextCard.style.display = "none"; return;
         }
 
         todayLessons.sort((a,b) => timeToMin(a.start) - timeToMin(b.start));
-
         const firstStart = timeToMin(todayLessons[0].start);
         const lastEnd = timeToMin(todayLessons[todayLessons.length - 1].end);
 
         if (currentMin > lastEnd) {
-            statusNowTitle.innerText = "Занятия кончились";
-            statusNowSub.innerText = "";
-            statusNextCard.style.display = "none";
-            return;
+            sNowTitle.innerText = "Занятия кончились"; sNowSub.innerText = ""; sNextCard.style.display = "none"; return;
         }
 
-        statusNextCard.style.display = "block";
-
+        sNextCard.style.display = "block";
         if (currentMin < firstStart) {
-            statusNowTitle.innerText = "Пары ещё не начались";
-            statusNowSub.innerText = `Первая пара в ${todayLessons[0].start}`;
-            statusNextTitle.innerText = todayLessons[0].name;
-            statusNextSub.innerText = `${todayLessons[0].start} - ${todayLessons[0].end} (${parseRoom(todayLessons[0].room)})`;
-            return;
+            sNowTitle.innerText = "Пары ещё не начались"; sNowSub.innerText = `Первая пара в ${todayLessons[0].start}`;
+            sNextTitle.innerText = todayLessons[0].name; sNextSub.innerText = `${todayLessons[0].start} - ${todayLessons[0].end} (${parseRoom(todayLessons[0].room)})`; return;
         }
 
-        let currentLesson = null;
-        let nextLesson = null;
-        let isBreak = false;
-
+        let currentLesson = null, nextLesson = null, isBreak = false;
         for (let i = 0; i < todayLessons.length; i++) {
             const lStart = timeToMin(todayLessons[i].start);
             const lEnd = timeToMin(todayLessons[i].end);
-
             if (currentMin >= lStart && currentMin <= lEnd) {
-                currentLesson = todayLessons[i];
-                nextLesson = todayLessons[i + 1] || null;
-                break;
+                currentLesson = todayLessons[i]; nextLesson = todayLessons[i + 1] || null; break;
             } else if (i < todayLessons.length - 1) {
                 const nextStart = timeToMin(todayLessons[i + 1].start);
                 if (currentMin > lEnd && currentMin < nextStart) {
-                    isBreak = true;
-                    nextLesson = todayLessons[i + 1];
-                    break;
+                    isBreak = true; nextLesson = todayLessons[i + 1]; break;
                 }
             }
         }
 
         if (currentLesson) {
-            statusNowTitle.innerText = currentLesson.name;
-            statusNowSub.innerText = `${currentLesson.start} - ${currentLesson.end} | ${parseRoom(currentLesson.room)}`;
-            
+            sNowTitle.innerText = currentLesson.name;
+            sNowSub.innerText = `${currentLesson.start} - ${currentLesson.end} | ${parseRoom(currentLesson.room)}`;
             if (nextLesson) {
-                statusNextTitle.innerText = nextLesson.name;
-                statusNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${parseRoom(nextLesson.room)}`;
-            } else {
-                statusNextCard.style.display = "none";
-            }
+                sNextTitle.innerText = nextLesson.name; sNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${parseRoom(nextLesson.room)}`;
+            } else { sNextCard.style.display = "none"; }
         } else if (isBreak) {
-            statusNowTitle.innerText = "Перерыв";
-            statusNowSub.innerText = `Следующая пара в ${nextLesson.start}`;
-            statusNextTitle.innerText = nextLesson.name;
-            statusNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${parseRoom(nextLesson.room)}`;
+            sNowTitle.innerText = "Перерыв"; sNowSub.innerText = `Следующая пара в ${nextLesson.start}`;
+            sNextTitle.innerText = nextLesson.name; sNextSub.innerText = `${nextLesson.start} - ${nextLesson.end} | ${parseRoom(nextLesson.room)}`;
         }
     }
 
@@ -777,36 +685,48 @@
         renderSchedule();
     }
 
-    /* Модальное окно карты */
-    function openMapModal() {
+    function openMapModal() { 
         document.getElementById('mapModal').classList.add('active');
+        document.getElementById('fabMenu').classList.remove('active');
+        document.querySelector('.fab-main').classList.remove('active');
     }
-
-    /* Модальное окно для ДЗ */
+    
     function openHwModal() {
-        const container = document.getElementById('hw-container');
-        if (!container.innerHTML.trim()) {
-            container.innerHTML = `<div class="hw-empty-msg"><i class="fa fa-info-circle"></i> ДЗ не найдено</div>`;
-        }
+        const c = document.getElementById('hw-container');
+        if (!c.innerHTML.trim()) c.innerHTML = `<div class="hw-empty-msg"><i class="fa fa-info-circle"></i> ДЗ не найдено</div>`;
         document.getElementById('hwModal').classList.add('active');
     }
 
     function openLessonModal(lesson) {
         document.getElementById('m-name').innerText = lesson.name;
         document.getElementById('m-time').innerText = `${lesson.pair} пара (${lesson.start} - ${lesson.end})`;
-        document.getElementById('m-teacher').innerText = lesson.teacher;
+        
+        const tList = lesson.teacher.split(',').map(t => t.trim());
+        const tHtml = tList.map(t => {
+            const tData = teachersDB[t];
+            if (tData) {
+                return tData.url 
+                    ? `<a href="#" class="teacher-link" onclick="openTeacherModal(event, '${tData.url}', '${tData.name}')">${tData.name} <i class="fa fa-external-link-alt" style="font-size:0.75rem;"></i></a>`
+                    : `<strong>${tData.name}</strong>`;
+            }
+            return `<strong>${t}</strong>`;
+        }).join(',<br>');
+
+        document.getElementById('m-teacher').innerHTML = tHtml;
         document.getElementById('m-room').innerText = parseRoom(lesson.room);
         document.getElementById('m-week').innerText = lesson.week === '*' ? 'Каждую неделю' : lesson.week;
         document.getElementById('lessonModal').classList.add('active');
     }
 
-    function closeModal(id) {
-        document.getElementById(id).classList.remove('active');
+    function closeModal(id) { 
+        document.getElementById(id).classList.remove('active'); 
     }
 
-    function openCalendarModal() {
-        renderCalendar();
+    function openCalendarModal() { 
+        renderCalendar(); 
         document.getElementById('calendarModal').classList.add('active');
+        document.getElementById('fabMenu').classList.remove('active');
+        document.querySelector('.fab-main').classList.remove('active');
     }
 
     function changeMonth(delta) {
@@ -819,34 +739,22 @@
     function renderCalendar() {
         const months = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
         document.getElementById('calendar-month-name').innerText = `${months[calMonth]} ${calYear}`;
-
         const grid = document.getElementById('calendar-grid-container');
         grid.innerHTML = '';
+        ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].forEach(h => grid.innerHTML += `<div class="calendar-day-head">${h}</div>`);
 
-        const heads = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-        heads.forEach(h => {
-            grid.innerHTML += `<div class="calendar-day-head">${h}</div>`;
-        });
-
-        const firstDay = new Date(calYear, calMonth, 1);
-        let startingDay = firstDay.getDay() - 1;
+        let startingDay = new Date(calYear, calMonth, 1).getDay() - 1;
         if (startingDay === -1) startingDay = 6;
-
         const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
 
-        for (let i = 0; i < startingDay; i++) {
-            grid.innerHTML += `<div class="calendar-day other-month"></div>`;
-        }
-
+        for (let i = 0; i < startingDay; i++) grid.innerHTML += `<div class="calendar-day other-month"></div>`;
         const now = new Date();
 
         for (let d = 1; d <= totalDays; d++) {
             const dateObj = new Date(calYear, calMonth, d);
             const odd = isOddWeek(dateObj);
-            const isToday = now.toDateString() === dateObj.toDateString();
-
             let dayClass = odd ? 'odd-week' : 'even-week';
-            if (isToday) dayClass += ' today';
+            if (now.toDateString() === dateObj.toDateString()) dayClass += ' today';
 
             const dayEl = document.createElement('div');
             dayEl.className = `calendar-day ${dayClass}`;
@@ -860,9 +768,7 @@
         const dayIdx = date.getDay();
         const odd = isOddWeek(date);
         const details = document.getElementById('calendar-day-details');
-
-        let weekStr = odd ? 'Нечётная неделя' : 'Чётная неделя';
-        let html = `<strong>${date.toLocaleDateString('ru-RU')} (${weekStr})</strong><br>`;
+        let html = `<strong>${date.toLocaleDateString('ru-RU')} (${odd ? 'Нечётная неделя' : 'Чётная неделя'})</strong><br>`;
 
         if (dayIdx === 0 || dayIdx === 6 || !scheduleData[dayIdx]) {
             html += `<p style="color:#777; margin-top:5px;">Выходной день, занятий нет.</p>`;
@@ -881,10 +787,9 @@
         details.innerHTML = html;
     }
 
-    // Инициализация
     updateLiveStatus();
     renderSchedule();
     setInterval(updateLiveStatus, 30000);
 </script>
 </body>
-    </html>
+</html>
