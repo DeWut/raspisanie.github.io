@@ -156,9 +156,6 @@
             transform: scale(1.1);
             background-color: #f8f9fa;
         }
-        .fab-child.hw-child {
-            color: #dc3545;
-        }
 
         @media (max-width: 640px) {
             .fab-container { bottom: 16px !important; right: 16px !important; }
@@ -270,28 +267,6 @@
         .calendar-day.even-week { background-color: var(--badge-even); }
         .calendar-day.today { border: 2px solid var(--accent-color); font-weight: bold; }
 
-        .hw-card {
-            background: #f8f9fa;
-            border-left: 4px solid var(--accent-color);
-            padding: 14px 16px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-        }
-        .hw-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .hw-badge-date {
-            font-size: 0.8rem;
-            background: #ffebee;
-            color: #c62828;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-        }
-        
         .map-wrapper { width: 100%; height: 450px; border-radius: 8px; overflow: hidden; }
         .map-wrapper iframe { width: 100%; height: 100%; border: 0; }
         
@@ -326,16 +301,15 @@
         <button class="filter-btn active" onclick="setFilter('all', this)">Обе недели</button>
         <button class="filter-btn" onclick="setFilter('current', this)">Текущая неделя</button>
         <button class="filter-btn" onclick="setFilter('odd', this)">Нечётная неделя</button>
-        <button class="filter-btn" onclick="setFilter('even', this)">Чётная неделя</button>
+        <button class="filter-btn" onclick="setFilter('even', this)">Ччётная неделя</button>
     </div>
 
     <div id="schedule-container"></div>
 </div>
 
-<!-- Плавающее меню кнопок строго в правом нижнем углу (открывается ВВЕРХ) -->
+<!-- Плавающее меню кнопок строго в правом нижнем углу -->
 <div class="fab-container">
     <div class="fab-menu" id="fabMenu">
-        <button class="fab-child hw-child" onclick="openHwModal()" title="Домашнее задание"><i class="fa fa-book-open"></i></button>
         <button class="fab-child" onclick="openMapModal()" title="Карта"><i class="fa fa-map-marked-alt"></i></button>
         <button class="fab-child" onclick="openCalendarModal()" title="Календарь"><i class="fa fa-calendar-alt"></i></button>
         <button class="fab-child" onclick="openWeatherModal()" title="Погода в СПб"><i class="fa fa-cloud-sun"></i></button>
@@ -371,18 +345,6 @@
             <div class="map-wrapper">
                 <iframe src="https://yandex.ru/map-widget/v1/?um=constructor%3A387733f7d1016f2a91784a9959e5ef96b5b2a07a0533787e90a5bf53a8fcf4c3&amp;source=constructor" width="100%" height="450" frameborder="0"></iframe>
             </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="hwModal">
-    <div class="modal" style="max-width: 520px;">
-        <div class="modal-header">
-            <h3>Домашнее задание</h3>
-            <button class="close-btn" onclick="closeModal('hwModal')">&times;</button>
-        </div>
-        <div class="modal-body" id="hw-container">
-            <!-- Динамически рендерится из JS -->
         </div>
     </div>
 </div>
@@ -424,57 +386,6 @@
 </div>
 
 <script>
-    // Массив с домашними заданиями. 
-    // deadline: дата и время, ПОСЛЕ которых ДЗ автоматически скрывается.
-    const hwList = [
-        {
-            id: "history-portraits",
-            subject: "История России",
-            badgeText: "До 7 сентября (Пн)",
-            deadline: "2026-09-07T15:05:00", // Понедельник 7 сентября, 15:05 (конец 3-й пары)
-            borderColor: "#ff9800",
-            title: "СООБЩЕНИЕ «ПОРТРЕТЫ ИСТОРИКОВ»",
-            content: `
-                <p style="margin: 0 0 8px 0; color: #333;">
-                    Подготовить краткое сообщение (биография, научные труды и вклад) по <strong>одному</strong> из историков на выбор:
-                </p>
-                <div style="background: #f8f9fa; padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--border-color); color: #555; font-size: 0.84rem; line-height: 1.4;">
-                    Татищев, Карамзин, Соловьев, Ключевский, Костомаров, Покровский, Греков, Рыбаков, Лев Гумилёв, Мавродин, Окунь, Фроянов, Соболев.
-                </div>
-            `
-        },
-        {
-            id: "statehood-excursion",
-            subject: "Основы российской государственности",
-            badgeText: "До 11 сентября (Пт)",
-            deadline: "2026-09-11T12:45:00", // Пятница 11 сентября, 12:45 (конец 2-й пары)
-            borderColor: "var(--accent-color)",
-            title: "ВИРТУАЛЬНАЯ ЭКСКУРСИЯ «С ЧЕГО НАЧИНАЕТСЯ РОДИНА?»",
-            content: `
-                <ol style="margin: 0; padding-left: 18px; color: #333;">
-                    <li style="margin-bottom: 6px;">Объединиться в группы (по месту проживания либо просто по желанию, всего 5 групп)</li>
-                    <li style="margin-bottom: 6px;">Каждой группе выбрать регион РФ либо населенный пункт для проведения виртуальной экскурсии (просьба не повторяться!)</li>
-                    <li style="margin-bottom: 6px;">Сообща подготовить материал по теме для визуализации в любом доступном формате (наглядный, словесный, виртуальный и др.)</li>
-                    <li style="margin-bottom: 6px;">Подготовить конспект виртуальной экскурсии и презентацию.</li>
-                    <li>Представить материал (провести виртуальную экскурсию) на следующем практическом занятии.</li>
-                </ol>
-            `
-        },
-        {
-            id: "physics-lab-dice",
-            subject: "Физика (Лабораторные работы)",
-            badgeText: "До 18 сентября (Пт)",
-            deadline: "2026-09-18T15:05:00", // Пятница 18 сентября, 15:05 (конец 3-й пары лабораторной по физике)
-            borderColor: "#9c27b0",
-            title: "МАТЕМАТИЧЕСКОЕ ОЖИДАНИЕ",
-            content: `
-                <p style="margin: 0; color: #333;">
-                    Определение математического ожидания числа очков, выпавших при броске игрального кубика.
-                </p>
-            `
-        }
-    ];
-
     const scheduleData = {
         1: [
             { pair: 1, start: "09:15", end: "10:50", name: "Информатика Лек.", teacher: "Васильев Н.П.", room: "ауд. 1.231", week: "нечёт" },
@@ -486,7 +397,6 @@
             { pair: 1, start: "09:15", end: "10:50", name: "Управление личным временем Лек.", teacher: "Подолянец Л.А.", room: "ауд. 1.242", week: "чёт" },
             { pair: 1, start: "09:15", end: "10:50", name: "Управление личным временем Пр.", teacher: "Подолянец Л.А.", room: "ауд. 1.242", week: "нечёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "Физическая культура и спорт Лек.", teacher: "Тарасеня Т.Ю.", room: "ауд. 2а.451", week: "*" },
-            { pair: 2, start: "11:10", end: "12:45", name: "Физическая культура и спорт Пр.", teacher: "Лешева Н.С.", room: "ауд. Открытый стадион", week: "*" },
             { pair: 3, start: "13:30", end: "15:05", name: "Иностранный язык Пр.", teacher: "Ломакина И.С.", room: "ауд. 1.412", week: "*" },
             { pair: 4, start: "15:15", end: "16:50", name: "Межкультурное взаимодействие в современном мире Пр.", teacher: "Михайлова А.И.", room: "ауд. 1.321", week: "чёт" },
             { pair: 4, start: "15:15", end: "16:50", name: "Начертательная геометрия и инженерная графика Пр.", teacher: "Вохмянин Н.А., Куликова Д.Р.", room: "ауд. 2.210", week: "нечёт" },
@@ -504,6 +414,7 @@
             { pair: 2, start: "11:10", end: "12:45", name: "Ознакомительный практикум Пр.", teacher: "Басова Е.Н.", room: "ауд. 1.213", week: "чёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "Физика Пр.", teacher: "Гущина Е.В.", room: "ауд. 1.026", week: "нечёт" },
             { pair: 3, start: "13:30", end: "15:05", name: "Информатика Лаб.", teacher: "Мартын К.А.", room: "ауд. 1.310", week: "*" },
+            { pair: 4, start: "15:15", end: "16:50", name: "Физическая культура и спорт Лек.", teacher: "Тарасеня Т.Ю.", room: "ауд. 2а.451", week: "*" },
             { pair: 4, start: "15:15", end: "16:50", name: "Физическая культура и спорт Пр.", teacher: "Лешева Н.С.", room: "ауд. Открытый стадион", week: "*" }
         ],
         5: [
@@ -539,43 +450,6 @@
     let currentFilter = 'all';
     let calMonth = 8;
     let calYear = 2026;
-
-    function renderHomework() {
-        const hwContainer = document.getElementById('hw-container');
-        if (!hwContainer) return;
-
-        const now = new Date();
-        const activeHW = hwList.filter(item => new Date(item.deadline) > now);
-
-        if (activeHW.length === 0) {
-            hwContainer.innerHTML = `
-                <div style="text-align: center; padding: 24px 12px; color: #666;">
-                    <i class="fa fa-check-circle fa-2x" style="color: #2e7d32; margin-bottom: 8px;"></i>
-                    <p style="margin: 0; font-weight: 500;">Актуальных домашних заданий нет!</p>
-                </div>`;
-            return;
-        }
-
-        let html = '';
-        activeHW.forEach(item => {
-            html += `
-                <div class="hw-card" style="border-left-color: ${item.borderColor};">
-                    <div class="hw-card-header">
-                        <strong style="font-size: 1.02rem; color: var(--text-color);">${item.subject}</strong>
-                        <span class="hw-badge-date">${item.badgeText}</span>
-                    </div>
-                    <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.88rem; line-height: 1.5;">
-                        <div style="font-weight: bold; margin-bottom: 6px; color: var(--accent-color);">
-                            ${item.title}
-                        </div>
-                        ${item.content}
-                    </div>
-                </div>
-            `;
-        });
-
-        hwContainer.innerHTML = html;
-    }
 
     function handleMonsterScroll() {
         if (window.innerWidth <= 1100) return;
@@ -756,7 +630,11 @@
         const weekNum = Math.floor(diffDays / 7) + 1;
         return (weekNum % 2 !== 0);
     }
-    function timeToMin(timeStr) { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m; }
+
+    function timeToMin(timeStr) {
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+    }
 
     function getDifficultyClass(name) {
         const n = name.toLowerCase();
@@ -846,8 +724,6 @@
         document.getElementById('current-week-info').innerText = `${isOdd ? '1 (нечётная)' : '2 (чётная)'} неделя`;
         if (currentFilter === 'current') renderSchedule();
 
-        renderHomework(); // Автоматически перепроверяет актуальность ДЗ каждую минуту
-
         const sNowTitle = document.getElementById('status-now-title');
         const sNowSub = document.getElementById('status-now-sub');
         const sNextCard = document.getElementById('status-next-card');
@@ -912,13 +788,6 @@
 
     function openMapModal() { 
         document.getElementById('mapModal').classList.add('active');
-        document.getElementById('fabMenu').classList.remove('active');
-        document.querySelector('.fab-main').classList.remove('active');
-    }
-    
-    function openHwModal() {
-        renderHomework();
-        document.getElementById('hwModal').classList.add('active');
         document.getElementById('fabMenu').classList.remove('active');
         document.querySelector('.fab-main').classList.remove('active');
     }
@@ -1015,8 +884,7 @@
 
     updateLiveStatus();
     renderSchedule();
-    renderHomework();
     setInterval(updateLiveStatus, 30000);
 </script>
 </body>
-</html>
+    </html>
