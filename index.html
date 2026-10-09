@@ -4,7 +4,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>Интерактивное расписание</title>
+    <title>Интерактивное расписание — ЛПб-ИСИТ-26-1</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -76,6 +76,18 @@
             z-index: 2;
         }
 
+        /* Верхняя панель: группа слева, неделя справа */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .top-bar .week-indicator {
+            margin-bottom: 0;
+        }
+
         .week-indicator {
             display: flex;
             justify-content: flex-end;
@@ -92,6 +104,96 @@
             border-radius: 12px;
             font-weight: 600;
             box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+
+        /* Выбор группы */
+        .group-selector {
+            position: relative;
+        }
+        .group-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--badge-odd);
+            color: var(--badge-odd-text);
+            border: 1px solid transparent;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
+            font-family: inherit;
+        }
+        .group-btn:hover {
+            background: #d3e6fb;
+        }
+        .group-btn .fa-users { color: var(--accent-color); }
+        .group-btn .fa-chevron-down {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            transition: transform 0.2s;
+        }
+        .group-selector.open .group-btn .fa-chevron-down {
+            transform: rotate(180deg);
+        }
+        .group-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            min-width: 220px;
+            padding: 6px;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-8px);
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 500;
+        }
+        .group-selector.open .group-menu {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+        .group-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.15s;
+            color: var(--text-color);
+            text-decoration: none;
+        }
+        .group-menu-item:hover {
+            background: #f0f4f8;
+        }
+        .group-menu-item.active {
+            background: var(--badge-odd);
+            color: var(--badge-odd-text);
+            font-weight: 600;
+        }
+        .group-menu-item .fa-users { color: var(--accent-color); }
+        .group-menu-item .fa-check {
+            margin-left: auto;
+            font-size: 0.8rem;
+            opacity: 0;
+            color: var(--accent-color);
+        }
+        .group-menu-item.active .fa-check { opacity: 1; }
+        .group-menu-header {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+            padding: 6px 12px 4px 12px;
+            font-weight: 600;
         }
 
         /* Плавающее меню действий (Speed Dial) строго в правом нижнем углу */
@@ -280,8 +382,30 @@
 <div class="monster-peek monster-peek-right" id="monsterRight"><img src="monster.png" alt="Monster"></div>
 
 <div class="container">
-    <div class="week-indicator">
-        <span id="current-week-info">загрузка...</span>
+    <div class="top-bar">
+        <div class="group-selector" id="groupSelector">
+            <button class="group-btn" type="button" onclick="toggleGroupMenu(event)">
+                <i class="fa fa-users"></i>
+                <span>ЛПб-ИСИТ-26-1</span>
+                <i class="fa fa-chevron-down"></i>
+            </button>
+            <div class="group-menu">
+                <div class="group-menu-header">Выбор группы</div>
+                <div class="group-menu-item active">
+                    <i class="fa fa-users"></i>
+                    <span>ЛПб-ИСИТ-26-1</span>
+                    <i class="fa fa-check"></i>
+                </div>
+                <a class="group-menu-item" href="index3.html">
+                    <i class="fa fa-users"></i>
+                    <span>ТМб-СтМет-26-1</span>
+                    <i class="fa fa-check"></i>
+                </a>
+            </div>
+        </div>
+        <div class="week-indicator">
+            <span id="current-week-info">загрузка...</span>
+        </div>
     </div>
 
     <div class="status-grid">
@@ -374,7 +498,7 @@
         <div class="modal-body">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <button class="filter-btn" style="padding: 6px 14px;" onclick="changeMonth(-1)">&lt;</button>
-                <strong id="calendar-month-name" style="font-size:1.05rem;">Сентябрь 2026</strong>
+                <strong id="calendar-month-name" style="font-size:1.05rem;">—</strong>
                 <button class="filter-btn" style="padding: 6px 14px;" onclick="changeMonth(1)">&gt;</button>
             </div>
             <div class="calendar-grid" id="calendar-grid-container"></div>
@@ -426,30 +550,53 @@
     };
 
     const teachersDB = {
-        "Васильев Н.П.": { name: "Васильев Николай Павлович", url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/vasilev-nikolay-pavlovich" },
-        "Мельников Н.Н.": { name: "Мельников Николай Николаевич", url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/melnikov-nikolay-nikolaevich" },
-        "Вохмянин Н.А.": { name: "Вохмянин Николай Александрович", url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/vokhmyanin-nikolay-aleksandrovich" },
-        "Куликова Д.Р.": { name: "Куликова Дарья Романовна", url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/kulikova-darya-romanovna" },
-        "Подолянец Л.А.": { name: "Подолянец Лада Авенировна", url: "https://spbftu.ru/allchairs/chairs-ekonomiki-ucheta-i-analiza-khozyaystvennoy-deyatelnosti/podolyanets-lada-avenirovna" },
-        "Тарасеня Т.Ю.": { name: "Тарасеня Татьяна Юрьевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/tarasenya-tatyana-yurevna" },
-        "Лешева Н.С.": { name: "Лешева Наталья Сергеевна", url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/lesheva-natalya-sergeevna" },
-        "Ломакина И.С.": { name: "Ломакина Ирина Сергеевна", url: "https://spbftu.ru/allchairs/chairs-inostrannykh-yazykov/lomakina-irina-sergeevna" },
-        "Михайлова А.И.": { name: "Михайлова Анна Ивановна", url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/mikhaylova-anna-ivanovna" },
-        "Былев А.Б.": { name: "Былев Александр Борисович", url: "https://spbftu.ru/allchairs/chairs-fiziki/bylev-aleksandr-borisovich" },
-        "Одинцова Н.А.": { name: "Одинцова Н.А.", url: null },
-        "Шлапакова С.Н.": { name: "Шлапакова Светлана Николаевна", url: "https://spbftu.ru/university/administration/shlapakova-svetlana-nikolaevna" },
-        "Басова Е.Н.": { name: "Басова Елизавета Николаевна", url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/basova-elizaveta-nikolaevna" },
-        "Гущина Е.В.": { name: "Гущина Екатерина Владимировна", url: "https://spbftu.ru/allchairs/chairs-fiziki/gushchina-ekaterina-vladimirovna" },
-        "Мартын К.А.": { name: "Мартын Кристина Андреевна", url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/martyn-kristina-andreevna" },
-        "Нуруллина Р.В.": { name: "Нуруллина Роза Вагизовна", url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/nurullina-roza-vagizovna" },
-        "Совтус Н.В.": { name: "Совтус Никита Владимирович", url: "https://spbftu.ru/allchairs/chairs-fiziki/sovtus-nikita-vladimirovich" },
-        "Гаврилов С.П.": { name: "Гаврилов Сергей Петрович", url: "https://spbftu.ru/allchairs/chairs-fiziki/gavrilov-sergey-petrovich" }
+        "Васильев Н.П.":     { name: "Васильев Николай Павлович",       url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/vasilev-nikolay-pavlovich" },
+        "Мельников Н.Н.":    { name: "Мельников Николай Николаевич",    url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/melnikov-nikolay-nikolaevich" },
+        "Вохмянин Н.А.":     { name: "Вохмянин Николай Александрович",  url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/vokhmyanin-nikolay-aleksandrovich" },
+        "Куликова Д.Р.":     { name: "Куликова Дарья Романовна",        url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/kulikova-darya-romanovna" },
+        "Подолянец Л.А.":    { name: "Подолянец Лада Авенировна",       url: "https://spbftu.ru/allchairs/chairs-ekonomiki-ucheta-i-analiza-khozyaystvennoy-deyatelnosti/podolyanets-lada-avenirovna" },
+        "Тарасеня Т.Ю.":     { name: "Тарасеня Татьяна Юрьевна",        url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/tarasenya-tatyana-yurevna" },
+        "Лешева Н.С.":       { name: "Лешева Наталья Сергеевна",        url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/lesheva-natalya-sergeevna" },
+        "Ломакина И.С.":     { name: "Ломакина Ирина Сергеевна",        url: "https://spbftu.ru/allchairs/chairs-inostrannykh-yazykov/lomakina-irina-sergeevna" },
+        "Михайлова А.И.":    { name: "Михайлова Анна Ивановна",         url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/mikhaylova-anna-ivanovna" },
+        "Былев А.Б.":        { name: "Былев Александр Борисович",       url: "https://spbftu.ru/allchairs/chairs-fiziki/bylev-aleksandr-borisovich" },
+        "Одинцова Н.А.":     { name: "Одинцова Н.А.",                   url: null },
+        "Шлапакова С.Н.":    { name: "Шлапакова Светлана Николаевна",   url: "https://spbftu.ru/university/administration/shlapakova-svetlana-nikolaevna" },
+        "Басова Е.Н.":       { name: "Басова Елизавета Николаевна",     url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/basova-elizaveta-nikolaevna" },
+        "Гущина Е.В.":       { name: "Гущина Екатерина Владимировна",   url: "https://spbftu.ru/allchairs/chairs-fiziki/gushchina-ekaterina-vladimirovna" },
+        "Мартын К.А.":       { name: "Мартын Кристина Андреевна",       url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/martyn-kristina-andreevna" },
+        "Нуруллина Р.В.":    { name: "Нуруллина Роза Вагизовна",        url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/nurullina-roza-vagizovna" },
+        "Совтус Н.В.":       { name: "Совтус Никита Владимирович",      url: "https://spbftu.ru/allchairs/chairs-fiziki/sovtus-nikita-vladimirovich" },
+        "Гаврилов С.П.":     { name: "Гаврилов Сергей Петрович",        url: "https://spbftu.ru/allchairs/chairs-fiziki/gavrilov-sergey-petrovich" },
+
+        /* Преподаватели, встречающиеся в расписании ТМб-СтМет */
+        "Григоренко Н.А.":   { name: "Григоренко Наталья Александровна", url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/grigorenko-natalya-aleksandrovna?ysclid=mv1dnnmkxq67789909" },
+        "Шульгин Е.Д.":      { name: "Шульгин Евгений Дмитриевич",       url: "https://spbftu.ru/employee/viewing/shulgin-evgeniy-dmitrievich?ysclid=mv1dnp6tyo122322443" },
+        "Кузько М.В.":       { name: "Кузько Мария Владимировна",        url: "https://spbftu.ru/allchairs/chairs-inostrannykh-yazykov/kuzko-mariya-viktorovna?ysclid=mv1do9qc6n311447681" },
+        "Вернер Н.Н.":       { name: "Вернер Наталья Николаевна",        url: "https://spbftu.ru/employee/viewing/verner-nadezhda-nikolaevna?ysclid=mv1dob843q550948177" }
     };
 
     const daysNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"];
+
+    /* ============================================================
+       КАЛЕНДАРЬ — стартует с ТЕКУЩЕГО месяца (динамически).
+       Границы навигации: сентябрь 2026 → июль 2027.
+       ============================================================ */
+    const today = new Date();
+    let calMonth = today.getMonth();
+    let calYear = today.getFullYear();
+
+    const ACADEMIC_START = new Date(2026, 8, 1);
+    const ACADEMIC_END   = new Date(2027, 6, 31);
+    if (new Date(calYear, calMonth, 1) < ACADEMIC_START) {
+        calMonth = ACADEMIC_START.getMonth();
+        calYear  = ACADEMIC_START.getFullYear();
+    } else if (new Date(calYear, calMonth, 1) > ACADEMIC_END) {
+        calMonth = ACADEMIC_END.getMonth();
+        calYear  = ACADEMIC_END.getFullYear();
+    }
+
     let currentFilter = 'all';
-    let calMonth = 8;
-    let calYear = 2026;
 
     function handleMonsterScroll() {
         if (window.innerWidth <= 1100) return;
@@ -479,11 +626,21 @@
         document.querySelector('.fab-main').classList.toggle('active');
     }
 
+    function toggleGroupMenu(event) {
+        if (event) event.stopPropagation();
+        const sel = document.getElementById('groupSelector');
+        if (sel) sel.classList.toggle('open');
+    }
+
     document.addEventListener('click', function(event) {
         const fabContainer = document.querySelector('.fab-container');
-        if (!fabContainer.contains(event.target)) {
+        if (fabContainer && !fabContainer.contains(event.target)) {
             document.getElementById('fabMenu').classList.remove('active');
             document.querySelector('.fab-main').classList.remove('active');
+        }
+        const groupSel = document.getElementById('groupSelector');
+        if (groupSel && !groupSel.contains(event.target)) {
+            groupSel.classList.remove('open');
         }
     });
 
@@ -644,6 +801,7 @@
         if (n.includes("начертательная")) return "hard";
         if (n.includes("управление личным временем")) return "easy";
         if (n.includes("физическая культура")) return "easy";
+        if (n.includes("элективные курсы")) return "easy";
         if (n.includes("иностранный")) return "medium";
         if (n.includes("межкультурное взаимодействие")) return "easy";
         if (n.includes("основы российской государственности")) return "easy";
@@ -652,6 +810,9 @@
         if (n.includes("физика лаб")) return "medium";
         if (n.includes("экспедиция")) return "black";
         if (n.includes("ознакомительный")) return "black";
+        if (n.includes("правоведение")) return "easy";
+        if (n.includes("русский язык")) return "easy";
+        if (n.includes("социально-ознакомительным")) return "black";
         return "";
     }
 
@@ -694,11 +855,15 @@
                 
                 const diffClass = getDifficultyClass(l.name);
 
+                const teacherCellHtml = (l.teacher && l.room)
+                    ? `${l.teacher}<br><small>${l.room}</small>`
+                    : (l.teacher || l.room || '');
+
                 html += `
                     <tr class="lesson-row ${diffClass}" onclick='openLessonModal(${JSON.stringify(l)})'>
                         <td class="lesson-cell cell-time">${l.pair} пара (${l.start} - ${l.end})</td>
                         <td class="lesson-cell cell-subject">${l.name}</td>
-                        <td class="lesson-cell cell-teacher">${l.teacher}<br><small>${l.room}</small></td>
+                        <td class="lesson-cell cell-teacher">${teacherCellHtml}</td>
                         <td class="lesson-cell"><span class="badge ${badgeClass}">${l.week}</span></td>
                     </tr>
                 `;
@@ -796,19 +961,24 @@
         document.getElementById('m-name').innerText = lesson.name;
         document.getElementById('m-time').innerText = `${lesson.pair} пара (${lesson.start} - ${lesson.end})`;
         
-        const tList = lesson.teacher.split(',').map(t => t.trim());
-        const tHtml = tList.map(t => {
-            const tData = teachersDB[t];
-            if (tData) {
-                return tData.url 
-                    ? `<a href="#" class="teacher-link" onclick="openTeacherModal(event, '${tData.url}', '${tData.name}')">${tData.name} <i class="fa fa-external-link-alt" style="font-size:0.75rem;"></i></a>`
-                    : `<strong>${tData.name}</strong>`;
-            }
-            return `<strong>${t}</strong>`;
-        }).join(',<br>');
+        const tList = lesson.teacher.split(',').map(t => t.trim()).filter(t => t.length > 0);
+        let tHtml = '';
+        if (tList.length === 0) {
+            tHtml = '<em style="color:#888;">не указан</em>';
+        } else {
+            tHtml = tList.map(t => {
+                const tData = teachersDB[t];
+                if (tData) {
+                    return tData.url 
+                        ? `<a href="#" class="teacher-link" onclick="openTeacherModal(event, '${tData.url}', '${tData.name}')">${tData.name} <i class="fa fa-external-link-alt" style="font-size:0.75rem;"></i></a>`
+                        : `<strong>${tData.name}</strong>`;
+                }
+                return `<strong>${t}</strong>`;
+            }).join(',<br>');
+        }
 
         document.getElementById('m-teacher').innerHTML = tHtml;
-        document.getElementById('m-room').innerText = parseRoom(lesson.room);
+        document.getElementById('m-room').innerText = parseRoom(lesson.room) || 'не указана';
         document.getElementById('m-week').innerText = lesson.week === '*' ? 'Каждую неделю' : lesson.week;
         document.getElementById('lessonModal').classList.add('active');
     }
@@ -825,9 +995,16 @@
     }
 
     function changeMonth(delta) {
-        calMonth += delta;
-        if (calMonth < 8) calMonth = 8;
-        if (calMonth > 11) calMonth = 11;
+        let newMonth = calMonth + delta;
+        let newYear = calYear;
+        if (newMonth < 0)  { newMonth = 11; newYear--; }
+        if (newMonth > 11) { newMonth = 0;  newYear++; }
+
+        const candidate = new Date(newYear, newMonth, 1);
+        if (candidate >= ACADEMIC_START && candidate <= ACADEMIC_END) {
+            calMonth = newMonth;
+            calYear = newYear;
+        }
         renderCalendar();
     }
 
@@ -874,7 +1051,7 @@
             } else {
                 html += `<ul style="margin: 5px 0 0 18px; padding: 0;">`;
                 lessons.forEach(l => {
-                    html += `<li><b>${l.pair} пара (${l.start}-${l.end}):</b> ${l.name} (${parseRoom(l.room)})</li>`;
+                    html += `<li><b>${l.pair} пара (${l.start}-${l.end}):</b> ${l.name} (${parseRoom(l.room) || 'аудитория не указана'})</li>`;
                 });
                 html += `</ul>`;
             }
@@ -887,4 +1064,4 @@
     setInterval(updateLiveStatus, 30000);
 </script>
 </body>
-    </html>
+</html>
