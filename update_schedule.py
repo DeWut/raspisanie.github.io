@@ -242,7 +242,7 @@ def load_known_groups():
 
 
 TEACHER_DIRECTORY_URL = "https://spbftu.ru/sveden/struct"
-TEACHER_NAME_RE = re.compile(r"^[А-ЯЁ][А-Яа-яЁё-]+\\s+[А-ЯЁ][А-Яа-яЁё-]+\\s+[А-ЯЁ][А-Яа-яЁё-]+$")
+TEACHER_NAME_RE = re.compile(r"^[А-ЯЁ][А-Яа-яЁё-]+\s+[А-ЯЁ][А-Яа-яЁё-]+\s+[А-ЯЁ][А-Яа-яЁё-]+$")
 
 
 def teacher_initials_key(full_name):
@@ -259,7 +259,7 @@ def update_teacher_directory(session):
     """Собирает ссылки на персональные страницы преподавателей с сайта университета."""
     target = DATA_DIR / "teachers.json"
     try:
-        response = session.get(TEACHER_DIRECTORY_URL, timeout=25)
+        response = session.get(TEACHER_DIRECTORY_URL, timeout=12)
         response.raise_for_status()
         structure = BeautifulSoup(response.text, "html.parser")
         departments = {}
@@ -274,7 +274,7 @@ def update_teacher_directory(session):
         teachers = {}
         for number, department_url in enumerate(sorted(departments), 1):
             try:
-                page = session.get(department_url, timeout=20)
+                page = session.get(department_url, timeout=8)
                 page.raise_for_status()
                 soup = BeautifulSoup(page.text, "html.parser")
                 for anchor in soup.select("a[href]"):
