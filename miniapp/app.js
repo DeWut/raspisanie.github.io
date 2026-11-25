@@ -58,10 +58,11 @@
   async function updatePresence() {
     if (!PRESENCE_API) return;
     try {
-      await fetch(new URL('/api/presence/ping', PRESENCE_API), {
+      const pingResponse = await fetch(new URL('/api/presence/ping', PRESENCE_API), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: presenceSessionId() }), cache: 'no-store',
       });
+      if (!pingResponse.ok) throw new Error('presence-ping-failed');
       const response = await fetch(new URL('/api/presence', PRESENCE_API), { cache: 'no-store' });
       if (!response.ok) throw new Error('presence-unavailable');
       const data = await response.json();
