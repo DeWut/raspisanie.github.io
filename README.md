@@ -1,6 +1,6 @@
-# raspisanie
+# SPBFTUIT — расписание и навигация
 
-Интерактивное расписание СПбГЛТУ: парсер собирает группы с eios.spbftu.ru в `data/`, `index.html` показывает любую.
+Расписание и навигация SPBFTUIT для СПбГЛТУ: парсер собирает группы с eios.spbftu.ru в `data/`, `index.html` показывает любую.
 
 ## Termux
     pkg install python git -y && pip install -r requirements.txt
