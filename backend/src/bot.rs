@@ -376,7 +376,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             if !is_group_chat {
                 "Эта команда предназначена для группового чата Telegram.".into()
             } else if !matches!(
-                crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id)
+                crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None)
                     .await
                     .ok()
                     .flatten()
