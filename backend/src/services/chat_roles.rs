@@ -11,7 +11,7 @@ pub async fn sync_member(
     telegram_id: i64,
 ) -> Result<Option<String>, String> {
     let configured: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id = $1 AND is_active = TRUE)"
+        "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id = $1 AND is_active = TRUE)",
     )
     .bind(chat_id.0)
     .fetch_one(db)
@@ -75,7 +75,7 @@ pub async fn sync_member(
     }
 
     let smart_role: String = sqlx::query_scalar(
-        "SELECT role FROM bot_chat_members WHERE chat_id = $1 AND telegram_id = $2"
+        "SELECT role FROM bot_chat_members WHERE chat_id = $1 AND telegram_id = $2",
     )
     .bind(chat_id.0)
     .bind(telegram_id)
@@ -98,12 +98,7 @@ pub async fn sync_member(
 }
 
 /// Telegram administrators and the chat creator always have administrative access.
-pub async fn can_manage_chat(
-    bot: &Bot,
-    db: &PgPool,
-    chat_id: ChatId,
-    telegram_id: i64,
-) -> bool {
+pub async fn can_manage_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: i64) -> bool {
     match sync_member(bot, db, chat_id, telegram_id).await {
         Ok(Some(role)) => matches!(
             role.as_str(),

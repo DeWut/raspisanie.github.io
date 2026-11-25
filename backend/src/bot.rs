@@ -141,7 +141,6 @@ async fn selected_group(db: &PgPool, telegram_id: i64, chat_id: i64) -> Option<u
     }
 }
 
-
 fn period(command: &str) -> (DateTime<Utc>, DateTime<Utc>) {
     let now = Utc::now();
     let local_now = now.with_timezone(&moscow_offset());
@@ -303,13 +302,8 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     // Refresh Telegram's authoritative owner/admin/member status only for
     // management commands, avoiding an API request for every ordinary message.
     if is_group_chat && matches!(command, "/settings" | "/setgroup" | "/role") {
-        if let Err(error) = crate::services::chat_roles::sync_member(
-            &bot,
-            db,
-            message.chat.id,
-            telegram_id,
-        )
-        .await
+        if let Err(error) =
+            crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id).await
         {
             tracing::debug!("Could not synchronize Telegram chat member: {}", error);
         }
@@ -366,16 +360,15 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             if !is_group_chat {
                 "Эта команда предназначена для группового чата Telegram.".into()
             } else if !matches!(
-                crate::services::chat_roles::sync_member(
-                    &bot, db, message.chat.id, telegram_id
-                )
-                .await
-                .ok()
-                .flatten()
-                .as_deref(),
+                crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .as_deref(),
                 Some("owner" | "admin")
             ) {
-                "⛔ Менять учебную группу чата может только создатель или администратор Telegram.".into()
+                "⛔ Менять учебную группу чата может только создатель или администратор Telegram."
+                    .into()
             } else if argument.is_empty() {
                 "Укажи группу: /setgroup ЛПб-ИСИТ-26-1".into()
             } else {
@@ -483,14 +476,18 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 "Команда /role работает только в групповом чате.".into()
             } else {
                 let actor_role = crate::services::chat_roles::sync_member(
-                    &bot, db, message.chat.id, telegram_id
+                    &bot,
+                    db,
+                    message.chat.id,
+                    telegram_id,
                 )
                 .await
                 .ok()
                 .flatten();
 
                 if !matches!(actor_role.as_deref(), Some("owner" | "admin")) {
-                    "⛔ Назначать роли может только создатель чата или администратор Telegram.".into()
+                    "⛔ Назначать роли может только создатель чата или администратор Telegram."
+                        .into()
                 } else {
                     let mut parts = argument.split_whitespace();
                     let target_id = parts.next().and_then(|value| value.parse::<i64>().ok());
@@ -502,14 +499,18 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
 
                     if parts.next().is_some() || target_id.is_none() || !valid_role {
                         if can_assign_senior {
-                            "Формат: /role TELEGRAM_ID senior_moderator|moderator|helper|member".into()
+                            "Формат: /role TELEGRAM_ID senior_moderator|moderator|helper|member"
+                                .into()
                         } else {
                             "Администратор Telegram может назначать только moderator, helper или member. Старшего модератора назначает создатель чата.".into()
                         }
                     } else {
                         let target_id = target_id.unwrap();
                         let target_role = crate::services::chat_roles::sync_member(
-                            &bot, db, message.chat.id, target_id
+                            &bot,
+                            db,
+                            message.chat.id,
+                            target_id,
                         )
                         .await
                         .ok()
