@@ -2,6 +2,10 @@ name: Validate database migrations
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/migrations/**'
+      - '.github/workflows/validate-migrations.yml'
 
 jobs:
   migrate:
