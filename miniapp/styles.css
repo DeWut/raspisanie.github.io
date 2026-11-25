@@ -214,3 +214,18 @@ button { font-family: inherit; }
 .online-indicator { display:inline-flex; align-items:center; gap:5px; margin-top:4px; color:#6e8d4c; font-size:9px; font-weight:700; letter-spacing:0; }
 .online-indicator[hidden] { display:none !important; }
 .online-indicator::before { width:6px; height:6px; border-radius:50%; background:#83ad49; content:""; box-shadow:0 0 0 3px rgba(131,173,73,.12); }
+
+
+/* Unified schedule navigation: one screen, two time ranges. */
+.schedule-toolbar { display:grid; gap:10px; margin-top:25px; }
+.schedule-mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border:1px solid var(--line); border-radius:15px; background:#edf1e9; }
+.mode-button { min-height:39px; display:flex; align-items:center; justify-content:center; gap:7px; border:0; border-radius:11px; background:transparent; color:var(--muted); font-size:11px; font-weight:750; cursor:pointer; }
+.mode-button svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.mode-button.active { background:var(--forest); color:#fff; box-shadow:0 3px 9px rgba(23,61,46,.14); }
+.schedule-toolbar .filter-bar { margin:0; }
+.schedule-section { padding-top:20px; }
+.quick-action svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.lesson-card { cursor:pointer; }
+.lesson-card:focus-visible, .week-lesson:focus-visible { outline:2px solid #86a957; outline-offset:2px; }
+.lesson-details p { display:grid; grid-template-columns:110px 1fr; gap:10px; align-items:start; }
+.teacher-profile { color:var(--forest); text-decoration:underline; text-decoration-color:#b7c9a9; text-underline-offset:3px; }
