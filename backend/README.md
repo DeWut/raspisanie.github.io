@@ -3,7 +3,7 @@
 ## Local run
 
 1. Install PostgreSQL 16 and pgvector.
-2. Copy the root `.env.example` to `.env` and set `DATABASE_URL` and `TELOXIDE_TOKEN`.
+2. Copy `backend/.env.example` to `backend/.env` (or, from the `backend` directory, run `cp .env.example .env`). Set `DATABASE_URL` and `TELOXIDE_TOKEN`. Set `OPENAI_API_KEY` too if you want to use RAG/AI features.
 3. Create the database and ensure the PostgreSQL user can install/use the `vector` and `pg_trgm` extensions.
 4. Run the service from this directory:
 
@@ -32,4 +32,4 @@ The bot intentionally does not ingest ordinary group-chat messages yet. Chat-bas
 - Schedule commands depend on the EIOS sync/import process having populated `groups` and `lessons`.
 - Reminders are delivered by an in-process polling loop. For production, run a single bot worker (or move scheduling to a distributed job queue) to avoid duplicate polling workers.
 - Telegram only permits deletion of eligible bot messages in chats where the bot has permission; deletion is best-effort.
-- Configure the bot with a Telegram BotFather token and keep it secret. Do not commit `.env`.
+- Configure the bot with a Telegram BotFather token and keep it secret. The RAG service uses `OPENAI_API_KEY`; basic Telegram commands do not require it. Both keys are read from environment variables / `.env`. Do not commit `.env`.
