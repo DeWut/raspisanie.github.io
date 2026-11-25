@@ -1,0 +1,22 @@
+name: Check backend
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/check-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  cargo-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check backend
+        working-directory: backend
+        run: cargo check --all-targets
