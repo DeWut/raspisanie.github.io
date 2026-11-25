@@ -252,3 +252,24 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 @media(max-width:380px) { .hero-card { min-height:212px; } .hero-content { max-width:calc(100% - 58px); } .hero-card h2 { font-size:20px; } .hero-next { font-size:9px; } }
 
 .quick-action.quick-bot { text-decoration:none; }
+
+
+/* Clearer timetable: one card per actual lesson time slot. */
+.lesson-card.has-variants { align-items:start; }
+.lesson-variants { display:grid; gap:8px; min-width:0; }
+.lesson-variant { min-width:0; }
+.lesson-variant + .lesson-variant { padding-top:7px; border-top:1px solid #edf1eb; }
+.lesson-variant-type { display:block; margin:0 0 4px; color:var(--forest); font-size:9px; font-weight:800; }
+.lesson-variant .lesson-meta { display:grid; gap:4px; }
+.lesson-card.has-variants .lesson-title { margin-bottom:7px; }
+.hero-next[hidden] { display:none !important; }
+.hero-card.summary-only { min-height:174px; }
+.hero-card.summary-only .hero-content { max-width:calc(100% - 68px); }
+.hero-card.summary-only .hero-footer { bottom:13px; }
+.detail-variant { margin:4px 0; }
+.detail-variant + .detail-variant { margin-top:9px; padding-top:9px; border-top:1px solid var(--line); }
+.detail-variant b { color:var(--forest); font-size:10px; }
+@media(max-width:380px) {
+  .lesson-card { grid-template-columns:52px minmax(0,1fr); gap:9px; padding:12px; }
+  .lesson-card.has-variants .lesson-meta { font-size:8px; }
+}
