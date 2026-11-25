@@ -235,3 +235,14 @@ button { font-family: inherit; }
 
 .chevron-icon { width:14px; height:14px; flex:0 0 auto; fill:none; stroke:var(--muted); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .quick-main svg, .icon-button.small svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+
+/* Smooth, touch-friendly day carousel and restored live timetable status. */
+.day-strip { display:flex; gap:9px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x mandatory; scroll-behavior:smooth; touch-action:pan-x pan-y; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:3px 2px 10px; cursor:grab; }
+.day-strip::-webkit-scrollbar { display:none; }
+.day-chip { flex:0 0 clamp(58px, 15vw, 76px); min-height:68px; scroll-snap-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; border-radius:17px; transition:transform .22s ease, background .22s ease, box-shadow .22s ease; }
+.day-chip:active { transform:scale(.94); }
+.day-chip.selected { transform:translateY(-2px); box-shadow:0 7px 17px rgba(23,61,46,.13); }
+.hero-next { grid-column:1/-1; margin:9px 0 0; padding:9px 11px; border:1px solid rgba(255,255,255,.18); border-radius:12px; background:rgba(255,255,255,.09); color:rgba(255,255,255,.94); font-size:11px; line-height:1.45; overflow-wrap:anywhere; }
+.week-section .filter-bar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin:0 0 12px; }
+@media (prefers-reduced-motion: reduce) { .day-strip { scroll-behavior:auto; } .day-chip { transition:none; } }
