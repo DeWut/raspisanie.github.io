@@ -180,11 +180,20 @@
     const next = nextIndex >= 0 ? lessons[nextIndex] : null;
     const describe = (lesson) => [lesson.name, lesson.start ? `в ${lesson.start}` : '', lesson.room ? parseRoom(lesson.room) : ''].filter(Boolean).join(' · ');
     if (active) return { title: 'Идёт пара', subtitle: `${active.name} · до ${active.end}`, next: next ? `Следующее: ${describe(next)}` : 'Следующее: после этой пары занятий больше нет' };
+    // Обеденное время фиксировано университетским расписанием: 12:45–13:30.
+    if (current >= 12 * 60 + 45 && current < 13 * 60 + 30) {
+      const until = next ? minutes(next.start) - current : 0;
+      const timeHint = next ? (until < 60 ? `через ${until} мин` : `в ${next.start}`) : '';
+      return {
+        title: 'Обед',
+        subtitle: '12:45–13:30 · время отдохнуть и перекусить',
+        next: next ? `Следующее: ${describe(next)} · ${timeHint}` : 'Следующее: на сегодня занятий больше нет'
+      };
+    }
     if (next) {
       const previous = lessons.slice(0, nextIndex).at(-1);
-      const gap = previous ? minutes(next.start) - minutes(previous.end) : minutes(next.start) - current;
-      const stateLabel = previous ? (gap >= 60 ? 'Обед' : 'Перемена') : 'До первой пары';
-      const stateDetail = previous ? (gap >= 60 ? 'Время на обед и отдых' : 'Можно немного передохнуть') : 'Пока можно спокойно подготовиться';
+      const stateLabel = previous ? 'Перемена' : 'До первой пары';
+      const stateDetail = previous ? 'Можно немного передохнуть' : 'Пока можно спокойно подготовиться';
       const until = minutes(next.start) - current;
       const timeHint = until < 60 ? `через ${until} мин` : `в ${next.start}`;
       return { title: stateLabel, subtitle: stateDetail, next: `Следующее: ${describe(next)} · ${timeHint}` };
