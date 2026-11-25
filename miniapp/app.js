@@ -219,9 +219,29 @@
     });
     if (view === 'week') renderWeek();
   }
+
+  function describeRoom(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    const compact = value.replace(/^ауд\\.?\\s*/i, '').trim();
+    const legacy = compact.match(/^(\\d+)[-–](\\d+)(?:[.\\s](\\d+))?$/);
+    if (legacy) {
+      const building = legacy[1], floor = legacy[2], room = legacy[3] || '';
+      return room ? `${building} корпус · ${floor} этаж · кабинет ${room}` : `${building} корпус · ${floor} этаж`;
+    }
+    const match = compact.match(/^([^.]*)\\.(\\d)(\\d+)$/);
+    if (match) {
+      const building = match[1].replace(/[-–]$/, '').trim();
+      const floorDigit = Number(match[2]);
+      const floor = floorDigit <= 1 ? 1 : floorDigit;
+      const room = Number(match[2] + match[3]);
+      return `${building} корпус · ${floor} этаж · кабинет ${room}`;
+    }
+    return compact;
+  }
   function bindEvents() {
     $('#group-button').addEventListener('click', openGroupDialog);
-    $('#nav-group').addEventListener('click', openGroupDialog);
+    $('#room-input').addEventListener('input', (event) => { $('#room-result').textContent = describeRoom(event.target.value) || 'Введи номер аудитории из расписания.'; });
     $('#group-search').addEventListener('input', (event) => renderGroupOptions(event.target.value));
     $('#today-button').addEventListener('click', () => { state.selectedDate = startOfDay(new Date()); renderAll(); });
     $('#prev-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
