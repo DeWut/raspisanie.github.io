@@ -19,4 +19,6 @@ jobs:
 
       - name: Check backend
         working-directory: backend
-        run: cargo check --all-targets
+        run: |
+          cargo check --all-targets
+          cargo test --all-targets
