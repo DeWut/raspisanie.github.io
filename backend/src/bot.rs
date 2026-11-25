@@ -482,6 +482,83 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             }
         }
 
+        "/role" => {
+            if !is_group_chat {
+                "Команда /role работает только в групповом чате.".into()
+            } else {
+                let actor_role = crate::services::chat_roles::sync_member(
+                    &bot, db, message.chat.id, telegram_id
+                )
+                .await
+                .ok()
+                .flatten();
+
+                if !matches!(actor_role.as_deref(), Some("owner" | "admin")) {
+                    "⛔ Назначать роли может только создатель чата или администратор Telegram.".into()
+                } else {
+                    let mut parts = argument.split_whitespace();
+                    let target_id = parts.next().and_then(|value| value.parse::<i64>().ok());
+                    let requested_role = parts.next().unwrap_or("");
+
+                    if parts.next().is_some()
+                        || target_id.is_none()
+                        || !matches!(requested_role, "senior_moderator" | "moderator" | "helper" | "member")
+                    {
+                        "Формат: /role TELEGRAM_ID senior_moderator|moderator|helper|member".into()
+                    } else {
+                        let target_id = target_id.unwrap();
+                        let target_role = crate::services::chat_roles::sync_member(
+                            &bot, db, message.chat.id, target_id
+                        )
+                        .await
+                        .ok()
+                        .flatten();
+
+                        match target_role {
+                            None => "Не удалось проверить участника. Укажи Telegram ID участника, который состоит в этом чате.".into(),
+                            Some(ref role) if role == "owner" || role == "admin" => {
+                                "Роль владельца и Telegram-администратора нельзя изменить командой бота.".into()
+                            }
+                            Some(_) => {
+                                let result = sqlx::query(
+                                    r#"
+                                    UPDATE bot_chat_members
+                                    SET role = $3, assigned_by = $4, updated_at = now()
+                                    WHERE chat_id = $1 AND telegram_id = $2
+                                    "#
+                                )
+                                .bind(message.chat.id.0)
+                                .bind(target_id)
+                                .bind(requested_role)
+                                .bind(telegram_id)
+                                .execute(db)
+                                .await;
+
+                                if result.is_ok() {
+                                    let _ = sqlx::query(
+                                        r#"
+                                        INSERT INTO bot_chat_audit_logs
+                                            (chat_id, actor_telegram_id, target_telegram_id, action, details)
+                                        VALUES ($1, $2, $3, 'role_changed', jsonb_build_object('role', $4))
+                                        "#
+                                    )
+                                    .bind(message.chat.id.0)
+                                    .bind(telegram_id)
+                                    .bind(target_id)
+                                    .bind(requested_role)
+                                    .execute(db)
+                                    .await;
+                                    format!("✅ Участнику {} назначена роль: {}", target_id, requested_role)
+                                } else {
+                                    "Не удалось сохранить роль участника.".into()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         "/settings" => {
             if is_group_chat {
                 let group: Option<String> = sqlx::query_scalar(
