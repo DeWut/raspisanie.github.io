@@ -38,7 +38,7 @@
     }
     throw lastError || new Error('data-unavailable');
   }
-  const PRESENCE_API = (window.SMART_CAMPUS_API_URL || document.querySelector('meta[name="smart-campus-api"]')?.content || '').replace(/\/+$/, '');
+  const PRESENCE_API = (window.SMART_CAMPUS_API_URL || document.querySelector('meta[name="smart-campus-api"]')?.content || '').replace(new RegExp('/+$'), '');
   function presenceSessionId() {
     const key = 'spbftuit-presence-session';
     let id = safeStorageGet(key);
