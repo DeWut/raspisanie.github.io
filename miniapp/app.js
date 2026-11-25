@@ -101,6 +101,18 @@
         "Вернер Н.Н.":       { name: "Вернер Наталья Николаевна",        url: "https://spbftu.ru/employee/viewing/verner-nadezhda-nikolaevna?ysclid=mv1dob843q550948177" }
   };
 
+  async function loadTeacherDirectory() {
+    try {
+      const response = await fetchDataFile('teachers.json');
+      const directory = await response.json();
+      if (!directory || typeof directory !== 'object' || Array.isArray(directory)) return;
+      for (const [shortName, profile] of Object.entries(directory)) {
+        if (profile && typeof profile.name === 'string' && typeof profile.url === 'string' && /^https:\/\/spbftu\\.ru\//.test(profile.url)) {
+          if (!teachersDB[shortName]) teachersDB[shortName] = profile;
+        }
+      }
+    } catch { /* The hand-maintained directory remains available if the university site is temporarily unavailable. */ }
+  }
   function moscowDateParts(date = new Date()) {
     return Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
       timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -442,6 +454,7 @@
     bindEvents();
     updatePresence();
     window.setInterval(updatePresence, 45_000);
+    await loadTeacherDirectory();
     await loadData();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
   }
