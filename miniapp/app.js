@@ -215,8 +215,8 @@
     const currentMinutes = Number(nowParts.hour) * 60 + Number(nowParts.minute);
     const current = dateKey(date) === dateKey(startOfDay(now)) && currentMinutes >= minutes(lesson.start) && currentMinutes < minutes(lesson.end);
     const pair = lesson.pair ? `<small>${lesson.pair} пара</small>` : '';
-    const teacher = lesson.teacher ? `<span class="meta-item"><span class="meta-icon">♙</span>${escapeHtml(lesson.teacher)}</span>` : '';
-    const room = lesson.room ? `<span class="meta-item"><span class="meta-icon">⌖</span>${escapeHtml(parseRoom(lesson.room))}</span>` : '';
+    const teacher = lesson.teacher ? `<span class="meta-item"><svg class="meta-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2z"/></svg>${escapeHtml(lesson.teacher)}</span>` : '';
+    const room = lesson.room ? `<span class="meta-item"><svg class="meta-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>${escapeHtml(parseRoom(lesson.room))}</span>` : '';
     const week = lesson.week && lesson.week !== '*' ? `<span class="week-badge">${escapeHtml(lesson.week)} нед.</span>` : '';
     return `<article class="lesson-card${current ? ' is-current' : ''}" data-lesson-index="${index}" style="animation-delay:${Math.min(index * 35, 175)}ms">${week}<div class="lesson-time">${escapeHtml(lesson.start)}<small>— ${escapeHtml(lesson.end)}</small>${pair}</div><div class="lesson-main">${current ? '<span class="current-tag">● Идёт сейчас</span>' : ''}<h3 class="lesson-title">${escapeHtml(lesson.name)}</h3><div class="lesson-meta">${teacher}${room}</div></div></article>`;
   }
@@ -224,7 +224,7 @@
     const lessons = getLessons(state.selectedDate);
     const list = $('#schedule-list');
     if (!state.schedule) {
-      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">⌕</span><strong>Сначала выбери группу</strong><p>Найди свою группу, и мы покажем расписание на сегодня и всю неделю.</p></div>';
+      list.innerHTML = '<div class="empty-card"><span class="empty-illustration"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg></span><strong>Сначала выбери группу</strong><p>Найди свою группу, и мы покажем расписание на сегодня и всю неделю.</p></div>';
       $('#updated-note').textContent = '';
       return;
     }
