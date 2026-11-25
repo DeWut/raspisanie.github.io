@@ -1,3 +1,4 @@
+pub mod chat_roles;
 pub mod eios_sync;
 pub mod parser;
 pub mod rag;
