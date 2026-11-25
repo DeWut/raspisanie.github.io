@@ -77,6 +77,7 @@
         "Васильев Н.П.":     { name: "Васильев Николай Павлович",       url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/vasilev-nikolay-pavlovich" },
         "Мельников Н.Н.":    { name: "Мельников Николай Николаевич",    url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/melnikov-nikolay-nikolaevich" },
         "Вохмянин Н.А.":     { name: "Вохмянин Николай Александрович",  url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/vokhmyanin-nikolay-aleksandrovich" },
+        "Совтус Н.В.":       { name: "Совтус Никита Владимирович", url: "https://spbftu.ru/allchairs/chairs-fiziki/sovtus-nikita-vladimirovich" },
         "Куликова Д.Р.":     { name: "Куликова Дарья Романовна",        url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/kulikova-darya-romanovna" },
         "Подолянец Л.А.":    { name: "Подолянец Лада Авенировна",       url: "https://spbftu.ru/allchairs/chairs-ekonomiki-ucheta-i-analiza-khozyaystvennoy-deyatelnosti/podolyanets-lada-avenirovna" },
         "Тарасеня Т.Ю.":     { name: "Тарасеня Татьяна Юрьевна",        url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/tarasenya-tatyana-yurevna" },
@@ -136,11 +137,14 @@
   }
   function parseRoom(raw) {
     if (!raw) return '';
-    const cleaned = String(raw).replace(/^ауд\\.\\s*/i, '').trim();
-    const match = cleaned.match(/^([^\\.]+)\\.(\\d)(\\d+)$/);
+    const cleaned = String(raw).replace(/^ауд\.\s*/i, '').trim();
+    const match = cleaned.match(/^([^.]+)\.(\d)(\d+)$/);
     if (!match) return cleaned;
-    const floor = Number(match[2]) <= 1 ? 1 : Number(match[2]);
-    return `${match[1]} корпус, ${floor} этаж, кабинет ${match[2]}${match[3]}`;
+    const building = match[1].trim();
+    const roomNumber = match[2] + match[3];
+    const floorDigit = Number(match[2]);
+    const floor = floorDigit <= 1 ? 1 : floorDigit;
+    return building + ' корпус, ' + floor + ' этаж, аудитория ' + roomNumber;
   }
   function setGreeting() {
     const name = tg?.initDataUnsafe?.user?.first_name;
@@ -266,7 +270,6 @@
     renderDays();
     renderSchedule();
     renderWeek();
-    renderSearch();
   }
   function openGroupDialog() {
     renderGroupOptions('');
@@ -318,17 +321,15 @@
     }
   }
   function switchView(view) {
-    state.view = view;
-    $('#today-view').classList.toggle('hidden', view !== 'today');
-    $('#week-view').classList.toggle('hidden', view !== 'week');
-    $('#search-view').classList.toggle('hidden', view !== 'search');
-    document.querySelectorAll('.nav-item[data-view]').forEach((button) => {
-      const active = button.dataset.view === `${view}-view`;
+    state.view = view === 'week' ? 'week' : 'today';
+    $('#today-view').classList.toggle('hidden', state.view !== 'today');
+    $('#week-view').classList.toggle('hidden', state.view !== 'week');
+    document.querySelectorAll('[data-view-toggle]').forEach((button) => {
+      const active = button.dataset.viewToggle === state.view;
       button.classList.toggle('active', active);
-      if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+      button.setAttribute('aria-pressed', String(active));
     });
-    if (view === 'week') renderWeek();
-    if (view === 'search') renderSearch();
+    if (state.view === 'week') renderWeek();
   }
 
   function closeQuickMenu() {
@@ -402,33 +403,10 @@
     $('#detail-week').textContent = lesson.week === '*' ? 'Каждую неделю' : lesson.week || 'Не указана';
     $('#lesson-dialog').showModal();
   }
-  function renderSearch() {
-    const results = $('#search-results');
-    if (!state.schedule) { results.innerHTML = '<div class="empty-card"><strong>Сначала выбери группу</strong><p>Поиск работает по расписанию выбранной группы.</p></div>'; return; }
-    const query = state.searchQuery.trim().toLocaleLowerCase('ru');
-    const monday = weekStart(state.selectedDate);
-    const matches = [];
-    DAYS.forEach((day, index) => {
-      const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
-      getLessons(date, 'current').forEach((lesson) => {
-        const haystack = [lesson.name, lesson.teacher, lesson.room].filter(Boolean).join(' ').toLocaleLowerCase('ru');
-        if (!query || haystack.includes(query)) matches.push({ lesson, date, day });
-      });
-    });
-    const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
-    $('#search-week-range').textContent = `${formatDate(monday)} — ${formatDate(sunday)}`;
-    $('#search-hint').textContent = query ? `Найдено занятий: ${matches.length}` : 'Поиск по предмету, преподавателю или аудитории за выбранную неделю.';
-    if (!matches.length) { results.innerHTML = '<div class="empty-card"><strong>Ничего не найдено</strong><p>Попробуй изменить запрос или выбрать другую неделю.</p></div>'; return; }
-    results.innerHTML = matches.map(({ lesson, date, day }, index) => `<button type="button" class="search-result" data-result-index="${index}"><span class="search-result-time">${escapeHtml(lesson.start)}<span class="search-result-day">${day.short} · ${date.getUTCDate()}</span></span><span><span class="search-result-title">${escapeHtml(lesson.name)}</span><span class="search-result-meta">${escapeHtml([lesson.teacher, lesson.room].filter(Boolean).join(' · ') || 'Подробности не указаны')}</span></span></button>`).join('');
-    results.querySelectorAll('[data-result-index]').forEach((button) => button.addEventListener('click', () => {
-      const item = matches[Number(button.dataset.resultIndex)];
-      openLessonDetails(item.lesson, item.date);
-    }));
-  }
   function bindEvents() {
     $('#group-button').addEventListener('click', openGroupDialog);
+    document.querySelectorAll('[data-view-toggle]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewToggle)));
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
-    $('#schedule-search').addEventListener('input', (event) => { state.searchQuery = event.target.value; renderSearch(); });
     document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
       state.filter = button.dataset.filter;
       document.querySelectorAll('[data-filter]').forEach((item) => item.classList.toggle('active', item.dataset.filter === state.filter));
@@ -444,8 +422,6 @@
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
     $('#calendar-next').addEventListener('click', () => changeCalendarMonth(1));
-    $('#search-prev-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
-    $('#search-next-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() + 7); renderAll(); });
     $('#group-search').addEventListener('input', (event) => renderGroupOptions(event.target.value));
     $('#today-button').addEventListener('click', () => { state.selectedDate = startOfDay(new Date()); renderAll(); });
     $('#prev-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
@@ -455,7 +431,6 @@
       if (!tg?.sendData || !state.schedule?.id) return;
       tg.sendData(JSON.stringify({ type: 'set_personal_group', group_id: String(state.schedule.id) }));
     });
-    document.querySelectorAll('.nav-item[data-view]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.view.replace('-view', ''))));
     tg?.onEvent?.('themeChanged', () => document.documentElement.style.colorScheme = tg.colorScheme || 'light');
   }
   async function init() {
