@@ -14,9 +14,36 @@
   const TIME_ZONE = 'Europe/Moscow';
   const SEMESTER_START = new Date(Date.UTC(2026, 7, 31, 12));
   const GROUP_KEY = 'smart-campus-group-id';
-  const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), view: 'today', searchQuery: '' };
+  const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), view: 'today', searchQuery: '', filter: 'all', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
+  const DATA_ROOT = location.pathname.includes('/miniapp/') ? '../data/' : './data/';
+  const teachersDB = {
+        "Васильев Н.П.":     { name: "Васильев Николай Павлович",       url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/vasilev-nikolay-pavlovich" },
+        "Мельников Н.Н.":    { name: "Мельников Николай Николаевич",    url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/melnikov-nikolay-nikolaevich" },
+        "Вохмянин Н.А.":     { name: "Вохмянин Николай Александрович",  url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/vokhmyanin-nikolay-aleksandrovich" },
+        "Куликова Д.Р.":     { name: "Куликова Дарья Романовна",        url: "https://spbftu.ru/allchairs/chairs-prikladnoy-mekhaniki-i-inzhenernoy-grafiki/kulikova-darya-romanovna" },
+        "Подолянец Л.А.":    { name: "Подолянец Лада Авенировна",       url: "https://spbftu.ru/allchairs/chairs-ekonomiki-ucheta-i-analiza-khozyaystvennoy-deyatelnosti/podolyanets-lada-avenirovna" },
+        "Тарасеня Т.Ю.":     { name: "Тарасеня Татьяна Юрьевна",        url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/tarasenya-tatyana-yurevna" },
+        "Лешева Н.С.":       { name: "Лешева Наталья Сергеевна",        url: "https://spbftu.ru/allchairs/chairs-fizicheskoy-kultury/lesheva-natalya-sergeevna" },
+        "Ломакина И.С.":     { name: "Ломакина Ирина Сергеевна",        url: "https://spbftu.ru/allchairs/chairs-inostrannykh-yazykov/lomakina-irina-sergeevna" },
+        "Михайлова А.И.":    { name: "Михайлова Анна Ивановна",         url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/mikhaylova-anna-ivanovna" },
+        "Былев А.Б.":        { name: "Былев Александр Борисович",       url: "https://spbftu.ru/allchairs/chairs-fiziki/bylev-aleksandr-borisovich" },
+        "Одинцова Н.А.":     { name: "Одинцова Н.А.",                   url: null },
+        "Шлапакова С.Н.":    { name: "Шлапакова Светлана Николаевна",   url: "https://spbftu.ru/university/administration/shlapakova-svetlana-nikolaevna" },
+        "Басова Е.Н.":       { name: "Басова Елизавета Николаевна",     url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/basova-elizaveta-nikolaevna" },
+        "Гущина Е.В.":       { name: "Гущина Екатерина Владимировна",   url: "https://spbftu.ru/allchairs/chairs-fiziki/gushchina-ekaterina-vladimirovna" },
+        "Мартын К.А.":       { name: "Мартын Кристина Андреевна",       url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/martyn-kristina-andreevna" },
+        "Нуруллина Р.В.":    { name: "Нуруллина Роза Вагизовна",        url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/nurullina-roza-vagizovna" },
+        "Совтус Н.В.":       { name: "Совтус Никита Владимирович",      url: "https://spbftu.ru/allchairs/chairs-fiziki/sovtus-nikita-vladimirovich" },
+        "Гаврилов С.П.":     { name: "Гаврилов Сергей Петрович",        url: "https://spbftu.ru/allchairs/chairs-fiziki/gavrilov-sergey-petrovich" },
+
+        /* Преподаватели, встречающиеся в расписании ТМб-СтМет */
+        "Григоренко Н.А.":   { name: "Григоренко Наталья Александровна", url: "https://spbftu.ru/allchairs/chairs-russkogo-yazyka/grigorenko-natalya-aleksandrovna?ysclid=mv1dnnmkxq67789909" },
+        "Шульгин Е.Д.":      { name: "Шульгин Евгений Дмитриевич",       url: "https://spbftu.ru/employee/viewing/shulgin-evgeniy-dmitrievich?ysclid=mv1dnp6tyo122322443" },
+        "Кузько М.В.":       { name: "Кузько Мария Владимировна",        url: "https://spbftu.ru/allchairs/chairs-inostrannykh-yazykov/kuzko-mariya-viktorovna?ysclid=mv1do9qc6n311447681" },
+        "Вернер Н.Н.":       { name: "Вернер Наталья Николаевна",        url: "https://spbftu.ru/employee/viewing/verner-nadezhda-nikolaevna?ysclid=mv1dob843q550948177" }
+  };
 
   function moscowDateParts(date = new Date()) {
     return Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
@@ -42,13 +69,23 @@
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   }
   function minutes(value) { const [hour, minute] = String(value || '0:0').split(':').map(Number); return hour * 60 + minute; }
-  function getLessons(date) {
+  function getLessons(date, filter = state.filter) {
     const lessons = state.schedule?.lessons?.[String(dayNumber(date))] || [];
     const parity = isOddWeek(date) ? 'нечёт' : 'чёт';
-    return lessons
-      .filter((lesson) => lesson.week === '*' || lesson.week === parity)
-      .slice()
-      .sort((a, b) => minutes(a.start) - minutes(b.start));
+    return lessons.filter((lesson) => {
+      if (filter === 'odd') return lesson.week === '*' || lesson.week === 'нечёт';
+      if (filter === 'even') return lesson.week === '*' || lesson.week === 'чёт';
+      if (filter === 'current') return lesson.week === '*' || lesson.week === parity;
+      return true;
+    }).slice().sort((a, b) => minutes(a.start) - minutes(b.start));
+  }
+  function parseRoom(raw) {
+    if (!raw) return '';
+    const cleaned = String(raw).replace(/^ауд\\.\\s*/i, '').trim();
+    const match = cleaned.match(/^([^\\.]+)\\.(\\d)(\\d+)$/);
+    if (!match) return cleaned;
+    const floor = Number(match[2]) <= 1 ? 1 : Number(match[2]);
+    return `${match[1]} корпус, ${floor} этаж, кабинет ${match[2]}${match[3]}`;
   }
   function setGreeting() {
     const name = tg?.initDataUnsafe?.user?.first_name;
@@ -89,7 +126,7 @@
     return many;
   }
   function renderHero() {
-    const lessons = getLessons(state.selectedDate);
+    const lessons = getLessons(state.selectedDate, 'current');
     const today = dateKey(state.selectedDate) === dateKey(startOfDay(new Date()));
     const status = getStatus(state.selectedDate, lessons);
     $('#hero-label').textContent = today ? 'СЕГОДНЯ' : formatDate(state.selectedDate, { weekday: 'long' }).toUpperCase();
@@ -120,7 +157,7 @@
     const current = dateKey(date) === dateKey(startOfDay(now)) && currentMinutes >= minutes(lesson.start) && currentMinutes < minutes(lesson.end);
     const pair = lesson.pair ? `<small>${lesson.pair} пара</small>` : '';
     const teacher = lesson.teacher ? `<span class="meta-item"><span class="meta-icon">♙</span>${escapeHtml(lesson.teacher)}</span>` : '';
-    const room = lesson.room ? `<span class="meta-item"><span class="meta-icon">⌖</span>${escapeHtml(lesson.room)}</span>` : '';
+    const room = lesson.room ? `<span class="meta-item"><span class="meta-icon">⌖</span>${escapeHtml(parseRoom(lesson.room))}</span>` : '';
     const week = lesson.week && lesson.week !== '*' ? `<span class="week-badge">${escapeHtml(lesson.week)} нед.</span>` : '';
     return `<article class="lesson-card${current ? ' is-current' : ''}" data-lesson-index="${index}" style="animation-delay:${Math.min(index * 35, 175)}ms">${week}<div class="lesson-time">${escapeHtml(lesson.start)}<small>— ${escapeHtml(lesson.end)}</small>${pair}</div><div class="lesson-main">${current ? '<span class="current-tag">● Идёт сейчас</span>' : ''}<h3 class="lesson-title">${escapeHtml(lesson.name)}</h3><div class="lesson-meta">${teacher}${room}</div></div></article>`;
   }
@@ -154,7 +191,10 @@
     $('#week-list').innerHTML = DAYS.map((day, index) => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
       const lessons = getLessons(date);
-      const content = lessons.length ? lessons.map((lesson, lessonIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${lessonIndex}"><div class="week-lesson-time">${escapeHtml(lesson.start)}<br>${escapeHtml(lesson.end)}</div><div><p class="week-lesson-title">${escapeHtml(lesson.name)}</p><span class="week-lesson-meta">${[lesson.room, lesson.teacher].filter(Boolean).map(escapeHtml).join(' · ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
+      const today = startOfDay(new Date());
+      const showDay = state.filter !== 'current' || dateKey(date) >= dateKey(today);
+      const visibleLessons = showDay ? lessons : [];
+      const content = visibleLessons.length ? visibleLessons.map((lesson, lessonIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${lessonIndex}"><div class="week-lesson-time">${escapeHtml(lesson.start)}<br>${escapeHtml(lesson.end)}</div><div><p class="week-lesson-title">${escapeHtml(lesson.name)}</p><span class="week-lesson-meta">${[lesson.room, lesson.teacher].filter(Boolean).map(escapeHtml).join(' · ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
       const selected = dateKey(date) === dateKey(state.selectedDate);
       return `<article class="week-day"${selected ? ' style="border-color:#bfd493"' : ''}><div class="week-day-head"><span class="week-day-title">${day.full}<small>${formatDate(date, { day: 'numeric', month: 'short' })}</small></span><span class="week-day-count">${lessons.length ? `${lessons.length} ${plural(lessons.length, 'пара', 'пары', 'пар')}` : 'выходной'}</span></div>${content}</article>`;
     }).join('');
@@ -192,7 +232,7 @@
     if (!group) return;
     $('#group-results').innerHTML = '<p class="loading">Загружаем расписание…</p>';
     try {
-      const response = await fetch(`../data/${encodeURIComponent(group.id)}.json`, { cache: 'no-cache' });
+      const response = await fetch(`${DATA_ROOT}${encodeURIComponent(group.id)}.json`, { cache: 'no-cache' });
       if (!response.ok) throw new Error('schedule-not-found');
       const schedule = await response.json();
       state.schedule = schedule;
@@ -207,10 +247,10 @@
   }
   async function loadData() {
     try {
-      const response = await fetch('../data/groups.json', { cache: 'no-cache' });
+      const response = await fetch(`${DATA_ROOT}groups.json`, { cache: 'no-cache' });
       if (!response.ok) throw new Error('groups-not-found');
       state.groups = await response.json();
-      const saved = safeStorageGet(GROUP_KEY);
+      const saved = safeStorageGet(GROUP_KEY) || safeStorageGet('groupId');
       const match = state.groups.find((group) => String(group.id) === String(saved));
       if (match) await selectGroup(match.id);
       else if (state.groups.length) { renderAll(); openGroupDialog(); }
@@ -236,13 +276,74 @@
     if (view === 'search') renderSearch();
   }
 
+  function closeQuickMenu() {
+    $('#quick-menu').classList.remove('open');
+    $('#quick-main').classList.remove('active');
+    $('#quick-main').setAttribute('aria-expanded', 'false');
+  }
+  function changeCalendarMonth(delta) {
+    const candidate = new Date(state.calendarYear, state.calendarMonth + delta, 1);
+    if (candidate < new Date(2026, 8, 1) || candidate > new Date(2027, 6, 31)) return;
+    state.calendarMonth = candidate.getMonth();
+    state.calendarYear = candidate.getFullYear();
+    renderCalendar();
+  }
+  function renderCalendar() {
+    const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    $('#calendar-month-name').textContent = `${months[state.calendarMonth]} ${state.calendarYear}`;
+    const grid = $('#calendar-grid');
+    const headers = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((day) => `<span class="calendar-day-head">${day}</span>`).join('');
+    const first = new Date(state.calendarYear, state.calendarMonth, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const total = new Date(state.calendarYear, state.calendarMonth + 1, 0).getDate();
+    const today = dateKey(startOfDay(new Date()));
+    let cells = '';
+    for (let i = 0; i < offset; i++) cells += '<span class="calendar-day empty"></span>';
+    for (let d = 1; d <= total; d++) {
+      const date = new Date(Date.UTC(state.calendarYear, state.calendarMonth, d, 12));
+      const key = dateKey(date);
+      const parity = isOddWeek(date) ? 'odd-week' : 'even-week';
+      cells += `<button type="button" class="calendar-day ${parity} ${key === today ? 'today' : ''}" data-calendar-date="${key}">${d}</button>`;
+    }
+    grid.innerHTML = headers + cells;
+    grid.querySelectorAll('[data-calendar-date]').forEach((button) => button.addEventListener('click', () => {
+      const date = new Date(`${button.dataset.calendarDate}T12:00:00Z`);
+      const lessons = getLessons(date, 'current');
+      $('#calendar-details').innerHTML = `<strong>${escapeHtml(formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }))}</strong><div class="calendar-lesson-list">${lessons.length ? lessons.map((lesson) => `<p><b>${escapeHtml(lesson.start)}–${escapeHtml(lesson.end)}</b> ${escapeHtml(lesson.name)}<small>${escapeHtml(parseRoom(lesson.room))}</small></p>`).join('') : '<p>Пар нет</p>'}</div><button type="button" class="text-button" id="calendar-open-day">Открыть этот день</button>`;
+      $('#calendar-open-day').addEventListener('click', () => {
+        state.selectedDate = date;
+        state.view = 'today';
+        switchView('today');
+        renderAll();
+        $('#calendar-dialog').close();
+      });
+    }));
+  }
+  async function loadWeather() {
+    const box = $('#weather-content');
+    box.textContent = 'Загружаем погоду…';
+    try {
+      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=59.9386&longitude=30.3141&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Europe%2FMoscow');
+      if (!response.ok) throw new Error('weather');
+      const data = await response.json();
+      const labels = {0:'Ясно',1:'Преимущественно ясно',2:'Переменная облачность',3:'Пасмурно',45:'Туман',48:'Изморозь',51:'Морось',53:'Морось',55:'Сильная морось',61:'Небольшой дождь',63:'Дождь',65:'Сильный дождь',71:'Снег',73:'Снегопад',75:'Сильный снегопад',80:'Ливень',81:'Ливень',82:'Сильный ливень',95:'Гроза'};
+      const current = data.current, daily = data.daily;
+      box.innerHTML = `<div class="weather-current"><strong>${Math.round(current.temperature_2m)}°</strong><span>${labels[current.weather_code] || 'Погодные условия'}</span><small>Ощущается как ${Math.round(current.apparent_temperature)}° · ветер ${Math.round(current.wind_speed_10m)} км/ч · влажность ${current.relative_humidity_2m}%</small></div><div class="weather-days">${daily.time.slice(0, 5).map((date, i) => `<div><b>${new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'short' })}</b><span>${labels[daily.weather_code[i]] || '—'}</span><strong>${Math.round(daily.temperature_2m_max[i])}° / ${Math.round(daily.temperature_2m_min[i])}°</strong></div>`).join('')}</div>`;
+    } catch {
+      box.textContent = 'Не удалось загрузить погоду. Проверь подключение к интернету.';
+    }
+  }
   function openLessonDetails(lesson, date) {
     if (!lesson) return;
     $('#detail-date').textContent = formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
     $('#detail-name').textContent = lesson.name || 'Занятие';
     $('#detail-time').textContent = `${lesson.start} — ${lesson.end}${lesson.pair ? ` · ${lesson.pair} пара` : ''}`;
-    $('#detail-teacher').textContent = lesson.teacher || 'Не указан';
-    $('#detail-room').textContent = lesson.room || 'Не указана';
+    const teacherNames = String(lesson.teacher || '').split(',').map((name) => name.trim()).filter(Boolean);
+    $('#detail-teacher').innerHTML = teacherNames.length ? teacherNames.map((short) => {
+      const data = teachersDB[short];
+      return data?.url ? `<a class="teacher-profile" href="${escapeHtml(data.url)}" target="_blank" rel="noopener">${escapeHtml(data.name)}</a>` : `<strong>${escapeHtml(data?.name || short)}</strong>`;
+    }).join('<br>') : 'Не указан';
+    $('#detail-room').textContent = parseRoom(lesson.room) || 'Не указана';
     $('#detail-week').textContent = lesson.week === '*' ? 'Каждую неделю' : lesson.week || 'Не указана';
     $('#lesson-dialog').showModal();
   }
@@ -254,7 +355,7 @@
     const matches = [];
     DAYS.forEach((day, index) => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
-      getLessons(date).forEach((lesson) => {
+      getLessons(date, 'current').forEach((lesson) => {
         const haystack = [lesson.name, lesson.teacher, lesson.room].filter(Boolean).join(' ').toLocaleLowerCase('ru');
         if (!query || haystack.includes(query)) matches.push({ lesson, date, day });
       });
@@ -273,6 +374,21 @@
     $('#group-button').addEventListener('click', openGroupDialog);
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
     $('#schedule-search').addEventListener('input', (event) => { state.searchQuery = event.target.value; renderSearch(); });
+    document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
+      state.filter = button.dataset.filter;
+      document.querySelectorAll('[data-filter]').forEach((item) => item.classList.toggle('active', item.dataset.filter === state.filter));
+      renderAll();
+    }));
+    $('#quick-main').addEventListener('click', () => {
+      const open = $('#quick-menu').classList.toggle('open');
+      $('#quick-main').classList.toggle('active', open);
+      $('#quick-main').setAttribute('aria-expanded', String(open));
+    });
+    $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
+    $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); });
+    $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
+    $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
+    $('#calendar-next').addEventListener('click', () => changeCalendarMonth(1));
     $('#search-prev-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
     $('#search-next-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() + 7); renderAll(); });
     $('#group-search').addEventListener('input', (event) => renderGroupOptions(event.target.value));
