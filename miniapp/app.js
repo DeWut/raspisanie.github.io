@@ -108,7 +108,7 @@
       if (!directory || typeof directory !== 'object' || Array.isArray(directory)) return;
       for (const [shortName, profile] of Object.entries(directory)) {
         if (profile && typeof profile.name === 'string' && typeof profile.url === 'string' && /^https:\/\/spbftu\.ru\//.test(profile.url)) {
-          if (!teachersDB[shortName]) teachersDB[shortName] = profile;
+          teachersDB[shortName] = profile;
         }
       }
     } catch { /* The hand-maintained directory remains available if the university site is temporarily unavailable. */ }
