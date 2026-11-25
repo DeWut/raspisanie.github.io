@@ -196,6 +196,18 @@
             font-weight: 600;
         }
 
+
+        .group-menu { min-width: 260px; }
+        .group-search {
+            width: 100%; margin: 4px 0 6px 0; padding: 9px 10px;
+            border: 1px solid var(--border-color); border-radius: 8px;
+            font-size: 0.9rem; outline: none;
+        }
+        .group-search:focus { border-color: var(--accent-color); }
+        .group-list { max-height: 50vh; overflow-y: auto; }
+        .group-empty { padding: 10px 12px; color: #888; font-size: 0.85rem; }
+        .updated-note { text-align: center; color: #999; font-size: 0.75rem; margin-top: 14px; }
+
         /* Плавающее меню действий (Speed Dial) строго в правом нижнем углу */
         .fab-container {
             position: fixed !important;
@@ -386,21 +398,13 @@
         <div class="group-selector" id="groupSelector">
             <button class="group-btn" type="button" onclick="toggleGroupMenu(event)">
                 <i class="fa fa-users"></i>
-                <span>ЛПб-ИСИТ-26-1</span>
+                <span id="group-current-name">Группа…</span>
                 <i class="fa fa-chevron-down"></i>
             </button>
             <div class="group-menu">
                 <div class="group-menu-header">Выбор группы</div>
-                <div class="group-menu-item active">
-                    <i class="fa fa-users"></i>
-                    <span>ЛПб-ИСИТ-26-1</span>
-                    <i class="fa fa-check"></i>
-                </div>
-                <a class="group-menu-item" href="index3.html">
-                    <i class="fa fa-users"></i>
-                    <span>ТМб-СтМет-26-1</span>
-                    <i class="fa fa-check"></i>
-                </a>
+                <input type="search" id="group-search" class="group-search" placeholder="Поиск группы…" autocomplete="off" oninput="renderGroupList()" onclick="event.stopPropagation()">
+                <div id="group-list" class="group-list"></div>
             </div>
         </div>
         <div class="week-indicator">
@@ -510,7 +514,7 @@
 </div>
 
 <script>
-    const scheduleData = {
+    let scheduleData = {
         1: [
             { pair: 1, start: "09:15", end: "10:50", name: "Информатика Лек.", teacher: "Васильев Н.П.", room: "ауд. 1.231", week: "нечёт" },
             { pair: 2, start: "11:10", end: "12:45", name: "История России Лек.", teacher: "Мельников Н.Н.", room: "ауд. 2а.455", week: "*" },
@@ -576,7 +580,7 @@
         "Вернер Н.Н.":       { name: "Вернер Наталья Николаевна",        url: "https://spbftu.ru/employee/viewing/verner-nadezhda-nikolaevna?ysclid=mv1dob843q550948177" }
     };
 
-    const daysNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"];
+    const daysNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
 
     /* ============================================================
        КАЛЕНДАРЬ — стартует с ТЕКУЩЕГО месяца (динамически).
@@ -793,7 +797,12 @@
         return h * 60 + m;
     }
 
+    /* Цвета сложности подобраны вручную под предметы ЛПб-ИСИТ-26-1,
+       поэтому для остальных групп они отключены. Добавь сюда ID групп, если нужно. */
+    const DIFFICULTY_GROUPS = ['19244', 'local'];
+
     function getDifficultyClass(name) {
+        if (!DIFFICULTY_GROUPS.includes(currentGroupId)) return "";
         const n = name.toLowerCase();
         if (n.includes("информатика")) return "medium";
         if (n.includes("математика")) return "medium";
@@ -826,7 +835,7 @@
         const currentMin = now.getHours() * 60 + now.getMinutes();
         let renderedCount = 0;
 
-        for (let dayIdx = 1; dayIdx <= 5; dayIdx++) {
+        for (let dayIdx = 1; dayIdx <= 6; dayIdx++) {
             if (currentFilter === 'current' && dayIdx < currentDayNum) continue;
 
             const lessons = scheduleData[dayIdx] || [];
@@ -856,13 +865,13 @@
                 const diffClass = getDifficultyClass(l.name);
 
                 const teacherCellHtml = (l.teacher && l.room)
-                    ? `${l.teacher}<br><small>${l.room}</small>`
-                    : (l.teacher || l.room || '');
+                    ? `${esc(l.teacher)}<br><small>${esc(l.room)}</small>`
+                    : esc(l.teacher || l.room || '');
 
                 html += `
-                    <tr class="lesson-row ${diffClass}" onclick='openLessonModal(${JSON.stringify(l)})'>
+                    <tr class="lesson-row ${diffClass}" onclick='openLessonModal(${JSON.stringify(l).replace(/&/g,"&amp;").replace(/'/g,"&#39;")})'>
                         <td class="lesson-cell cell-time">${l.pair} пара (${l.start} - ${l.end})</td>
-                        <td class="lesson-cell cell-subject">${l.name}</td>
+                        <td class="lesson-cell cell-subject">${esc(l.name)}</td>
                         <td class="lesson-cell cell-teacher">${teacherCellHtml}</td>
                         <td class="lesson-cell"><span class="badge ${badgeClass}">${l.week}</span></td>
                     </tr>
@@ -895,7 +904,7 @@
         const sNextTitle = document.getElementById('status-next-title');
         const sNextSub = document.getElementById('status-next-sub');
 
-        if (dayOfWeek === 0 || dayOfWeek === 6 || !scheduleData[dayOfWeek]) {
+        if (dayOfWeek === 0 || !scheduleData[dayOfWeek]) {
             sNowTitle.innerText = "Занятия кончились"; sNowSub.innerText = "Сегодня нет пар"; sNextCard.style.display = "none"; return;
         }
 
@@ -973,7 +982,7 @@
                         ? `<a href="#" class="teacher-link" onclick="openTeacherModal(event, '${tData.url}', '${tData.name}')">${tData.name} <i class="fa fa-external-link-alt" style="font-size:0.75rem;"></i></a>`
                         : `<strong>${tData.name}</strong>`;
                 }
-                return `<strong>${t}</strong>`;
+                return `<strong>${esc(t)}</strong>`;
             }).join(',<br>');
         }
 
@@ -1042,7 +1051,7 @@
         const details = document.getElementById('calendar-day-details');
         let html = `<strong>${date.toLocaleDateString('ru-RU')} (${odd ? 'Нечётная неделя' : 'Чётная неделя'})</strong><br>`;
 
-        if (dayIdx === 0 || dayIdx === 6 || !scheduleData[dayIdx]) {
+        if (dayIdx === 0 || !scheduleData[dayIdx]) {
             html += `<p style="color:#777; margin-top:5px;">Выходной день, занятий нет.</p>`;
         } else {
             const lessons = scheduleData[dayIdx].filter(l => l.week === '*' || (odd ? l.week === 'нечёт' : l.week === 'чёт'));
@@ -1059,9 +1068,91 @@
         details.innerHTML = html;
     }
 
+
+    /* ============================================================
+       ГРУППЫ: список data/groups.json, расписание data/<id>.json
+       (их создаёт update_schedule.py). Если файлов нет - работает
+       встроенное расписание ЛПб-ИСИТ-26-1 из этого файла.
+       ============================================================ */
+    const FALLBACK_SCHEDULE = scheduleData;
+    const FALLBACK_GROUP = { id: 'local', name: 'ЛПб-ИСИТ-26-1' };
+    let groupsList = [];
+    let currentGroupId = null;
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function fetchJson(url) {
+        const r = await fetch(url, { cache: 'no-cache' });
+        if (!r.ok) throw new Error(url + ' ' + r.status);
+        return r.json();
+    }
+
+    function renderGroupList() {
+        const box = document.getElementById('group-list');
+        const q = (document.getElementById('group-search').value || '').trim().toLowerCase();
+        const items = groupsList.filter(g => g.name.toLowerCase().includes(q));
+        if (!items.length) { box.innerHTML = '<div class="group-empty">Ничего не найдено</div>'; return; }
+        box.innerHTML = items.slice(0, 80).map(g => `
+            <div class="group-menu-item ${g.id === currentGroupId ? 'active' : ''}" data-id="${esc(g.id)}">
+                <i class="fa fa-users"></i><span>${esc(g.name)}</span><i class="fa fa-check"></i>
+            </div>`).join('') + (items.length > 80 ? '<div class="group-empty">Уточни поиск — показаны первые 80</div>' : '');
+        box.querySelectorAll('.group-menu-item').forEach(el => el.addEventListener('click', () => {
+            selectGroup(el.dataset.id);
+            document.getElementById('groupSelector').classList.remove('open');
+        }));
+    }
+
+    function applyGroup(id, name, lessons, updated) {
+        currentGroupId = id;
+        scheduleData = lessons;
+        document.getElementById('group-current-name').innerText = name;
+        document.title = 'Интерактивное расписание — ' + name;
+        let note = document.getElementById('updated-note');
+        if (!note) {
+            note = document.createElement('div');
+            note.id = 'updated-note'; note.className = 'updated-note';
+            document.querySelector('.container').appendChild(note);
+        }
+        note.innerText = updated ? 'Данные с сайта вуза, обновлено: ' + updated : 'Встроенное расписание (без обновления с сайта)';
+        renderGroupList();
+        updateLiveStatus();
+        renderSchedule();
+    }
+
+    async function selectGroup(id) {
+        try {
+            const d = await fetchJson('data/' + encodeURIComponent(id) + '.json');
+            applyGroup(String(d.id), d.name, d.lessons || {}, d.updated);
+            try { localStorage.setItem('groupId', String(d.id)); } catch (e) {}
+            const u = new URL(location.href); u.searchParams.set('group', d.id);
+            history.replaceState(null, '', u);
+        } catch (e) {
+            console.warn('Не удалось загрузить группу', id, e);
+            if (!currentGroupId) applyGroup(FALLBACK_GROUP.id, FALLBACK_GROUP.name, FALLBACK_SCHEDULE, null);
+        }
+    }
+
+    async function initGroups() {
+        try {
+            groupsList = await fetchJson('data/groups.json');
+        } catch (e) { groupsList = []; }
+        if (!groupsList.length) {
+            groupsList = [FALLBACK_GROUP];
+            applyGroup(FALLBACK_GROUP.id, FALLBACK_GROUP.name, FALLBACK_SCHEDULE, null);
+            return;
+        }
+        let saved = null;
+        try { saved = localStorage.getItem('groupId'); } catch (e) {}
+        const wanted = new URLSearchParams(location.search).get('group') || saved || groupsList[0].id;
+        await selectGroup(groupsList.some(g => g.id === wanted) ? wanted : groupsList[0].id);
+    }
+
     updateLiveStatus();
     renderSchedule();
     setInterval(updateLiveStatus, 30000);
+    initGroups();
 </script>
 </body>
 </html>
