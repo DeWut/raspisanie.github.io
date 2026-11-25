@@ -48,7 +48,7 @@ fn main_keyboard(webapp_url: &str, is_private: bool) -> KeyboardMarkup {
     if is_private {
         if let Ok(url) = url::Url::parse(webapp_url) {
             if url.scheme() == "https" && url.host_str() != Some("example.com") {
-                rows.push(vec![KeyboardButton::new("🌲 Открыть SMART CAMPUS")
+                rows.push(vec![KeyboardButton::new("🌲 Открыть SPBFTUIT")
                     .request(ButtonRequest::WebApp(WebAppInfo { url }))]);
             }
         }
@@ -463,7 +463,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     };
     let Some(telegram_id) = telegram_user_id(&message) else {
         // Anonymous administrators and sender-chat messages have no stable
-        // Telegram user ID, so they cannot be authorized for SMART CAMPUS roles.
+        // Telegram user ID, so they cannot be authorized for SPBFTUIT roles.
         if message.chat.id.0 < 0 && text.trim_start().starts_with("/role") {
             bot.send_message(
                 message.chat.id,
@@ -546,7 +546,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
 
     let answer = match command {
         "/start" | "/help" | "/menu" => {
-            let mut help = "🎓 *SMART CAMPUS*\n\n\
+            let mut help = "🎓 *SPBFTUIT*\n\n\
             Твой учебный помощник!\n\n\
             📅 /today — расписание на сегодня\n\
             📅 /tomorrow — расписание на завтра\n\
@@ -1080,7 +1080,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                                                 .await;
                                                 match stored {
                                                     Ok(result) if result.rows_affected() == 0 => {
-                                                        "У участника уже есть активное ограничение SMART CAMPUS.".into()
+                                                        "У участника уже есть активное ограничение SPBFTUIT.".into()
                                                     }
                                                     Err(_) => "Не удалось сохранить данные ограничения.".into(),
                                                     Ok(_) => {
@@ -1221,7 +1221,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                                     }
                                 }
                             }
-                            Ok(None) => "Для этого участника нет активного ограничения SMART CAMPUS.".into(),
+                            Ok(None) => "Для этого участника нет активного ограничения SPBFTUIT.".into(),
                             Err(_) => "Не удалось прочитать данные ограничения.".into(),
                         }
                     }
