@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#173d2e" />
-    <meta name="description" content="Расписание и учебный день СПбГЛТУ в Telegram." />
-    <title>SMART CAMPUS — расписание</title>
+    <meta name="description" content="Расписание и навигация по университету SPBFTUIT." />
+    <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
     <link rel="stylesheet" href="./styles.css" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -14,14 +14,14 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#today" aria-label="SMART CAMPUS — на сегодня">
+        <a class="brand" href="#today" aria-label="SPBFTUIT — на сегодня">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 40 40" fill="none">
               <path d="M20 4 8 19h7L7 29h10v7h6v-7h10l-8-10h7L20 4Z" fill="currentColor" />
               <path d="M20 4v32" stroke="#D8F27A" stroke-width="1.4" opacity=".85" />
             </svg>
           </span>
-          <span class="brand-copy"><strong>SMART CAMPUS</strong><small>учебный навигатор</small></span>
+          <span class="brand-copy"><strong>SPBFTUIT</strong><small>расписание и навигация</small></span>
         </a>
         <button class="icon-button" id="refresh-button" aria-label="Обновить расписание" title="Обновить">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.2 9a6.5 6.5 0 0 1 10.7-2L20 12M4 12l3.1 5a6.5 6.5 0 0 0 10.7-2" /></svg>
@@ -71,13 +71,27 @@
           <div class="week-list" id="week-list"></div>
         </section>
 
+
+        <section class="schedule-section hidden" id="tools-view">
+          <div class="section-heading"><div><p class="eyebrow">ПОЛЕЗНОЕ</p><h2>Как найти аудиторию</h2></div></div>
+          <div class="room-tool">
+            <label for="room-input">Номер аудитории из расписания</label>
+            <input id="room-input" type="text" inputmode="text" placeholder="Например, 2-2.207 или ауд. 2.207" autocomplete="off" />
+            <p id="room-result" class="room-result" aria-live="polite">Введи номер — подскажу корпус, этаж и кабинет.</p>
+          </div>
+          <div class="campus-card">
+            <div><strong>Карта университета</strong><p>Открой карту и найди нужный корпус на территории.</p></div>
+            <a href="https://yandex.ru/map-widget/v1/?um=constructor%3A387733f7d1016f2a91784a9959e5ef96b5b2a07a0533787e90a5bf53a8fcf4c3&amp;source=constructor" target="_blank" rel="noopener">Открыть карту ↗</a>
+          </div>
+          <div class="campus-card"><div><strong>Полное расписание</strong><p>Все фильтры, календарь, преподаватели и дополнительные инструменты.</p></div><a href="../index.html">Открыть сайт ↗</a></div>
+        </section>
         <section class="source-note"><span class="source-icon">i</span><p>Расписание синхронизируется с учебным порталом. Если заметил ошибку, уточни информацию в <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a> или на <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайте университета</a>.</p></section>
       </main>
 
       <nav class="bottom-nav" aria-label="Разделы">
         <button class="nav-item active" data-view="today-view" aria-current="page"><span class="nav-icon">▦</span><span>Сегодня</span></button>
         <button class="nav-item" data-view="week-view"><span class="nav-icon">▤</span><span>Неделя</span></button>
-        <button class="nav-item" id="nav-group"><span class="nav-icon">⌕</span><span>Моя группа</span></button>
+        <button class="nav-item" data-view="tools-view"><span class="nav-icon">⌖</span><span>Полезное</span></button>
       </nav>
     </div>
 
