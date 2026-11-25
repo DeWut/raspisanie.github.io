@@ -127,7 +127,7 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
     let mut tick=tokio::time::interval(Duration::from_secs(30));
     loop {
         tick.tick().await;
-        let rows=sqlx::query_as::<_,(i64,i32,String,chrono::DateTime<Utc>)>(
+        let rows=sqlx::query_as::<_,(i64,String,String,chrono::DateTime<Utc>)>(
             "SELECT u.telegram_id,l.id::text,l.subject,l.starts_at FROM users u JOIN lessons l ON l.group_id=u.group_id WHERE COALESCE((u.settings->>'reminders_enabled')::boolean,false)=true AND l.starts_at BETWEEN now()+interval '9 minutes' AND now()+interval '10 minutes' AND NOT EXISTS(SELECT 1 FROM bot_reminder_deliveries d WHERE d.telegram_id=u.telegram_id AND d.lesson_id=l.id)"
         ).fetch_all(&state.db).await.unwrap_or_default();
         for (telegram_id, lesson_id, subject, starts_at) in rows {
