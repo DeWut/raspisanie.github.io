@@ -32,6 +32,40 @@
     }
     throw lastError || new Error('data-unavailable');
   }
+  const PRESENCE_API = (window.SMART_CAMPUS_API_URL || document.querySelector('meta[name="smart-campus-api"]')?.content || '').replace(/\\/+$/, '');
+  function presenceSessionId() {
+    const key = 'spbftuit-presence-session';
+    let id = safeStorageGet(key);
+    if (!id) {
+      if (window.crypto?.randomUUID) id = window.crypto.randomUUID();
+      else {
+        const bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        id = [...bytes].map((b, i) => ([4, 6, 8, 10].includes(i) ? '-' : '') + b.toString(16).padStart(2, '0')).join('');
+      }
+      safeStorageSet(key, id);
+    }
+    return id;
+  }
+  async function updatePresence() {
+    if (!PRESENCE_API) return;
+    try {
+      await fetch(new URL('/api/presence/ping', PRESENCE_API), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: presenceSessionId() }), cache: 'no-store',
+      });
+      const response = await fetch(new URL('/api/presence', PRESENCE_API), { cache: 'no-store' });
+      if (!response.ok) throw new Error('presence-unavailable');
+      const data = await response.json();
+      if (!Number.isSafeInteger(data.online) || data.online < 0) throw new Error('invalid-presence');
+      $('#online-count').textContent = String(data.online);
+      $('#online-indicator').hidden = false;
+    } catch {
+      $('#online-indicator').hidden = true;
+    }
+  }
   const teachersDB = {
         "Васильев Н.П.":     { name: "Васильев Николай Павлович",       url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/vasilev-nikolay-pavlovich" },
         "Мельников Н.Н.":    { name: "Мельников Николай Николаевич",    url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/melnikov-nikolay-nikolaevich" },
@@ -428,6 +462,8 @@
     $('#welcome-date').textContent = formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
     bindEvents();
     await loadData();
+    updatePresence();
+    window.setInterval(updatePresence, 45_000);
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
   }
   init();
