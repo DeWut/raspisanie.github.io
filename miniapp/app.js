@@ -279,13 +279,20 @@
     if (next) {
       const previous = slots.slice(0, nextIndex).at(-1);
       const nextPairLabel = next.pair ? `${pairOrdinal(next.pair)} пары` : 'следующей пары';
-      const stateTitle = previous ? 'Перемена' : `До ${nextPairLabel}`;
-      const stateSubtitle = previous
-        ? `До ${nextPairLabel} · начнётся в ${next.start}`
-        : (Number(next.pair) > 1 ? 'Первая пара сегодня не проводится по расписанию' : 'Пока можно спокойно подготовиться');
+      if (!previous && Number(next.pair) > 1) {
+        const lastPair = slots.reduce((last, slot) => Math.max(last, Number(slot.pair) || 0), 0);
+        const total = slots.length;
+        return {
+          title: lastPair ? `Учёба до ${lastPair}-й пары` : 'Учебный день впереди',
+          subtitle: `${total} ${plural(total, 'занятие', 'занятия', 'занятий')} сегодня · первая пара не проводится`,
+          next: `Ближайшая: ${slotSummary(next)}`,
+        };
+      }
       return {
-        title: stateTitle,
-        subtitle: stateSubtitle,
+        title: previous ? 'Перемена' : 'До первой пары',
+        subtitle: previous
+          ? `До ${nextPairLabel} · начнётся в ${next.start}`
+          : 'Пока можно спокойно подготовиться',
         next: `Следующая: ${slotSummary(next)}`,
       };
     }
