@@ -1,0 +1,82 @@
+name: Validate database migrations
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/migrations/**'
+      - '.github/workflows/validate-migrations.yml'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: postgres://smart_campus:ci_test_password@localhost:5432/smart_campus
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL 16 and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16 postgresql-server-dev-16 postgresql-client-16 build-essential git clang-19
+
+      - name: Build and install pgvector (no Docker)
+        run: |
+          git clone --depth 1 --branch v0.8.1 https://github.com/pgvector/pgvector.git /tmp/pgvector
+          cd /tmp/pgvector
+          make
+          sudo make install
+
+      - name: Create a clean test database
+        run: |
+          sudo pg_ctlcluster 16 main start
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE USER smart_campus WITH PASSWORD 'ci_test_password' CREATEDB SUPERUSER;"
+          sudo -u postgres createdb --owner=smart_campus smart_campus
+          pg_isready -h localhost -p 5432
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --version 0.8.6 --locked --no-default-features --features rustls,postgres
+
+      - name: Apply migrations to an empty database
+        run: cargo sqlx migrate run --source backend/migrations
+
+      - name: Verify all 16 tables, vector extension and indexes
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+            expected text[] := ARRAY[
+              'sync_metadata','groups','teachers','rooms','lessons','users',
+              'rag_documents','rag_chunks','group_tasks','user_task_progress',
+              'team_projects','team_applications','queue_sessions','queue_entries',
+              'help_board','moodle_deadlines'
+            ];
+            missing text[];
+          BEGIN
+            SELECT array_agg(t) INTO missing
+            FROM unnest(expected) AS t
+            WHERE to_regclass('public.' || t) IS NULL;
+            IF missing IS NOT NULL THEN
+              RAISE EXCEPTION 'Missing tables: %', missing;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+              RAISE EXCEPTION 'pgvector extension missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname='public' AND indexname='idx_rag_chunks_embedding_hnsw'
+            ) THEN
+              RAISE EXCEPTION 'HNSW index missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname='public' AND indexname='idx_groups_name_trgm'
+            ) THEN
+              RAISE EXCEPTION 'GIN trigram index missing';
+            END IF;
+          END $$;
+          SQL

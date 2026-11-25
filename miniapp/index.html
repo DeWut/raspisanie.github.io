@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#173d2e" />
+    <meta name="description" content="Расписание и навигация по университету SPBFTUIT." />
+    <title>SPBFTUIT — расписание</title>
+    <link rel="icon" href="../favicon.png" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="./app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#today" aria-label="SPBFTUIT — на сегодня">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none">
+              <path d="M20 4 8 19h7L7 29h10v7h6v-7h10l-8-10h7L20 4Z" fill="currentColor" />
+              <path d="M20 4v32" stroke="#D8F27A" stroke-width="1.4" opacity=".85" />
+            </svg>
+          </span>
+          <span class="brand-copy"><strong>SPBFTUIT</strong><small>расписание и навигация</small></span>
+        </a>
+        <button class="icon-button" id="refresh-button" aria-label="Обновить расписание" title="Обновить">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.2 9a6.5 6.5 0 0 1 10.7-2L20 12M4 12l3.1 5a6.5 6.5 0 0 0 10.7-2" /></svg>
+        </button>
+      </header>
+
+      <main>
+        <section class="welcome-row">
+          <div>
+            <p class="eyebrow" id="welcome-date">ТВОЙ УЧЕБНЫЙ ДЕНЬ</p>
+            <h1 id="greeting">Привет!</h1>
+          </div>
+          <button class="group-pill" id="group-button" aria-haspopup="dialog" aria-controls="group-dialog">
+            <span class="group-dot"></span><span id="group-name">Выбрать группу</span><span class="chevron">⌄</span>
+          </button>
+        </section>
+
+        <section class="hero-card" aria-live="polite">
+          <div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
+          <div class="hero-content">
+            <span class="hero-label" id="hero-label">СЕГОДНЯ</span>
+            <h2 id="hero-title">Загрузка расписания…</h2>
+            <p id="hero-subtitle">Собираем твой учебный день</p>
+          </div>
+          <div class="hero-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64" fill="none"><rect x="9" y="13" width="46" height="42" rx="12" stroke="currentColor" stroke-width="2.5"/><path d="M20 8v11M44 8v11M9 25h46M20 35h8M36 35h8M20 44h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="48" cy="47" r="10" fill="#D8F27A" stroke="#173d2e" stroke-width="2"/><path d="m44 47 3 3 5-6" stroke="#173d2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="hero-footer"><span class="live-dot"></span><span id="hero-footer-text">Загрузка данных</span><span class="hero-week" id="week-label"></span></div>
+        </section>
+
+        <section class="schedule-section" id="today-view">
+          <div class="section-heading">
+            <div><p class="eyebrow">ПО ПОРЯДКУ</p><h2 id="schedule-heading">Пары на сегодня</h2></div>
+            <button class="text-button" id="today-button">Сегодня</button>
+          </div>
+          <div class="day-strip" id="day-strip" role="tablist" aria-label="Дни недели"></div>
+          <div class="schedule-list" id="schedule-list" aria-live="polite"></div>
+          <p class="updated-note" id="updated-note"></p>
+        </section>
+
+        <section class="schedule-section week-section hidden" id="week-view">
+          <div class="section-heading">
+            <div><p class="eyebrow">ПЛАНИРУЙ ЗАРАНЕЕ</p><h2>Неделя</h2></div>
+            <div class="week-controls"><button class="icon-button small" id="prev-week" aria-label="Предыдущая неделя">‹</button><button class="icon-button small" id="next-week" aria-label="Следующая неделя">›</button></div>
+          </div>
+          <p class="week-range" id="week-range"></p>
+          <div class="week-list" id="week-list"></div>
+        </section>
+
+
+        <section class="schedule-section hidden" id="tools-view">
+          <div class="section-heading"><div><p class="eyebrow">ПОЛЕЗНОЕ</p><h2>Как найти аудиторию</h2></div></div>
+          <div class="room-tool">
+            <label for="room-input">Номер аудитории из расписания</label>
+            <input id="room-input" type="text" inputmode="text" placeholder="Например, 2-2.207 или ауд. 2.207" autocomplete="off" />
+            <p id="room-result" class="room-result" aria-live="polite">Введи номер — подскажу корпус, этаж и кабинет.</p>
+          </div>
+          <div class="campus-card">
+            <div><strong>Карта университета</strong><p>Открой карту и найди нужный корпус на территории.</p></div>
+            <a href="https://yandex.ru/map-widget/v1/?um=constructor%3A387733f7d1016f2a91784a9959e5ef96b5b2a07a0533787e90a5bf53a8fcf4c3&amp;source=constructor" target="_blank" rel="noopener">Открыть карту ↗</a>
+          </div>
+          <div class="campus-card"><div><strong>Полное расписание</strong><p>Все фильтры, календарь, преподаватели и дополнительные инструменты.</p></div><a href="../index.html">Открыть сайт ↗</a></div>
+        </section>
+        <section class="source-note"><span class="source-icon">i</span><p>Расписание синхронизируется с учебным порталом. Если заметил ошибку, уточни информацию в <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a> или на <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайте университета</a>.</p></section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="Разделы">
+        <button class="nav-item active" data-view="today-view" aria-current="page"><span class="nav-icon">▦</span><span>Сегодня</span></button>
+        <button class="nav-item" data-view="week-view"><span class="nav-icon">▤</span><span>Неделя</span></button>
+        <button class="nav-item" data-view="tools-view"><span class="nav-icon">⌖</span><span>Полезное</span></button>
+      </nav>
+    </div>
+
+    <dialog class="group-dialog" id="group-dialog">
+      <form method="dialog" class="dialog-head"><div><p class="eyebrow">НАСТРОЙКА</p><h2>Выбери группу</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form>
+      <label class="search-box"><span>⌕</span><input id="group-search" type="search" placeholder="Например, Б-101" autocomplete="off" /></label>
+      <div class="group-results" id="group-results"></div>
+      <div class="dialog-foot">
+        <p>Выбор сохранится на этом устройстве.</p>
+        <button class="text-button" id="sync-bot-group" type="button" hidden>Сохранить группу в боте</button>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
