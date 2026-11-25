@@ -212,6 +212,7 @@
     state.view = view;
     $('#today-view').classList.toggle('hidden', view !== 'today');
     $('#week-view').classList.toggle('hidden', view !== 'week');
+    $('#tools-view').classList.toggle('hidden', view !== 'tools');
     document.querySelectorAll('.nav-item[data-view]').forEach((button) => {
       const active = button.dataset.view === `${view}-view`;
       button.classList.toggle('active', active);
