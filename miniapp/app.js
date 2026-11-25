@@ -172,16 +172,16 @@
     $('#sync-bot-group').hidden = !tg?.sendData || !state.schedule?.id;
   }
   function lessonType(name) {
-    const match = String(name || '').trim().match(/\\s+(Лек\\.|Пр\\.|Лаб\\.)$/i);
+    const match = String(name || '').trim().match(/\s+(Лек\.|Пр\.|Лаб\.)$/i);
     if (!match) return '';
     return ({ 'лек.': 'Лекция', 'пр.': 'Практика', 'лаб.': 'Лабораторная' })[match[1].toLowerCase()] || match[1];
   }
   function lessonBaseName(name) {
-    return String(name || '').trim().replace(/\\s+(Лек\\.|Пр\\.|Лаб\\.)$/i, '').trim();
+    return String(name || '').trim().replace(/\s+(Лек\.|Пр\.|Лаб\.)$/i, '').trim();
   }
   function compactLessonTitle(name) {
     const value = String(name || '').trim();
-    if (/социально-ознакомительным практикумом/i.test(value) && /парк\\s+лта/i.test(value)) {
+    if (/социально-ознакомительным практикумом/i.test(value) && /парк\s+лта/i.test(value)) {
       return 'Социально-ознакомительный практикум · Парк ЛТА';
     }
     return value.length > 78 ? value.slice(0, 75).trimEnd() + '…' : value;
@@ -257,7 +257,7 @@
     const next = nextIndex >= 0 ? slots[nextIndex] : null;
     if (active) {
       return {
-        title: active.pair ? `Идёт ${pairOrdinal(active.pair)} пару` : 'Идёт пара',
+        title: active.pair ? `Идёт ${Number(active.pair) === 1 ? 'первая' : `${active.pair}-я`} пара` : 'Идёт пара',
         subtitle: `${slotTitle(active)} · до ${active.end}`,
         next: next ? `Следующая: ${slotSummary(next)}` : 'После этой пары занятий больше нет',
       };
