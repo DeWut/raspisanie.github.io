@@ -7,9 +7,9 @@
     <meta name="description" content="Полное расписание университета SPBFTUIT." />
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="./favicon.png" />
-    <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-14" />
+    <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-15" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="./miniapp/app.js?v=20261126-14"></script>
+    <script defer src="./miniapp/app.js?v=20261126-15"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -56,7 +56,7 @@
         <div class="schedule-toolbar"><div class="schedule-mode" role="group" aria-label="Период расписания"><button class="mode-button active" type="button" data-view-toggle="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M8 13h3M8 17h3"/></svg>День</button><button class="mode-button" type="button" data-view-toggle="week"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M7 13h3M14 13h3M7 17h3M14 17h3"/></svg>Неделя</button></div></div>
         <section class="schedule-section" id="today-view">
           <div class="section-heading">
-            <div><p class="eyebrow">ПО ПОРЯДКУ</p><h2 id="schedule-heading">Пары на сегодня</h2><p class="schedule-count" id="schedule-count" aria-live="polite"></p></div>
+            <div><p class="eyebrow">РАСПИСАНИЕ</p><h2 id="schedule-heading">Пары на сегодня</h2><p class="schedule-count" id="schedule-count" aria-live="polite"></p></div>
             <button class="text-button" id="today-button">Сегодня</button>
           </div>
           <div class="day-strip" id="day-strip" role="tablist" aria-label="Дни недели"></div>
@@ -66,7 +66,7 @@
 
         <section class="schedule-section week-section hidden" id="week-view">
           <div class="section-heading">
-            <div><p class="eyebrow">ПЛАНИРУЙ ЗАРАНЕЕ</p><h2>Неделя</h2></div><button class="text-button week-current-button" id="week-current-button" type="button">Текущая</button>
+            <div><p class="eyebrow">НА НЕДЕЛЮ</p><h2>Неделя</h2></div><button class="text-button week-current-button" id="week-current-button" type="button">Текущая</button>
 
           </div>
           <p class="week-range" id="week-range"></p>
@@ -75,7 +75,7 @@
         </section>
 
 
-        <section class="source-note"><span class="source-icon">i</span><p>Расписание синхронизируется с учебным порталом. Если заметил ошибку, уточни информацию в <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a> или на <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайте университета</a>.</p></section>
+        <section class="source-note"><span class="source-icon">i</span><p>Расписание загружается из ЕИОС. Если заметил расхождение, сверь данные с порталом <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a> или на <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайте университета</a>.</p></section>
       </main>
 
       <div class="quick-actions" id="quick-actions"><div class="quick-menu" id="quick-menu"><a class="quick-action quick-bot" href="https://t.me/spbftuITbot" target="_blank" rel="noopener noreferrer" aria-label="Открыть Telegram-бота SPbftuITbot" title="Telegram-бот"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 3.5 18.2 20c-.25 1.15-.9 1.45-1.82.9l-5.05-3.72-2.44 2.35c-.27.27-.5.5-1.02.5l.36-5.15 9.38-8.48c.41-.36-.09-.56-.64-.2L5.37 13.5.4 11.95c-1.08-.34-1.1-1.08.23-1.6L19.8 2.8c.9-.33 1.7.2 1.7.7Z"/></svg></a><button class="quick-action" id="open-calendar" type="button" aria-label="Календарь"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M14 14h2"/></svg></button><button class="quick-action" id="open-map" type="button" aria-label="Карта университета"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></button><button class="quick-action" id="open-weather" type="button" aria-label="Погода"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></button></div><button class="quick-main" id="quick-main" type="button" aria-label="Дополнительные функции" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
