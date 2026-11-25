@@ -279,7 +279,7 @@
     }
     const remainingPairCount = countPairs(remaining);
     $('#schedule-count').textContent = remainingPairCount
-      ? `${remainingPairCount} ${plural(remainingPairCount, 'пара', 'пары', 'пар')}${firstPairLabel}
+      ? `${remainingPairCount} ${plural(remainingPairCount, 'пара', 'пары', 'пар')}${firstPairLabel}`
       : (isToday ? 'На сегодня всё' : 'Пар нет');
     list.querySelectorAll('[data-lesson-index]').forEach((card) => {
       const open = () => openLessonDetails(lessons[Number(card.dataset.lessonIndex)], state.selectedDate);
