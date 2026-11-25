@@ -3,7 +3,10 @@ use sqlx::PgPool;
 use std::{sync::Arc, time::Duration};
 use teloxide::{
     prelude::*,
-    types::{BotCommand, BotCommandScope, KeyboardButton, KeyboardMarkup, Message},
+    types::{
+        BotCommand, BotCommandScope, ButtonRequest, ChatPermissions, KeyboardButton,
+        KeyboardMarkup, Message, UserId, WebAppInfo,
+    },
 };
 
 use crate::{
@@ -22,8 +25,8 @@ fn moscow_time(value: DateTime<Utc>, format: &str) -> String {
         .to_string()
 }
 
-fn main_keyboard() -> KeyboardMarkup {
-    KeyboardMarkup::new(vec![
+fn main_keyboard(webapp_url: &str, is_private: bool) -> KeyboardMarkup {
+    let mut rows = vec![
         vec![
             KeyboardButton::new("📅 Сегодня"),
             KeyboardButton::new("📅 Завтра"),
@@ -40,8 +43,18 @@ fn main_keyboard() -> KeyboardMarkup {
             KeyboardButton::new("⚙️ Настройки"),
             KeyboardButton::new("🏠 Меню"),
         ],
-    ])
-    .resize_keyboard()
+    ];
+
+    if is_private {
+        if let Ok(url) = url::Url::parse(webapp_url) {
+            if url.scheme() == "https" && url.host_str() != Some("example.com") {
+                rows.push(vec![KeyboardButton::new("🌲 Открыть SMART CAMPUS")
+                    .request(ButtonRequest::WebApp(WebAppInfo { url }))]);
+            }
+        }
+    }
+
+    KeyboardMarkup::new(rows).resize_keyboard()
 }
 
 fn telegram_user_id(message: &Message) -> Option<i64> {
@@ -78,27 +91,157 @@ async fn ensure_user(db: &PgPool, message: &Message) -> Result<i64, sqlx::Error>
     .await
 }
 
-async fn reply(bot: &Bot, db: &PgPool, message: &Message, text: String) -> ResponseResult<()> {
+async fn reply(
+    bot: &Bot,
+    db: &PgPool,
+    message: &Message,
+    text: String,
+    webapp_url: &str,
+) -> ResponseResult<()> {
     let sent = bot
         .send_message(message.chat.id, text)
-        .reply_markup(main_keyboard())
+        .reply_markup(main_keyboard(webapp_url, message.chat.is_private()))
         .await?;
 
     if let Some(telegram_id) = telegram_user_id(message) {
-        let _ = sqlx::query(
-            r#"
-            INSERT INTO bot_messages (telegram_id, chat_id, message_id)
-            VALUES ($1, $2, $3)
-            "#,
-        )
-        .bind(telegram_id)
-        .bind(message.chat.id.0)
-        .bind(sent.id.0)
-        .execute(db)
+        let result = async {
+            let mut tx = db.begin().await?;
+            sqlx::query(
+                r#"
+                INSERT INTO bot_messages (telegram_id, chat_id, message_id)
+                VALUES ($1, $2, $3)
+                "#,
+            )
+            .bind(telegram_id)
+            .bind(message.chat.id.0)
+            .bind(sent.id.0)
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query(
+                r#"
+                DELETE FROM bot_messages
+                WHERE telegram_id = $1 AND chat_id = $2
+                  AND id NOT IN (
+                    SELECT id FROM bot_messages
+                    WHERE telegram_id = $1 AND chat_id = $2
+                    ORDER BY id DESC
+                    LIMIT 30
+                  )
+                "#,
+            )
+            .bind(telegram_id)
+            .bind(message.chat.id.0)
+            .execute(&mut *tx)
+            .await?;
+
+            tx.commit().await
+        }
         .await;
+
+        if result.is_err() {
+            tracing::warn!("Could not update bot message tracking");
+        }
     }
 
     Ok(())
+}
+
+fn parse_target_and_tail(message: &Message, argument: &str) -> Result<(i64, String), String> {
+    if let Some(user) = message
+        .reply_to_message()
+        .and_then(|replied| replied.from.as_ref())
+    {
+        let target_id = i64::try_from(user.id.0)
+            .map_err(|_| "Некорректный Telegram ID участника".to_owned())?;
+        return Ok((target_id, argument.trim().to_owned()));
+    }
+
+    let mut parts = argument.splitn(2, char::is_whitespace);
+    let target_id = parts
+        .next()
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|id| *id > 0)
+        .ok_or_else(|| {
+            "Ответь на сообщение участника или укажи Telegram ID: /команда ID".to_owned()
+        })?;
+    Ok((
+        target_id,
+        parts.next().unwrap_or_default().trim().to_owned(),
+    ))
+}
+
+fn parse_mute_duration(value: &str) -> Option<ChronoDuration> {
+    if !value.is_ascii() {
+        return None;
+    }
+    let (amount, unit) = value.split_at(value.len().checked_sub(1)?);
+    let amount = amount.parse::<i64>().ok()?;
+    if amount <= 0 {
+        return None;
+    }
+
+    let maximum = match unit {
+        "m" => 30 * 24 * 60,
+        "h" => 30 * 24,
+        "d" => 30,
+        _ => return None,
+    };
+    if amount > maximum {
+        return None;
+    }
+
+    let duration = match unit {
+        "m" => ChronoDuration::minutes(amount),
+        "h" => ChronoDuration::hours(amount),
+        "d" => ChronoDuration::days(amount),
+        _ => unreachable!("unit was validated above"),
+    };
+    (duration >= ChronoDuration::minutes(1) && duration <= ChronoDuration::days(30))
+        .then_some(duration)
+}
+
+async fn record_moderation_event(
+    db: &PgPool,
+    chat_id: ChatId,
+    actor_id: i64,
+    target_id: i64,
+    action: &str,
+    details: serde_json::Value,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO bot_chat_audit_logs
+            (chat_id, actor_telegram_id, target_telegram_id, action, details)
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+    )
+    .bind(chat_id.0)
+    .bind(actor_id)
+    .bind(target_id)
+    .bind(action)
+    .bind(details)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+async fn moderation_target_status(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    target_id: i64,
+) -> Result<(), String> {
+    match crate::services::chat_roles::sync_member(bot, db, chat_id, target_id, None).await {
+        Ok(Some(role)) if role == "owner" || role == "admin" => {
+            Err("Владельца и администратора Telegram нельзя модерировать командой бота.".into())
+        }
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => {
+            Err("Участник должен состоять в этом чате и не иметь активных ограничений.".into())
+        }
+        Err(_) => Err("Не удалось проверить участника в Telegram. Попробуй ещё раз.".into()),
+    }
 }
 
 async fn find_group(
@@ -246,15 +389,88 @@ async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> Stri
 }
 
 async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseResult<()> {
+    if let Some(web_app_data) = message.web_app_data() {
+        if !message.chat.is_private() || web_app_data.data.len() > 1_000 {
+            return Ok(());
+        }
+
+        let Some(telegram_id) = telegram_user_id(&message) else {
+            return Ok(());
+        };
+        if message.chat.id.0 != telegram_id {
+            return Ok(());
+        }
+
+        #[derive(serde::Deserialize)]
+        struct MiniAppAction {
+            #[serde(rename = "type")]
+            action_type: String,
+            group_id: String,
+        }
+
+        let selected = serde_json::from_str::<MiniAppAction>(&web_app_data.data)
+            .ok()
+            .filter(|action| action.action_type == "set_personal_group")
+            .filter(|action| {
+                !action.group_id.is_empty()
+                    && action.group_id.len() <= 32
+                    && action.group_id.bytes().all(|byte| byte.is_ascii_digit())
+            });
+
+        let Some(action) = selected else {
+            return Ok(());
+        };
+
+        let answer = match ensure_user(&state.db, &message).await {
+            Err(_) => "Не удалось открыть профиль. Попробуй ещё раз через /start.".to_owned(),
+            Ok(_) => {
+                let group = sqlx::query_as::<_, (uuid::Uuid, String)>(
+                    "SELECT id, name FROM groups WHERE external_id = $1 AND is_active = TRUE",
+                )
+                .bind(&action.group_id)
+                .fetch_optional(&state.db)
+                .await;
+
+                match group {
+                    Ok(Some((group_id, name))) => {
+                        let saved = sqlx::query(
+                            "UPDATE users SET group_id = $2, updated_at = now() WHERE telegram_id = $1",
+                        )
+                        .bind(telegram_id)
+                        .bind(group_id)
+                        .execute(&state.db)
+                        .await;
+                        match saved {
+                            Ok(result) if result.rows_affected() == 1 => format!(
+                                "✅ Группа {} сохранена в боте. Расписание и напоминания будут использовать её.",
+                                name
+                            ),
+                            _ => "Не удалось сохранить группу. Попробуй открыть бота и отправить /start, затем повтори попытку.".into(),
+                        }
+                    }
+                    Ok(None) => "Эта группа пока недоступна в расписании бота. Попробуй обновить список позже.".into(),
+                    Err(_) => "Не удалось сохранить группу из-за ошибки базы данных.".into(),
+                }
+            }
+        };
+
+        reply(&bot, &state.db, &message, answer, &state.config.webapp_url).await?;
+        return Ok(());
+    }
+
     let Some(text) = message.text() else {
         return Ok(());
     };
-    tracing::info!(
-        "Telegram message received: chat_id={}, text={:?}",
-        message.chat.id,
-        text
-    );
     let Some(telegram_id) = telegram_user_id(&message) else {
+        // Anonymous administrators and sender-chat messages have no stable
+        // Telegram user ID, so they cannot be authorized for SMART CAMPUS roles.
+        if message.chat.id.0 < 0 && text.trim_start().starts_with("/role") {
+            bot.send_message(
+                message.chat.id,
+                "Для управления ролями используй личный аккаунт Telegram: анонимного администратора нельзя проверить как участника.",
+            )
+            .await?;
+        }
         return Ok(());
     };
 
@@ -266,6 +482,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             db,
             &message,
             "Не удалось сохранить профиль. Попробуйте позже.".into(),
+            &state.config.webapp_url,
         )
         .await?;
         return Ok(());
@@ -300,7 +517,10 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     let is_group_chat = message.chat.id.0 < 0;
 
     if is_group_chat {
-        let username = message.from.as_ref().and_then(|user| user.username.as_deref());
+        let username = message
+            .from
+            .as_ref()
+            .and_then(|user| user.username.as_deref());
         if let Err(error) = crate::services::chat_roles::remember_member_identity(
             db,
             message.chat.id,
@@ -317,14 +537,16 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     // management commands, avoiding an API request for every ordinary message.
     if is_group_chat && matches!(command, "/settings" | "/setgroup" | "/role") {
         if let Err(error) =
-            crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await
+            crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None)
+                .await
         {
             tracing::debug!("Could not synchronize Telegram chat member: {}", error);
         }
     }
 
     let answer = match command {
-        "/start" | "/help" | "/menu" => "🎓 *SMART CAMPUS*\n\n\
+        "/start" | "/help" | "/menu" => {
+            let mut help = "🎓 *SMART CAMPUS*\n\n\
             Твой учебный помощник!\n\n\
             📅 /today — расписание на сегодня\n\
             📅 /tomorrow — расписание на завтра\n\
@@ -339,7 +561,14 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             🔕 /remind_off — выключить напоминания\n\
             ⚙️ /settings — настройки\n\n\
             Выбери действие с помощью кнопок ниже."
-            .to_string(),
+                .to_owned();
+            if is_group_chat {
+                help.push_str(
+                    "\n\n🛡 *Модераторам*\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
+                );
+            }
+            help
+        }
 
         "/group" => {
             if is_group_chat {
@@ -376,11 +605,17 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             if !is_group_chat {
                 "Эта команда предназначена для группового чата Telegram.".into()
             } else if !matches!(
-                crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None)
-                    .await
-                    .ok()
-                    .flatten()
-                    .as_deref(),
+                crate::services::chat_roles::sync_member(
+                    &bot,
+                    db,
+                    message.chat.id,
+                    telegram_id,
+                    None
+                )
+                .await
+                .ok()
+                .flatten()
+                .as_deref(),
                 Some("owner" | "admin")
             ) {
                 "⛔ Менять учебную группу чата может только создатель или администратор Telegram."
@@ -515,18 +750,19 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                         .reply_to_message()
                         .and_then(|replied| replied.from.as_ref());
 
-                    let parsed_target: Result<(i64, Option<String>, String), String> =
-                        if first.starts_with('@') {
-                            let username = first.trim_start_matches('@');
-                            let valid_username = (5..=32).contains(&username.len())
-                                && username
-                                    .chars()
-                                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_');
+                    let parsed_target: Result<(i64, Option<String>, String), String> = if first
+                        .starts_with('@')
+                    {
+                        let username = first.trim_start_matches('@');
+                        let valid_username = (5..=32).contains(&username.len())
+                            && username
+                                .chars()
+                                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_');
 
-                            if !valid_username || second.is_none() || has_extra {
-                                Err("Формат: /role @username moderator".into())
-                            } else {
-                                match crate::services::chat_roles::find_member_by_username(
+                        if !valid_username || second.is_none() || has_extra {
+                            Err("Формат: /role @username moderator".into())
+                        } else {
+                            match crate::services::chat_roles::find_member_by_username(
                                     db,
                                     message.chat.id,
                                     username,
@@ -547,24 +783,24 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                                         Err("Не удалось найти участника по username.".into())
                                     }
                                 }
-                            }
-                        } else if let Ok(target_id) = first.parse::<i64>() {
-                            if target_id <= 0 || second.is_none() || has_extra {
-                                Err("Формат: /role TELEGRAM_ID moderator".into())
-                            } else {
-                                Ok((target_id, None, second.unwrap().to_owned()))
-                            }
-                        } else if let Some(target_user) = reply_user {
-                            let target_id = i64::try_from(target_user.id.0)
-                                .map_err(|_| "Некорректный Telegram ID участника".to_owned());
-                            if second.is_some() || has_extra {
-                                Err("При ответе на сообщение используй только: /role moderator".into())
-                            } else {
-                                target_id.map(|id| (id, None, first.to_owned()))
-                            }
+                        }
+                    } else if let Ok(target_id) = first.parse::<i64>() {
+                        if target_id <= 0 || second.is_none() || has_extra {
+                            Err("Формат: /role TELEGRAM_ID moderator".into())
                         } else {
-                            Err("Укажи @username и роль либо ответь на сообщение участника: /role @username moderator или /role moderator".into())
-                        };
+                            Ok((target_id, None, second.unwrap().to_owned()))
+                        }
+                    } else if let Some(target_user) = reply_user {
+                        let target_id = i64::try_from(target_user.id.0)
+                            .map_err(|_| "Некорректный Telegram ID участника".to_owned());
+                        if second.is_some() || has_extra {
+                            Err("При ответе на сообщение используй только: /role moderator".into())
+                        } else {
+                            target_id.map(|id| (id, None, first.to_owned()))
+                        }
+                    } else {
+                        Err("Укажи @username и роль либо ответь на сообщение участника: /role @username moderator или /role moderator".into())
+                    };
 
                     match parsed_target {
                         Err(error) => error,
@@ -573,11 +809,13 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                             let valid_role = matches!(
                                 requested_role.as_str(),
                                 "moderator" | "helper" | "member"
-                            ) || (can_assign_senior && requested_role == "senior_moderator");
+                            ) || (can_assign_senior
+                                && requested_role == "senior_moderator");
 
                             if !valid_role {
                                 if can_assign_senior {
-                                    "Допустимые роли: senior_moderator, moderator, helper, member.".into()
+                                    "Допустимые роли: senior_moderator, moderator, helper, member."
+                                        .into()
                                 } else {
                                     "Администратор Telegram может назначать только moderator, helper или member. Старшего модератора назначает создатель чата.".into()
                                 }
@@ -602,22 +840,24 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                                         "Роль владельца и Telegram-администратора нельзя изменить командой бота.".into()
                                     }
                                     Ok(Some(_)) => {
-                                        let result = sqlx::query(
-                                            r#"
-                                            UPDATE bot_chat_members
-                                            SET role = $3, assigned_by = $4, updated_at = now()
-                                            WHERE chat_id = $1 AND telegram_id = $2
-                                            "#,
-                                        )
-                                        .bind(message.chat.id.0)
-                                        .bind(target_id)
-                                        .bind(&requested_role)
-                                        .bind(telegram_id)
-                                        .execute(db)
-                                        .await;
+                                        let result = async {
+                                            let mut tx = db.begin().await?;
 
-                                        if result.is_ok() {
-                                            let _ = sqlx::query(
+                                            sqlx::query(
+                                                r#"
+                                                UPDATE bot_chat_members
+                                                SET role = $3, assigned_by = $4, updated_at = now()
+                                                WHERE chat_id = $1 AND telegram_id = $2
+                                                "#,
+                                            )
+                                            .bind(message.chat.id.0)
+                                            .bind(target_id)
+                                            .bind(&requested_role)
+                                            .bind(telegram_id)
+                                            .execute(&mut *tx)
+                                            .await?;
+
+                                            sqlx::query(
                                                 r#"
                                                 INSERT INTO bot_chat_audit_logs
                                                     (chat_id, actor_telegram_id, target_telegram_id, action, details)
@@ -628,19 +868,497 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                                             .bind(telegram_id)
                                             .bind(target_id)
                                             .bind(&requested_role)
-                                            .execute(db)
-                                            .await;
+                                            .execute(&mut *tx)
+                                            .await?;
 
+                                            tx.commit().await
+                                        }
+                                        .await;
+
+                                        if result.is_ok() {
                                             format!(
                                                 "✅ Участнику {} назначена роль: {}",
                                                 target_id, requested_role
                                             )
                                         } else {
+                                            tracing::error!("Could not save role change and audit log");
                                             "Не удалось сохранить роль участника.".into()
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        "/warn" => {
+            if !is_group_chat {
+                "Предупреждения работают только в групповом чате.".into()
+            } else if !crate::services::chat_roles::can_manage_chat(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await
+            {
+                "⛔ Предупреждения могут выдавать модераторы чата.".into()
+            } else {
+                match parse_target_and_tail(&message, argument) {
+                    Err(error) => error,
+                    Ok((target_id, _)) if target_id == telegram_id => {
+                        "Нельзя выдать предупреждение самому себе.".into()
+                    }
+                    Ok((_, ref reason)) if reason.trim().is_empty() => {
+                        "Добавь причину: ответь на сообщение командой /warn причина.".into()
+                    }
+                    Ok((_, ref reason)) if reason.chars().count() > 200 => {
+                        "Причина должна быть не длиннее 200 символов.".into()
+                    }
+                    Ok((target_id, reason)) => {
+                        match moderation_target_status(&bot, db, message.chat.id, target_id).await {
+                            Err(error) => error,
+                            Ok(_) => {
+                                let saved = record_moderation_event(
+                                    db,
+                                    message.chat.id,
+                                    telegram_id,
+                                    target_id,
+                                    "warning",
+                                    serde_json::json!({"reason": reason.trim()}),
+                                )
+                                .await;
+                                if saved.is_err() {
+                                    "Не удалось сохранить предупреждение в журнал.".into()
+                                } else {
+                                    let count = sqlx::query_scalar::<_, i64>(
+                                        r#"
+                                        SELECT count(*)
+                                        FROM bot_chat_audit_logs
+                                        WHERE chat_id = $1 AND target_telegram_id = $2
+                                          AND action = 'warning'
+                                        "#,
+                                    )
+                                    .bind(message.chat.id.0)
+                                    .bind(target_id)
+                                    .fetch_one(db)
+                                    .await;
+                                    match count {
+                                        Ok(count) => format!(
+                                            "⚠️ Участнику {} выдано предупреждение. Всего предупреждений: {}. Причина: {}",
+                                            target_id, count, reason.trim()
+                                        ),
+                                        Err(_) => {
+                                            tracing::warn!("Could not count warnings after saving one");
+                                            format!("⚠️ Предупреждение участнику {} сохранено. Причина: {}", target_id, reason.trim())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        "/warnings" => {
+            if !is_group_chat {
+                "Список предупреждений доступен только в групповом чате.".into()
+            } else if !crate::services::chat_roles::can_manage_chat(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await
+            {
+                "⛔ Смотреть предупреждения могут модераторы чата.".into()
+            } else {
+                match parse_target_and_tail(&message, argument) {
+                    Err(error) => error,
+                    Ok((_, ref tail)) if !tail.is_empty() => {
+                        "Ответь на сообщение участника командой /warnings или укажи /warnings TELEGRAM_ID.".into()
+                    }
+                    Ok((target_id, _)) => {
+                        let count = sqlx::query_scalar::<_, i64>(
+                            r#"
+                            SELECT count(*)
+                            FROM bot_chat_audit_logs
+                            WHERE chat_id = $1 AND target_telegram_id = $2
+                              AND action = 'warning'
+                            "#,
+                        )
+                        .bind(message.chat.id.0)
+                        .bind(target_id)
+                        .fetch_one(db)
+                        .await;
+                        match count {
+                            Ok(count) => format!("У участника {} предупреждений: {}.", target_id, count),
+                            Err(_) => "Не удалось загрузить счётчик предупреждений.".into(),
+                        }
+                    }
+                }
+            }
+        }
+
+        "/mute" => {
+            if !is_group_chat {
+                "Мут работает только в групповом чате.".into()
+            } else if !message.chat.is_supergroup() {
+                "Для временного ограничения нужна супергруппа Telegram.".into()
+            } else if !crate::services::chat_roles::can_manage_chat(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await
+            {
+                "⛔ Ограничивать участников могут модераторы чата.".into()
+            } else {
+                match parse_target_and_tail(&message, argument) {
+                    Err(error) => error,
+                    Ok((target_id, _)) if target_id == telegram_id => {
+                        "Нельзя ограничить самого себя.".into()
+                    }
+                    Ok((target_id, tail)) => {
+                        let mut parts = tail.splitn(2, char::is_whitespace);
+                        let duration_token = parts.next().unwrap_or_default();
+                        let reason = parts.next().unwrap_or_default().trim();
+                        match parse_mute_duration(duration_token) {
+                            None => "Укажи срок от 1 минуты до 30 дней: /mute 30m причина (ответом на сообщение).".into(),
+                            Some(_) if reason.chars().count() > 200 => {
+                                "Причина должна быть не длиннее 200 символов.".into()
+                            }
+                            Some(duration) => {
+                                match moderation_target_status(&bot, db, message.chat.id, target_id).await {
+                                    Err(error) => error,
+                                    Ok(_) => {
+                                        let original_permissions = bot
+                                            .get_chat(message.chat.id)
+                                            .await
+                                            .ok()
+                                            .and_then(|chat| chat.permissions());
+                                        match original_permissions {
+                                            None => "Не удалось прочитать права чата; ограничение не применено.".into(),
+                                            Some(permissions) => {
+                                                let permissions_json = match serde_json::to_value(permissions) {
+                                                    Ok(value) => value,
+                                                    Err(_) => return reply(
+                                                        &bot,
+                                                        db,
+                                                        &message,
+                                                        "Не удалось подготовить права для сохранения; мут не применён.".into(),
+                                                        &state.config.webapp_url,
+                                                    ).await,
+                                                };
+                                                let until = Utc::now() + duration;
+                                                let stored = sqlx::query(
+                                                    r#"
+                                                    INSERT INTO bot_chat_mutes
+                                                        (chat_id, target_telegram_id, actor_telegram_id,
+                                                         original_permissions, muted_until, reason)
+                                                    VALUES ($1, $2, $3, $4, $5, $6)
+                                                    ON CONFLICT (chat_id, target_telegram_id) DO UPDATE SET
+                                                        actor_telegram_id = EXCLUDED.actor_telegram_id,
+                                                        original_permissions = EXCLUDED.original_permissions,
+                                                        muted_until = EXCLUDED.muted_until,
+                                                        reason = EXCLUDED.reason,
+                                                        created_at = now()
+                                                    WHERE bot_chat_mutes.muted_until <= now()
+                                                    "#,
+                                                )
+                                                .bind(message.chat.id.0)
+                                                .bind(target_id)
+                                                .bind(telegram_id)
+                                                .bind(permissions_json)
+                                                .bind(until)
+                                                .bind(if reason.is_empty() { None } else { Some(reason) })
+                                                .execute(db)
+                                                .await;
+                                                match stored {
+                                                    Ok(result) if result.rows_affected() == 0 => {
+                                                        "У участника уже есть активное ограничение SMART CAMPUS.".into()
+                                                    }
+                                                    Err(_) => "Не удалось сохранить данные ограничения.".into(),
+                                                    Ok(_) => {
+                                                        let details = serde_json::json!({
+                                                            "duration_seconds": duration.num_seconds(),
+                                                            "until": until,
+                                                            "reason": reason,
+                                                            "status": "requested"
+                                                        });
+                                                        if record_moderation_event(
+                                                            db, message.chat.id, telegram_id, target_id,
+                                                            "mute_requested", details,
+                                                        ).await.is_err() {
+                                                            let _ = sqlx::query("DELETE FROM bot_chat_mutes WHERE chat_id = $1 AND target_telegram_id = $2")
+                                                                .bind(message.chat.id.0).bind(target_id).execute(db).await;
+                                                            "Не удалось записать действие в журнал; ограничение не применено.".into()
+                                                        } else {
+                                                            let applied = bot
+                                                                .restrict_chat_member(
+                                                                    message.chat.id,
+                                                                    UserId(target_id as u64),
+                                                                    ChatPermissions::empty(),
+                                                                )
+                                                                .until_date(until)
+                                                                .await;
+                                                            if applied.is_ok() {
+                                                                let _ = record_moderation_event(
+                                                                    db, message.chat.id, telegram_id, target_id,
+                                                                    "mute_applied",
+                                                                    serde_json::json!({"until": until}),
+                                                                ).await;
+                                                                format!(
+                                                                    "🔇 Участник {} ограничен до {}. Для досрочного снятия: ответь на его сообщение командой /unmute.",
+                                                                    target_id, moscow_time(until, "%d.%m %H:%M")
+                                                                )
+                                                            } else {
+                                                                let _ = sqlx::query("DELETE FROM bot_chat_mutes WHERE chat_id = $1 AND target_telegram_id = $2")
+                                                                    .bind(message.chat.id.0).bind(target_id).execute(db).await;
+                                                                let _ = record_moderation_event(
+                                                                    db, message.chat.id, telegram_id, target_id,
+                                                                    "mute_failed", serde_json::json!({"reason": "Telegram API rejected the restriction"}),
+                                                                ).await;
+                                                                "Telegram не применил ограничение. Проверь, что бот — администратор с правом ограничивать участников.".into()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        "/unmute" => {
+            if !is_group_chat {
+                "Снять мут можно только в групповом чате.".into()
+            } else if !message.chat.is_supergroup() {
+                "Для снятия ограничения нужна супергруппа Telegram.".into()
+            } else if !crate::services::chat_roles::can_manage_chat(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await
+            {
+                "⛔ Снимать ограничения могут модераторы чата.".into()
+            } else {
+                match parse_target_and_tail(&message, argument) {
+                    Err(error) => error,
+                    Ok((_, ref tail)) if !tail.is_empty() => {
+                        "Ответь на сообщение участника командой /unmute или укажи /unmute TELEGRAM_ID.".into()
+                    }
+                    Ok((target_id, _)) => {
+                        let mute = sqlx::query_as::<_, (serde_json::Value, i64)>(
+                            "SELECT original_permissions, actor_telegram_id FROM bot_chat_mutes WHERE chat_id = $1 AND target_telegram_id = $2",
+                        )
+                        .bind(message.chat.id.0)
+                        .bind(target_id)
+                        .fetch_optional(db)
+                        .await;
+                        match mute {
+                            Ok(Some((permissions_json, _))) => {
+                                let permissions = serde_json::from_value::<ChatPermissions>(permissions_json);
+                                match permissions {
+                                    Err(_) => "Не удалось восстановить сохранённые права чата.".into(),
+                                    Ok(permissions) => {
+                                        let member = bot.get_chat_member(message.chat.id, UserId(target_id as u64)).await;
+                                        match member {
+                                            Ok(member) if member.kind.is_owner() || member.kind.is_administrator() => {
+                                                "Нельзя менять права владельца или администратора Telegram.".into()
+                                            }
+                                            Err(_) => "Не удалось проверить участника в Telegram.".into(),
+                                            Ok(_) => {
+                                                let requested = record_moderation_event(
+                                                    db, message.chat.id, telegram_id, target_id,
+                                                    "unmute_requested", serde_json::json!({}),
+                                                ).await;
+                                                if requested.is_err() {
+                                                    "Не удалось записать действие в журнал; права не изменены.".into()
+                                                } else if bot.restrict_chat_member(
+                                                    message.chat.id, UserId(target_id as u64), permissions,
+                                                ).await.is_err() {
+                                                    let _ = record_moderation_event(
+                                                        db, message.chat.id, telegram_id, target_id,
+                                                        "unmute_failed", serde_json::json!({"reason": "Telegram API rejected the change"}),
+                                                    ).await;
+                                                    "Telegram не снял ограничение. Проверь права бота в чате.".into()
+                                                } else {
+                                                    let mut tx = match db.begin().await {
+                                                        Ok(tx) => tx,
+                                                        Err(_) => return reply(
+                                                            &bot,
+                                                            db,
+                                                            &message,
+                                                            "Права восстановлены, но не удалось завершить журналирование.".into(),
+                                                            &state.config.webapp_url,
+                                                        ).await,
+                                                    };
+                                                    let removed = sqlx::query("DELETE FROM bot_chat_mutes WHERE chat_id = $1 AND target_telegram_id = $2")
+                                                        .bind(message.chat.id.0).bind(target_id).execute(&mut *tx).await;
+                                                    let logged = sqlx::query(
+                                                        "INSERT INTO bot_chat_audit_logs (chat_id, actor_telegram_id, target_telegram_id, action, details) VALUES ($1, $2, $3, 'unmute_applied', '{}'::jsonb)",
+                                                    ).bind(message.chat.id.0).bind(telegram_id).bind(target_id).execute(&mut *tx).await;
+                                                    if removed.is_ok() && logged.is_ok() && tx.commit().await.is_ok() {
+                                                        format!("🔊 Ограничение участника {} снято. Восстановлены прежние права чата.", target_id)
+                                                    } else {
+                                                        "Права восстановлены, но не удалось завершить запись в журнал.".into()
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Ok(None) => "Для этого участника нет активного ограничения SMART CAMPUS.".into(),
+                            Err(_) => "Не удалось прочитать данные ограничения.".into(),
+                        }
+                    }
+                }
+            }
+        }
+
+        "/ban" => {
+            if !is_group_chat {
+                "Блокировка работает только в групповом чате.".into()
+            } else if !crate::services::chat_roles::can_manage_chat(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await
+            {
+                "⛔ Блокировать участников могут модераторы чата.".into()
+            } else {
+                match parse_target_and_tail(&message, argument) {
+                    Err(error) => error,
+                    Ok((target_id, _)) if target_id == telegram_id => {
+                        "Нельзя заблокировать самого себя.".into()
+                    }
+                    Ok((_, ref reason)) if reason.chars().count() > 200 => {
+                        "Причина должна быть не длиннее 200 символов.".into()
+                    }
+                    Ok((target_id, reason)) => {
+                        match moderation_target_status(&bot, db, message.chat.id, target_id).await {
+                            Err(error) => error,
+                            Ok(_) => {
+                                let reason = reason.trim();
+                                if record_moderation_event(
+                                    db,
+                                    message.chat.id,
+                                    telegram_id,
+                                    target_id,
+                                    "ban_requested",
+                                    serde_json::json!({"reason": reason}),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    "Не удалось записать действие в журнал; блокировка не применена.".into()
+                                } else if bot
+                                    .ban_chat_member(message.chat.id, UserId(target_id as u64))
+                                    .revoke_messages(false)
+                                    .await
+                                    .is_ok()
+                                {
+                                    let _ = record_moderation_event(
+                                        db,
+                                        message.chat.id,
+                                        telegram_id,
+                                        target_id,
+                                        "ban_applied",
+                                        serde_json::json!({"reason": reason}),
+                                    )
+                                    .await;
+                                    format!(
+                                        "⛔ Участник {} заблокирован. Для разблокировки: /unban {}",
+                                        target_id, target_id
+                                    )
+                                } else {
+                                    let _ = record_moderation_event(
+                                        db, message.chat.id, telegram_id, target_id,
+                                        "ban_failed", serde_json::json!({"reason": "Telegram API rejected the ban"}),
+                                    ).await;
+                                    "Telegram не применил блокировку. Проверь, что бот — администратор с правом блокировать участников.".into()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        "/unban" => {
+            if !is_group_chat {
+                "Разблокировка работает только в групповом чате.".into()
+            } else if !crate::services::chat_roles::can_manage_chat(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await
+            {
+                "⛔ Разблокировать участников могут модераторы чата.".into()
+            } else {
+                match parse_target_and_tail(&message, argument) {
+                    Err(error) => error,
+                    Ok((_, ref tail)) if !tail.is_empty() => {
+                        "Используй /unban TELEGRAM_ID или ответь на сообщение участника.".into()
+                    }
+                    Ok((target_id, _)) => {
+                        if record_moderation_event(
+                            db,
+                            message.chat.id,
+                            telegram_id,
+                            target_id,
+                            "unban_requested",
+                            serde_json::json!({}),
+                        )
+                        .await
+                        .is_err()
+                        {
+                            "Не удалось записать действие в журнал; разблокировка не выполнена."
+                                .into()
+                        } else if bot
+                            .unban_chat_member(message.chat.id, UserId(target_id as u64))
+                            .only_if_banned(true)
+                            .await
+                            .is_ok()
+                        {
+                            let _ = record_moderation_event(
+                                db,
+                                message.chat.id,
+                                telegram_id,
+                                target_id,
+                                "unban_applied",
+                                serde_json::json!({}),
+                            )
+                            .await;
+                            format!("✅ Участник {} разблокирован и сможет вернуться по ссылке-приглашению.", target_id)
+                        } else {
+                            let _ = record_moderation_event(
+                                db,
+                                message.chat.id,
+                                telegram_id,
+                                target_id,
+                                "unban_failed",
+                                serde_json::json!({"reason": "Telegram API rejected the unban"}),
+                            )
+                            .await;
+                            "Telegram не выполнил разблокировку. Проверь права бота в чате.".into()
                         }
                     }
                 }
@@ -769,17 +1487,20 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     r#"
                     DELETE FROM bot_messages
                     WHERE telegram_id = $1
+                      AND chat_id = $2
                       AND id IN (
                         SELECT id
                         FROM bot_messages
                         WHERE telegram_id = $1
-                        ORDER BY created_at DESC
+                          AND chat_id = $2
+                        ORDER BY id DESC
                         LIMIT 30
                       )
                     RETURNING message_id
                     "#,
                 )
                 .bind(telegram_id)
+                .bind(message.chat.id.0)
                 .fetch_all(db)
                 .await
                 .unwrap_or_default();
@@ -830,7 +1551,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         _ => return Ok(()),
     };
 
-    reply(&bot, db, &message, answer).await?;
+    reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
     Ok(())
 }
 
@@ -869,6 +1590,12 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("next", "Следующая пара"),
         BotCommand::new("homework", "Домашние задания"),
         BotCommand::new("settings", "Настройки учебного чата"),
+        BotCommand::new("warn", "Выдать предупреждение участнику"),
+        BotCommand::new("warnings", "Посмотреть предупреждения участника"),
+        BotCommand::new("mute", "Ограничить участника на время"),
+        BotCommand::new("unmute", "Снять временное ограничение"),
+        BotCommand::new("ban", "Заблокировать участника"),
+        BotCommand::new("unban", "Разблокировать участника"),
     ];
 
     if let Err(error) = bot
@@ -881,8 +1608,14 @@ async fn register_bot_commands(bot: &Bot) {
     }
 
     let mut admin_commands = group_commands;
-    admin_commands.push(BotCommand::new("setgroup", "Привязать учебную группу к чату"));
-    admin_commands.push(BotCommand::new("role", "Назначить роль по @username или ответом"));
+    admin_commands.push(BotCommand::new(
+        "setgroup",
+        "Привязать учебную группу к чату",
+    ));
+    admin_commands.push(BotCommand::new(
+        "role",
+        "Назначить роль по @username или ответом",
+    ));
 
     if let Err(error) = bot
         .set_my_commands(admin_commands)
@@ -890,7 +1623,10 @@ async fn register_bot_commands(bot: &Bot) {
         .language_code("ru")
         .await
     {
-        tracing::warn!("Could not register administrator Telegram commands: {}", error);
+        tracing::warn!(
+            "Could not register administrator Telegram commands: {}",
+            error
+        );
     }
 }
 
@@ -923,6 +1659,10 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
 
     loop {
         tick.tick().await;
+
+        let _ = sqlx::query("DELETE FROM bot_chat_mutes WHERE muted_until <= now()")
+            .execute(&state.db)
+            .await;
 
         let rows = sqlx::query_as::<_, (i64, String, String, DateTime<Utc>)>(
             r#"
@@ -979,5 +1719,21 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mute_duration_has_safe_bounds_and_units() {
+        assert_eq!(parse_mute_duration("1m"), Some(ChronoDuration::minutes(1)));
+        assert_eq!(parse_mute_duration("12h"), Some(ChronoDuration::hours(12)));
+        assert_eq!(parse_mute_duration("30d"), Some(ChronoDuration::days(30)));
+        assert_eq!(parse_mute_duration("0m"), None);
+        assert_eq!(parse_mute_duration("31d"), None);
+        assert_eq!(parse_mute_duration("999999999999999999999d"), None);
+        assert_eq!(parse_mute_duration("15м"), None);
     }
 }
