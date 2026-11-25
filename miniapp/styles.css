@@ -200,3 +200,7 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .teacher-profile { color:var(--forest); font-weight:700; text-decoration:none; }
 .lesson-details a { text-decoration:underline; text-underline-offset:2px; }
 @media(max-width:420px) { .quick-actions { right:14px; bottom:calc(90px + var(--tg-safe-bottom)); } }
+
+.online-indicator { display:inline-flex; align-items:center; gap:5px; margin-top:4px; color:#6e8d4c; font-size:9px; font-weight:700; letter-spacing:0; }
+.online-indicator[hidden] { display:none !important; }
+.online-indicator::before { width:6px; height:6px; border-radius:50%; background:#83ad49; content:""; box-shadow:0 0 0 3px rgba(131,173,73,.12); }
