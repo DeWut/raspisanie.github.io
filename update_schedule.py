@@ -260,7 +260,10 @@ def main():
     s = requests.Session()
     s.headers.update({"User-Agent": UA, "Accept-Language": "ru-RU,ru;q=0.9"})
 
-    groups = load_known_groups()
+    known_groups = load_known_groups()
+    # Explicit IDs mean exactly these groups, not every group in groups.json.
+    groups = ({gid: known_groups.get(gid, gid) for gid in args.ids}
+              if args.ids else known_groups)
     if not args.ids:
         try:
             r = s.get(START_URL, timeout=30)
@@ -274,9 +277,6 @@ def main():
                 groups[k] = v or groups.get(k, k)
         except requests.RequestException as e:
             print("Стартовая страница недоступна:", e)
-    for gid in args.ids:
-        groups.setdefault(gid, gid)
-
     if not groups:
         print("Нет ни одной группы. Добавь ID аргументами (python update_schedule.py 19244)\n"
               "или впиши их в data/groups.json.")
@@ -322,7 +322,7 @@ def main():
     print(f"\nГотово: сохранено {len(ok)}, не удалось {len(failed)}.")
     if failed:
         print("Проблемные ID:", ", ".join(failed), "\nЗапусти с --dump и пришли dump/<id>.html, подстрою парсер.")
-    return 0 if ok else 2
+    return 2 if failed else (0 if ok else 2)
 
 
 if __name__ == "__main__":
