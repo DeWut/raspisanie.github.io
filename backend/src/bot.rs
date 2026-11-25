@@ -313,6 +313,21 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
 
     let is_group_chat = message.chat.id.0 < 0;
 
+    // Refresh Telegram's authoritative owner/admin/member status only for
+    // management commands, avoiding an API request for every ordinary message.
+    if is_group_chat && matches!(command, "/settings" | "/setgroup" | "/role") {
+        if let Err(error) = crate::services::chat_roles::sync_member(
+            &bot,
+            db,
+            message.chat.id,
+            telegram_id,
+        )
+        .await
+        {
+            tracing::debug!("Could not synchronize Telegram chat member: {}", error);
+        }
+    }
+
     let answer = match command {
         "/start" | "/help" | "/menu" => "🎓 *SMART CAMPUS*\n\n\
             Твой учебный помощник!\n\n\
@@ -389,6 +404,15 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                         .await;
 
                         if result.is_ok() {
+                            // Fetch the sender's real Telegram status after the chat
+                            // settings row exists; never infer ownership from /setgroup.
+                            let _ = crate::services::chat_roles::sync_member(
+                                &bot,
+                                db,
+                                message.chat.id,
+                                telegram_id,
+                            )
+                            .await;
                             format!("✅ Для этого чата установлена группа: {}", name)
                         } else {
                             "Не удалось сохранить настройки чата. Проверь, применена ли миграция."
