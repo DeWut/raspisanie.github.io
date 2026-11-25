@@ -512,8 +512,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     let second = parts.next();
                     let has_extra = parts.next().is_some();
                     let reply_user = message
-                        .reply_to_message
-                        .as_deref()
+                        .reply_to_message()
                         .and_then(|replied| replied.from.as_ref());
 
                     let parsed_target: Result<(i64, Option<String>, String), String> =
