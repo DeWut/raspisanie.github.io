@@ -325,7 +325,10 @@ def main():
     s = requests.Session()
     s.headers.update({"User-Agent": UA, "Accept-Language": "ru-RU,ru;q=0.9"})
 
-    # Справочник независим от расписания: при ошибке сайта сохраняем предыдущий файл.\n    update_teacher_directory(s)\n\n    groups = load_known_groups()\n    if not args.ids:
+    # Справочник независим от расписания: при ошибке сайта сохраняем предыдущий файл.
+    update_teacher_directory(s)
+
+    groups = load_known_groups()\n    if not args.ids:
         try:
             r = s.get(START_URL, timeout=30)
             r.raise_for_status()
