@@ -323,6 +323,7 @@ def main():
     DATA_DIR.mkdir(exist_ok=True)
     s = requests.Session()
     s.headers.update({"User-Agent": UA, "Accept-Language": "ru-RU,ru;q=0.9"})
+    update_teacher_directory(s)
 
     known_groups = load_known_groups()
     # Explicit IDs mean exactly these groups, not every group in groups.json.
