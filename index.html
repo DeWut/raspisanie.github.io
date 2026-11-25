@@ -7,9 +7,9 @@
     <meta name="description" content="Полное расписание университета SPBFTUIT." />
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="./favicon.png" />
-    <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-6" />
+    <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-7" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="./miniapp/app.js?v=20261126-6"></script>
+    <script defer src="./miniapp/app.js?v=20261126-7"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -35,7 +35,7 @@
             <h1 id="greeting">Привет!</h1>
           </div>
           <button class="group-pill" id="group-button" aria-haspopup="dialog" aria-controls="group-dialog">
-            <span class="group-dot"></span><span id="group-name">Выбрать группу</span><span class="chevron">⌄</span>
+            <span class="group-dot"></span><span id="group-name">Выбрать группу</span><svg class="chevron-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
           </button>
         </section>
 
@@ -66,7 +66,7 @@
         <section class="schedule-section week-section hidden" id="week-view">
           <div class="section-heading">
             <div><p class="eyebrow">ПЛАНИРУЙ ЗАРАНЕЕ</p><h2>Неделя</h2></div>
-            <div class="week-controls"><button class="icon-button small" id="prev-week" aria-label="Предыдущая неделя">‹</button><button class="icon-button small" id="next-week" aria-label="Следующая неделя">›</button></div>
+            <div class="week-controls"><button class="icon-button small" id="prev-week" aria-label="Предыдущая неделя"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><button class="icon-button small" id="next-week" aria-label="Следующая неделя"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div>
           </div>
           <p class="week-range" id="week-range"></p>
           <div class="week-list" id="week-list"></div>
@@ -76,7 +76,7 @@
         <section class="source-note"><span class="source-icon">i</span><p>Расписание синхронизируется с учебным порталом. Если заметил ошибку, уточни информацию в <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a> или на <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайте университета</a>.</p></section>
       </main>
 
-      <div class="quick-actions" id="quick-actions"><div class="quick-menu" id="quick-menu"><button class="quick-action" id="open-calendar" type="button" aria-label="Календарь"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M14 14h2"/></svg></button><button class="quick-action" id="open-map" type="button" aria-label="Карта университета"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></button><button class="quick-action" id="open-weather" type="button" aria-label="Погода"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></button></div><button class="quick-main" id="quick-main" type="button" aria-label="Дополнительные функции" aria-expanded="false">＋</button></div>
+      <div class="quick-actions" id="quick-actions"><div class="quick-menu" id="quick-menu"><button class="quick-action" id="open-calendar" type="button" aria-label="Календарь"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M14 14h2"/></svg></button><button class="quick-action" id="open-map" type="button" aria-label="Карта университета"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></button><button class="quick-action" id="open-weather" type="button" aria-label="Погода"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></button></div><button class="quick-main" id="quick-main" type="button" aria-label="Дополнительные функции" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
     </div>
 
     <dialog class="group-dialog" id="group-dialog">
@@ -98,7 +98,7 @@
         <p><span>Неделя</span><strong id="detail-week">—</strong></p>
       </div>
     </dialog>
-    <dialog class="group-dialog utility-dialog" id="calendar-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">УЧЕБНЫЙ ГОД</p><h2>Календарь</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div class="calendar-controls"><button class="icon-button small" id="calendar-prev" type="button">‹</button><strong id="calendar-month-name">—</strong><button class="icon-button small" id="calendar-next" type="button">›</button></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-details" id="calendar-details">Выбери день, чтобы увидеть расписание.</div></dialog>
+    <dialog class="group-dialog utility-dialog" id="calendar-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">УЧЕБНЫЙ ГОД</p><h2>Календарь</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div class="calendar-controls"><button class="icon-button small" id="calendar-prev" type="button" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><strong id="calendar-month-name">—</strong><button class="icon-button small" id="calendar-next" type="button" aria-label="Следующий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-details" id="calendar-details">Выбери день, чтобы увидеть расписание.</div></dialog>
     <dialog class="group-dialog utility-dialog map-dialog" id="map-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">НАВИГАЦИЯ</p><h2>Карта университета</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div class="map-frame"><iframe title="Карта университета" src="https://yandex.ru/map-widget/v1/?um=constructor%3A387733f7d1016f2a91784a9959e5ef96b5b2a07a0533787e90a5bf53a8fcf4c3&amp;source=constructor" loading="lazy" allowfullscreen></iframe></div></dialog>
     <dialog class="group-dialog utility-dialog" id="weather-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">САНКТ-ПЕТЕРБУРГ</p><h2>Погода</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div id="weather-content" class="weather-content">Загружаем погоду…</div></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
