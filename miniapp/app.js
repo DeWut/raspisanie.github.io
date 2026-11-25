@@ -14,7 +14,7 @@
   const TIME_ZONE = 'Europe/Moscow';
   const SEMESTER_START = new Date(Date.UTC(2026, 7, 31, 12));
   const GROUP_KEY = 'smart-campus-group-id';
-  const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), view: 'today', searchQuery: '', filter: 'all', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
+  const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), view: 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
@@ -244,9 +244,6 @@
     $('#week-list').innerHTML = DAYS.map((day, index) => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
       const lessons = getLessons(date);
-      const today = startOfDay(new Date());
-      const showDay = state.filter !== 'current' || dateKey(date) >= dateKey(today);
-      if (!showDay) return '';
       const visibleLessons = lessons;
       const content = visibleLessons.length ? visibleLessons.map((lesson, lessonIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${lessonIndex}"><div class="week-lesson-time">${escapeHtml(lesson.start)}<br>${escapeHtml(lesson.end)}</div><div><p class="week-lesson-title">${escapeHtml(lesson.name)}</p><span class="week-lesson-meta">${[lesson.room, lesson.teacher].filter(Boolean).map(escapeHtml).join(' · ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
       const selected = dateKey(date) === dateKey(state.selectedDate);
