@@ -401,11 +401,25 @@
         .updated-note { color:#89948a; }
         .teacher-link { color:#24533d; }
         @media(max-width:640px) { body { padding:12px 10px 90px; } .brand-header { margin-bottom:14px; } }
+    
+        .site-nav { display:flex; align-items:center; gap:6px; margin:0 0 18px; padding:6px; overflow-x:auto; border:1px solid #e3e9e1; border-radius:15px; background:#fff; scrollbar-width:none; }
+        .site-nav::-webkit-scrollbar { display:none; }
+        .site-nav-link { flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:0 13px; border:0; border-radius:10px; background:transparent; color:#526057; font:600 .84rem inherit; font-family:inherit; font-size:.84rem; font-weight:600; text-decoration:none; white-space:nowrap; cursor:pointer; }
+        .site-nav-link:hover,.site-nav-link.active { background:#173d2e; color:#fff; }
+        @media(max-width:640px) { .site-nav { margin-bottom:14px; } .site-nav-link { min-height:34px; padding:0 11px; font-size:.78rem; } }
     </style>
 </head>
 <body>
 
-<div class="container">\n    <header class="brand-header"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 4 8 19h7L7 29h10v7h6v-7h10l-8-10h7L20 4Z" fill="currentColor"/><path d="M20 4v32" stroke="#D8F27A" stroke-width="1.4" opacity=".85"/></svg></span><span class="brand-copy"><strong>SPBFTUIT</strong><span>расписание и навигация по университету</span></span></header>
+<div class="container">
+    <header class="brand-header"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 4 8 19h7L7 29h10v7h6v-7h10l-8-10h7L20 4Z" fill="currentColor"/><path d="M20 4v32" stroke="#D8F27A" stroke-width="1.4" opacity=".85"/></svg></span><span class="brand-copy"><strong>SPBFTUIT</strong><span>расписание и навигация по университету</span></span></header>
+    <nav class="site-nav" aria-label="Навигация по сайту">
+        <a class="site-nav-link active" href="#schedule-container">Расписание</a>
+        <button class="site-nav-link" type="button" onclick="openCalendarModal()">Календарь</button>
+        <button class="site-nav-link" type="button" onclick="openMapModal()">Карта</button>
+        <a class="site-nav-link" href="index2.html">Маршруты</a>
+        <button class="site-nav-link" type="button" onclick="openWeatherModal()">Погода</button>
+    </nav>
     <div class="top-bar">
         <div class="group-selector" id="groupSelector">
             <button class="group-btn" type="button" onclick="toggleGroupMenu(event)">
@@ -651,8 +665,8 @@
     document.addEventListener('click', function(event) {
         const fabContainer = document.querySelector('.fab-container');
         if (fabContainer && !fabContainer.contains(event.target)) {
-            document.getElementById('fabMenu').classList.remove('active');
-            document.querySelector('.fab-main').classList.remove('active');
+            document.getElementById('fabMenu')?.classList.remove('active');
+            document.querySelector('.fab-main')?.classList.remove('active');
         }
         const groupSel = document.getElementById('groupSelector');
         if (groupSel && !groupSel.contains(event.target)) {
