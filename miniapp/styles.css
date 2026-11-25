@@ -137,3 +137,22 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .campus-card p { margin:5px 0 0; color:var(--muted); font-size:10px; line-height:1.5; }
 .campus-card a { flex:0 0 auto; color:var(--forest); font-size:10px; font-weight:800; text-decoration:none; }
 @media(max-width:380px) { .campus-card { align-items:flex-start; flex-direction:column; } }
+
+/* Search and lesson details */
+.schedule-search { margin:0 0 9px; }
+.search-hint { margin:0 0 13px; color:var(--muted); font-size:10px; line-height:1.5; }
+.search-results { display:grid; gap:9px; }
+.search-result { width:100%; display:grid; grid-template-columns:56px 1fr; gap:10px; padding:13px; border:1px solid var(--line); border-radius:17px; background:#fff; text-align:left; cursor:pointer; }
+.search-result:active { transform:scale(.99); }
+.search-result-time { color:var(--forest); font-size:10px; font-weight:800; line-height:1.5; }
+.search-result-day { display:block; color:var(--muted); font-size:8px; font-weight:600; }
+.search-result-title { margin:0 0 5px; font-size:12px; font-weight:750; line-height:1.4; }
+.search-result-meta { color:var(--muted); font-size:9px; line-height:1.5; }
+.lesson-dialog { max-height:min(82dvh,620px); }
+.lesson-details { display:grid; gap:0; padding:0 18px 18px; }
+.lesson-details p { display:grid; gap:5px; margin:0; padding:12px 0; border-bottom:1px solid var(--line); }
+.lesson-details p:last-child { border-bottom:0; }
+.lesson-details span { color:var(--muted); font-size:9px; font-weight:700; }
+.lesson-details strong { color:var(--ink); font-size:12px; line-height:1.5; font-weight:650; }
+.lesson-card,.week-lesson { cursor:pointer; }
+.lesson-card:active,.week-lesson:active { opacity:.8; }
