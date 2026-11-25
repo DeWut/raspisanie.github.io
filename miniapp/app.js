@@ -14,7 +14,7 @@
   const TIME_ZONE = 'Europe/Moscow';
   const SEMESTER_START = new Date(Date.UTC(2026, 7, 31, 12));
   const GROUP_KEY = 'smart-campus-group-id';
-  const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), view: 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
+  const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), weekAnchorDate: startOfDay(new Date()), view: 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
@@ -259,6 +259,22 @@
       list.innerHTML = lessons.map((lesson, index) => lessonMarkup(lesson, index, state.selectedDate)).join('');
     }
     $('#updated-note').textContent = state.schedule.updated ? `Данные ЕИОС обновлены ${state.schedule.updated}` : 'Источник: расписание СПбГЛТУ';
+    const isToday = dateKey(state.selectedDate) === dateKey(startOfDay(new Date()));
+    let remaining = lessons;
+    let firstPairLabel = '';
+    if (isToday) {
+      const nowParts = moscowDateParts();
+      const nowMinutes = Number(nowParts.hour) * 60 + Number(nowParts.minute);
+      const firstRemaining = lessons.findIndex((lesson) => nowMinutes < minutes(lesson.end));
+      remaining = firstRemaining >= 0 ? lessons.slice(firstRemaining) : [];
+      if (firstRemaining >= 0) {
+        const pairNumber = Number(lessons[firstRemaining].pair) || firstRemaining + 1;
+        firstPairLabel = ` · ${pairNumber === 2 ? 'со' : 'с'} ${pairNumber}-й`;
+      }
+    }
+    $('#schedule-count').textContent = remaining.length
+      ? `${remaining.length} ${plural(remaining.length, 'пара', 'пары', 'пар')}${firstPairLabel}`
+      : (isToday ? 'На сегодня всё' : 'Пар нет');
     list.querySelectorAll('[data-lesson-index]').forEach((card) => {
       const open = () => openLessonDetails(lessons[Number(card.dataset.lessonIndex)], state.selectedDate);
       card.addEventListener('click', open);
@@ -268,10 +284,20 @@
       card.setAttribute('aria-label', `Подробнее: ${lessons[Number(card.dataset.lessonIndex)].name}`);
     });
   }
+  function alignWeekToSelectedParity() {
+    const anchor = weekStart(state.weekAnchorDate || state.selectedDate);
+    if (isOddWeek(anchor) === (state.filter === 'odd')) { state.selectedDate = anchor; return; }
+    const target = new Date(anchor);
+    target.setUTCDate(target.getUTCDate() + 7);
+    state.selectedDate = target;
+  }
   function renderWeek() {
     const monday = weekStart(state.selectedDate);
     const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
-    $('#week-range').textContent = `${formatDate(monday)} — ${formatDate(sunday)}`;
+    const currentMonday = weekStart(startOfDay(new Date()));
+    const isCurrentWeek = dateKey(monday) === dateKey(currentMonday);
+    $('#week-range').textContent = `${isCurrentWeek ? 'Текущая неделя · ' : ''}${formatDate(monday)} — ${formatDate(sunday)}`;
+    $('#week-current-button').classList.toggle('active', isCurrentWeek && state.filter === 'current');
     document.querySelectorAll('[data-filter]').forEach((button) => {
       const parity = isOddWeek(state.selectedDate) ? 'odd' : 'even';
       button.classList.toggle('active', button.dataset.filter === (state.filter === 'current' ? parity : state.filter));
@@ -347,7 +373,9 @@
     }
   }
   function switchView(view) {
-    state.view = view === 'week' ? 'week' : 'today';
+    const nextView = view === 'week' ? 'week' : 'today';
+    if (nextView === 'week' && state.view !== 'week') state.weekAnchorDate = new Date(state.selectedDate);
+    state.view = nextView;
     $('#today-view').classList.toggle('hidden', state.view !== 'today');
     $('#week-view').classList.toggle('hidden', state.view !== 'week');
     document.querySelectorAll('[data-view-toggle]').forEach((button) => {
@@ -356,8 +384,7 @@
       button.setAttribute('aria-pressed', String(active));
     });
     if (state.view === 'week') {
-      if (state.filter === 'odd' && !isOddWeek(state.selectedDate)) state.selectedDate = new Date(weekStart(state.selectedDate).getTime() + 7 * 86_400_000);
-      if (state.filter === 'even' && isOddWeek(state.selectedDate)) state.selectedDate = new Date(weekStart(state.selectedDate).getTime() + 7 * 86_400_000);
+      if (state.filter !== 'current') alignWeekToSelectedParity();
       renderAll();
     }
   }
@@ -439,10 +466,15 @@
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
     document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
       state.filter = button.dataset.filter;
-      const targetParity = state.filter === 'odd';
-      if (isOddWeek(state.selectedDate) !== targetParity) state.selectedDate = new Date(weekStart(state.selectedDate).getTime() + 7 * 86_400_000);
+      alignWeekToSelectedParity();
       renderAll();
     }));
+    $('#week-current-button').addEventListener('click', () => {
+      state.filter = 'current';
+      state.selectedDate = startOfDay(new Date());
+      state.weekAnchorDate = new Date(state.selectedDate);
+      renderAll();
+    });
     $('#quick-main').addEventListener('click', () => {
       const open = $('#quick-menu').classList.toggle('open');
       $('#quick-main').classList.toggle('active', open);
