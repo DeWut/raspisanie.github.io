@@ -46,8 +46,6 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .hero-icon { position: absolute; top: 37px; right: 18px; z-index: 1; width: 72px; height: 72px; display: grid; place-items: center; color: rgba(255,255,255,.92); }
 .hero-icon svg { width: 100%; height: 100%; }
 .hero-orbit { display:none; }
-.orbit-one { width: 220px; height: 220px; right: -69px; top: -80px; }
-.orbit-two { width: 160px; height: 160px; right: -38px; top: -50px; }
 .hero-footer { position: absolute; left: 20px; right: 20px; bottom: 15px; display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.72); font-size: 9px; }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px rgba(216,242,122,.13); }
 .hero-week { margin-left: auto; color: var(--lime); font-weight: 700; }
@@ -73,7 +71,7 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .meta-item { display: inline-flex; align-items: center; gap: 4px; }
 .meta-icon { color: #91a277; font-size: 11px; }
 .week-badge { position: absolute; top: 10px; right: 10px; padding: 4px 6px; border-radius: 999px; background: #f0f3ed; color: #69756a; font-size: 8px; font-weight: 700; }
-.lesson-card.is-current { border-color: #b9d47e; background: linear-gradient(105deg, #fbfdf5, #fff 64%); box-shadow: 0 5px 16px rgba(103,133,61,.08); }
+.lesson-card.is-current { border-color: #b9d47e; background: #fbfdf5; box-shadow: 0 5px 16px rgba(103,133,61,.08); }
 .lesson-card.is-current::before { position: absolute; top: 15px; bottom: 15px; left: -1px; width: 3px; border-radius: 0 4px 4px 0; background: #9dc64c; content: ""; }
 .current-tag { display: inline-flex; margin: 0 0 7px; color: #638c2b; font-size: 8px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .empty-card { display: grid; justify-items: center; padding: 27px 18px 25px; border: 1px dashed #d6dfd1; border-radius: 20px; background: rgba(255,255,255,.55); text-align: center; }
@@ -99,13 +97,13 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .source-icon { flex: 0 0 auto; width: 17px; height: 17px; display: grid; place-items: center; border: 1px solid #91a27f; border-radius: 50%; color: #607450; font-family: Georgia, serif; font-size: 11px; font-weight: 700; }
 .source-note p { margin: 0; color: #687368; font-size: 9px; line-height: 1.55; }
 .source-note a { color: var(--forest); font-weight: 700; }
-.bottom-nav { position: fixed; z-index: 4; right: 50%; bottom: calc(10px + var(--tg-safe-bottom)); width: min(440px, calc(100% - 28px)); display: grid; grid-template-columns: repeat(3, 1fr); padding: 7px; border: 1px solid rgba(225,231,222,.88); border-radius: 17px; background: rgba(255,255,255,.97); box-shadow: 0 5px 18px rgba(31,52,36,.09); backdrop-filter: blur(10px); transform: translateX(50%); }
+.bottom-nav { position: fixed; z-index: 4; right: 50%; bottom: calc(10px + var(--tg-safe-bottom)); width: min(440px, calc(100% - 28px)); display: grid; grid-template-columns: repeat(3, 1fr); padding: 7px; border: 1px solid rgba(225,231,222,.88); border-radius: 17px; background: rgba(255,255,255,.97); box-shadow: 0 5px 18px rgba(31,52,36,.09);  transform: translateX(50%); }
 .nav-item { min-height: 48px; display: grid; align-content: center; justify-items: center; gap: 3px; border: 0; border-radius: 11px; background: transparent; color: #7c867d; font-size: 9px; font-weight: 700; cursor: pointer; transition: transform .18s ease, background .18s ease; }
 .nav-item.active { background: var(--forest); color: #fff; }
 .nav-icon { font-size: 17px; line-height: 1; }
 .hidden { display: none !important; }
 .group-dialog { width: min(100% - 24px, 460px); max-height: min(78dvh, 680px); padding: 18px; overflow: hidden; border: 0; border-radius: 18px; background: var(--paper); box-shadow: 0 25px 80px rgba(9,30,19,.24); }
-.group-dialog::backdrop { background: rgba(15,32,23,.45); backdrop-filter: blur(3px); }
+.group-dialog::backdrop { background: rgba(15,32,23,.45);  }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .dialog-head .eyebrow { margin-bottom: 5px; }
 .dialog-head h2 { margin: 0; font-size: 20px; letter-spacing: -.04em; }
