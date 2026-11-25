@@ -5,3 +5,4 @@ pub mod models;
 pub mod state;
 pub mod services;
 pub mod utils;
+pub mod handlers;
