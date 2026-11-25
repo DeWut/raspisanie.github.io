@@ -329,7 +329,11 @@
     function openVideoModal(title, videoSrc) {
         document.getElementById('v-title').innerText = title;
         const player = document.getElementById('routeVideo');
-        const fallback = document.getElementById('videoUnavailable');\n        fallback.classList.remove('show');\n        player.onerror = () => fallback.classList.add('show');\n        player.onloadeddata = () => fallback.classList.remove('show');\n        player.src = videoSrc;
+        const fallback = document.getElementById('videoUnavailable');
+        fallback.classList.remove('show');
+        player.onerror = () => fallback.classList.add('show');
+        player.onloadeddata = () => fallback.classList.remove('show');
+        player.src = videoSrc;
         document.getElementById('videoModal').classList.add('active');
         player.play().catch(e => {
             // Игнорируем блокировку автопроизведения в некоторых браузерах
