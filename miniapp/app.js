@@ -272,7 +272,7 @@
     if (current >= 12 * 60 + 45 && current < 13 * 60 + 30) {
       return {
         title: 'Обед',
-        subtitle: '12:45–13:30 · время отдохнуть и перекусить',
+        subtitle: '12:45–13:30',
         next: next ? `Следующая: ${slotSummary(next)}` : 'На сегодня занятий больше нет',
       };
     }
@@ -284,7 +284,7 @@
         const total = slots.length;
         return {
           title: lastPair ? `Учёба до ${lastPair}-й пары` : 'Учебный день впереди',
-          subtitle: `${total} ${plural(total, 'занятие', 'занятия', 'занятий')} сегодня · первая пара не проводится`,
+          subtitle: 'Первая пара по расписанию не предусмотрена.',
           next: `Ближайшая: ${slotSummary(next)}`,
         };
       }
@@ -292,13 +292,13 @@
         title: previous ? 'Перемена' : 'До первой пары',
         subtitle: previous
           ? `До ${nextPairLabel} · начнётся в ${next.start}`
-          : 'Пока можно спокойно подготовиться',
+          : 'До начала занятий есть время.',
         next: `Следующая: ${slotSummary(next)}`,
       };
     }
     return {
-      title: slots.length ? 'Занятия закончились' : 'Сегодня без пар',
-      subtitle: 'Сейчас время отдохнуть 🌿',
+      title: slots.length ? 'Занятия закончились' : 'Выходной',
+      subtitle: slots.length ? 'На сегодня больше нет занятий.' : 'На этот день расписание пустое.',
       next: 'На сегодня занятий больше нет',
     };
   }
@@ -364,13 +364,13 @@
     const slots = groupLessonsBySlot(lessons);
     const list = $('#schedule-list');
     if (!state.schedule) {
-      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">✦</span><strong>Сначала выбери группу</strong><p>Найди свою группу, и мы покажем расписание на сегодня и всю неделю.</p></div>';
+      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">✦</span><strong>Выбери группу</strong><p>После выбора появится расписание на день и неделю.</p></div>';
       $('#updated-note').textContent = '';
       $('#schedule-count').textContent = '';
       return;
     }
     if (!slots.length) {
-      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">☼</span><strong>Пар нет</strong><p>На этот день занятий не найдено. Проверь соседние дни или открой расписание в ЕИОС.</p></div>';
+      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">☼</span><strong>Пар нет</strong><p>На этот день занятий не найдено. Проверь данные в ЕИОС.</p></div>';
     } else {
       list.innerHTML = slots.map((slot, index) => lessonMarkup(slot, index, state.selectedDate)).join('');
     }
