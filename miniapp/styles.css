@@ -250,3 +250,5 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .hero-next { margin-top:7px; padding:7px 8px; font-size:10px; line-height:1.35; }
 .hero-footer { left:18px; right:18px; bottom:11px; gap:6px; font-size:8px; }
 @media(max-width:380px) { .hero-card { min-height:212px; } .hero-content { max-width:calc(100% - 58px); } .hero-card h2 { font-size:20px; } .hero-next { font-size:9px; } }
+
+.quick-action.quick-bot { text-decoration:none; }
