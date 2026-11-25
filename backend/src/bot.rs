@@ -1451,6 +1451,8 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 } else if is_group_chat {
                     "Добавлять задания через общий чат пока нельзя. Используй личный чат с ботом."
                         .into()
+                } else if telegram_id != state.config.admin_telegram_id {
+                    "Добавлять задания может только администратор проекта. Просматривать задания можно всем участникам группы.".into()
                 } else {
                     let result = sqlx::query(
                         r#"
@@ -1705,17 +1707,27 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
                 .execute(&state.db)
                 .await;
 
-                if inserted.is_ok() {
-                    let _ = bot
-                        .send_message(
+                match inserted {
+                    Ok(result) if result.rows_affected() == 1 => {
+                        match bot.send_message(
                             ChatId(telegram_id),
                             format!(
-                                "⏰ Через 10 минут пара: {}\nНачало: {}",
+                                "⏰ Через 10 минут пара: {}\\nНачало: {}",
                                 subject,
                                 moscow_time(starts_at, "%H:%M")
                             ),
-                        )
-                        .await;
+                        ).await {
+                            Ok(_) => {}
+                            Err(error) => {
+                                tracing::warn!("Could not deliver lesson reminder to {}: {}", telegram_id, error);
+                                let _ = sqlx::query(
+                                    "DELETE FROM bot_reminder_deliveries WHERE telegram_id = $1 AND lesson_id = $2"
+                                ).bind(telegram_id).bind(id).execute(&state.db).await;
+                            }
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(error) => tracing::error!("Could not reserve reminder delivery for {}: {}", telegram_id, error),
                 }
             }
         }
