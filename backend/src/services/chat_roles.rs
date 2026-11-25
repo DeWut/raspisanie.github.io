@@ -187,7 +187,7 @@ pub async fn find_member_by_username(
 
 /// Telegram administrators and the chat creator always have administrative access.
 pub async fn can_manage_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: i64) -> bool {
-    match sync_member(bot, db, chat_id, telegram_id).await {
+    match sync_member(bot, db, chat_id, telegram_id, None).await {
         Ok(Some(role)) => matches!(
             role.as_str(),
             "owner" | "admin" | "senior_moderator" | "moderator"
