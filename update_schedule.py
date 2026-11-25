@@ -240,6 +240,70 @@ def load_known_groups():
     return {}
 
 
+TEACHER_DIRECTORY_URL = "https://spbftu.ru/sveden/struct"
+TEACHER_NAME_RE = re.compile(r"^[А-ЯЁ][А-Яа-яЁё-]+\s+[А-ЯЁ][А-Яа-яЁё-]+\s+[А-ЯЁ][А-Яа-яЁё-]+$")
+
+
+def teacher_initials_key(full_name):
+    parts = clean(full_name).split()
+    if len(parts) < 3:
+        return None
+    surname, first, middle = parts[:3]
+    if not all(re.fullmatch(r"[А-ЯЁ][А-Яа-яЁё-]+", part) for part in (surname, first, middle)):
+        return None
+    return f"{surname} {first[0]}.{middle[0]}."
+
+
+def update_teacher_directory(session):
+    """Собирает ссылки на персональные страницы преподавателей с сайта университета."""
+    target = DATA_DIR / "teachers.json"
+    try:
+        response = session.get(TEACHER_DIRECTORY_URL, timeout=12)
+        response.raise_for_status()
+        structure = BeautifulSoup(response.text, "html.parser")
+        departments = {}
+        for anchor in structure.select('a[href*="/allchairs/"]'):
+            url = urljoin(response.url, anchor.get("href", ""))
+            if url.startswith("https://spbftu.ru/allchairs/"):
+                departments[url.split("#", 1)[0]] = url.split("#", 1)[0]
+
+        if not departments:
+            raise ValueError("На странице структуры не найдены ссылки кафедр")
+
+        teachers = {}
+        for number, department_url in enumerate(sorted(departments), 1):
+            try:
+                page = session.get(department_url, timeout=8)
+                page.raise_for_status()
+                soup = BeautifulSoup(page.text, "html.parser")
+                for anchor in soup.select("a[href]"):
+                    full_name = clean(anchor.get_text(" ", strip=True))
+                    href = urljoin(page.url, anchor.get("href", ""))
+                    if not TEACHER_NAME_RE.fullmatch(full_name):
+                        continue
+                    if not href.startswith("https://spbftu.ru/"):
+                        continue
+                    key = teacher_initials_key(full_name)
+                    if not key:
+                        continue
+                    # Не сохраняем ссылку на саму кафедру вместо персональной страницы.
+                    if href.rstrip("/") == department_url.rstrip("/"):
+                        continue
+                    teachers[key] = {"name": full_name, "url": href}
+                time.sleep(0.2)
+            except requests.RequestException as error:
+                print(f"Не удалось прочитать кафедру {department_url}: {error}")
+
+        if not teachers:
+            raise ValueError("Не удалось извлечь ни одной персональной ссылки преподавателя")
+        target.write_text(json.dumps(teachers, ensure_ascii=False, indent=1), "utf-8")
+        print(f"Справочник преподавателей обновлён: {len(teachers)} ссылок")
+        return True
+    except (requests.RequestException, ValueError) as error:
+        print(f"Справочник преподавателей не обновлён: {error}")
+        return False
+
+
 # ---------------------------------------------------------------- main
 
 def main():
