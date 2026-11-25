@@ -19,7 +19,7 @@ html { min-width: 320px; background: var(--paper); scroll-behavior: smooth; }
 body { margin: 0; color: var(--ink); background: var(--paper); -webkit-tap-highlight-color: transparent; }
 button, input { font: inherit; }
 button { color: inherit; }
-.app-shell { min-height: 100dvh; max-width: 680px; margin: 0 auto; padding: 0 20px calc(100px + var(--tg-safe-bottom)); }
+.app-shell { min-height: 100dvh; max-width: 680px; margin: 0 auto; padding: 0 20px calc(36px + var(--tg-safe-bottom)); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 16px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--forest); text-decoration: none; }
 .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 13px; background: var(--forest); color: #fff; }
@@ -169,7 +169,7 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .week-lesson-title { margin-bottom:4px; font-size:11px; line-height:1.45; }
 .week-lesson-meta { font-size:9px; line-height:1.4; }
 @media(max-width:380px) { .filter-chip { padding:0 8px; font-size:9px; } }
-.quick-actions { position:fixed; z-index:12; right:max(18px,calc((100vw - 680px)/2 + 18px)); bottom:calc(92px + var(--tg-safe-bottom)); display:flex; flex-direction:column; align-items:center; gap:10px; }
+.quick-actions { position:fixed; z-index:12; right:max(18px,calc((100vw - 680px)/2 + 18px)); bottom:calc(22px + var(--tg-safe-bottom)); display:flex; flex-direction:column; align-items:center; gap:10px; }
 .quick-main { width:48px; height:48px; display:grid; place-items:center; border:0; border-radius:50%; background:var(--forest); color:#fff; box-shadow:0 5px 18px rgba(23,61,46,.23); font-size:25px; cursor:pointer; transition:transform .2s; }
 .quick-main.active { transform:rotate(45deg); }
 .quick-menu { display:flex; flex-direction:column; gap:9px; opacity:0; pointer-events:none; transform:translateY(10px) scale(.94); transition:.18s ease; }
@@ -222,7 +222,7 @@ button { font-family: inherit; }
 .mode-button { min-height:39px; display:flex; align-items:center; justify-content:center; gap:7px; border:0; border-radius:11px; background:transparent; color:var(--muted); font-size:11px; font-weight:750; cursor:pointer; }
 .mode-button svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .mode-button.active { background:var(--forest); color:#fff; box-shadow:0 3px 9px rgba(23,61,46,.14); }
-.schedule-toolbar .filter-bar { margin:0; }
+.schedule-toolbar .filter-bar { margin:0; grid-template-columns:repeat(3,minmax(0,1fr)); }
 .schedule-section { padding-top:20px; }
 .quick-action svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .lesson-card { cursor:pointer; }
