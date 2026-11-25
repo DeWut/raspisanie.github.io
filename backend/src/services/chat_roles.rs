@@ -45,13 +45,29 @@ pub async fn sync_member(
     let mut tx = db.begin().await.map_err(|e| e.to_string())?;
 
     if let Some(role) = telegram_role {
+        if role == "owner" {
+            sqlx::query(
+                "UPDATE bot_chat_members SET role = 'admin', updated_at = now() WHERE chat_id = $1 AND role = 'owner' AND telegram_id <> $2"
+            )
+            .bind(chat_id.0)
+            .bind(telegram_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+
         sqlx::query(
             r#"
             INSERT INTO bot_chat_members
                 (chat_id, telegram_id, role, telegram_status, updated_at)
             VALUES ($1, $2, $3, $4, now())
             ON CONFLICT (chat_id, telegram_id) DO UPDATE SET
-                role = EXCLUDED.role,
+                role = CASE
+                    WHEN EXCLUDED.role = 'owner' THEN 'owner'
+                    WHEN bot_chat_members.role IN ('senior_moderator', 'moderator', 'helper')
+                        AND EXCLUDED.role = 'admin' THEN bot_chat_members.role
+                    ELSE EXCLUDED.role
+                END,
                 telegram_status = EXCLUDED.telegram_status,
                 updated_at = now()
             "#
