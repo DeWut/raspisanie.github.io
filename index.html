@@ -4,7 +4,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>Интерактивное расписание — ЛПб-ИСИТ-26-1</title>
+    <title>SPBFTUIT — расписание университета</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -37,19 +37,7 @@
             position: relative;
         }
 
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-            pointer-events: none;
-            opacity: 0.045;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='130'%3E%3Ctext x='50%25' y='50%25' fill='%23000000' font-family='Arial, sans-serif' font-size='15' font-weight='bold' text-anchor='middle' transform='rotate(-25 130 65)'%3EP.S: Я люблю монстер%3C/text%3E%3C/svg%3E");
-            background-repeat: repeat;
-        }
+        body::before { content: none; }
 
         .monster-peek {
             position: fixed;
@@ -386,14 +374,38 @@
         
         .teacher-link { color: var(--accent-color); text-decoration: none; font-weight: 500; cursor: pointer; }
         .teacher-link:hover { text-decoration: underline; color: var(--accent-hover); }
+    
+        :root {
+            --bg-color: #f5f7f2; --card-bg: #fff; --text-color: #17221c;
+            --accent-color: #173d2e; --accent-hover: #24533d; --border-color: #e3e9e1;
+            --badge-odd: #edf5d4; --badge-odd-text: #24533d;
+            --badge-even: #e8eee8; --badge-even-text: #526454;
+            --badge-all: #edf5d4; --badge-all-text: #24533d;
+        }
+        body { padding: 18px 16px 100px; background: #f5f7f2; color: #17221c; }
+        .container { max-width: 900px; }
+        .brand-header { display:flex; align-items:center; gap:12px; margin: 0 0 20px; padding: 10px 2px 16px; border-bottom:1px solid #e3e9e1; }
+        .brand-mark { width:48px; height:48px; display:grid; place-items:center; border-radius:16px; background:#173d2e; color:#fff; font-size:23px; }
+        .brand-copy strong { display:block; color:#173d2e; font-size:15px; letter-spacing:.13em; font-weight:850; }
+        .brand-copy span { display:block; margin-top:3px; color:#778179; font-size:12px; }
+        .group-btn,.week-indicator span,.filter-btn.active { background:#edf5d4; color:#24533d; }
+        .group-btn { border:1px solid #dce4d8; border-radius:999px; padding:9px 14px; }
+        .group-btn .fa-users,.group-menu-item .fa-users { color:#6e9842; }
+        .status-card,.day-block { border:1px solid #e3e9e1; border-radius:22px; box-shadow:0 8px 24px rgba(23,61,46,.06); }
+        .status-card { border-left:4px solid #9dbd65; padding:18px; }
+        .day-header { background:#173d2e; }
+        .filter-btn.active { background:#173d2e; color:#fff; }
+        .fab-main { background:#173d2e; }
+        .fab-child { color:#173d2e; }
+        .modal { border-radius:22px; }
+        .updated-note { color:#89948a; }
+        .teacher-link { color:#24533d; }
+        @media(max-width:640px) { body { padding:12px 10px 90px; } .brand-header { margin-bottom:14px; } }
     </style>
 </head>
 <body>
 
-<div class="monster-peek monster-peek-left" id="monsterLeft"><img src="monster.png" alt="Monster"></div>
-<div class="monster-peek monster-peek-right" id="monsterRight"><img src="monster.png" alt="Monster"></div>
-
-<div class="container">
+<div class="container">\n    <header class="brand-header"><span class="brand-mark" aria-hidden="true">♣</span><span class="brand-copy"><strong>SPBFTUIT</strong><span>расписание и навигация по университету</span></span></header>
     <div class="top-bar">
         <div class="group-selector" id="groupSelector">
             <button class="group-btn" type="button" onclick="toggleGroupMenu(event)">
@@ -1108,14 +1120,14 @@
         currentGroupId = id;
         scheduleData = lessons;
         document.getElementById('group-current-name').innerText = name;
-        document.title = 'Интерактивное расписание — ' + name;
+        document.title = 'SPBFTUIT — ' + name;
         let note = document.getElementById('updated-note');
         if (!note) {
             note = document.createElement('div');
             note.id = 'updated-note'; note.className = 'updated-note';
             document.querySelector('.container').appendChild(note);
         }
-        note.innerText = updated ? 'Данные с сайта вуза, обновлено: ' + updated : 'Встроенное расписание (без обновления с сайта)';
+        note.innerText = updated ? 'Обновлено: ' + updated : 'Встроенное расписание';
         renderGroupList();
         updateLiveStatus();
         renderSchedule();
