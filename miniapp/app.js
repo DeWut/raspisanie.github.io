@@ -191,7 +191,10 @@
     $('#week-list').innerHTML = DAYS.map((day, index) => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
       const lessons = getLessons(date);
-      const content = lessons.length ? lessons.map((lesson, lessonIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${lessonIndex}"><div class="week-lesson-time">${escapeHtml(lesson.start)}<br>${escapeHtml(lesson.end)}</div><div><p class="week-lesson-title">${escapeHtml(lesson.name)}</p><span class="week-lesson-meta">${[lesson.room, lesson.teacher].filter(Boolean).map(escapeHtml).join(' · ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
+      const today = startOfDay(new Date());
+      const showDay = state.filter !== 'current' || dateKey(date) >= dateKey(today);
+      const visibleLessons = showDay ? lessons : [];
+      const content = visibleLessons.length ? visibleLessons.map((lesson, lessonIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${lessonIndex}"><div class="week-lesson-time">${escapeHtml(lesson.start)}<br>${escapeHtml(lesson.end)}</div><div><p class="week-lesson-title">${escapeHtml(lesson.name)}</p><span class="week-lesson-meta">${[lesson.room, lesson.teacher].filter(Boolean).map(escapeHtml).join(' · ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
       const selected = dateKey(date) === dateKey(state.selectedDate);
       return `<article class="week-day"${selected ? ' style="border-color:#bfd493"' : ''}><div class="week-day-head"><span class="week-day-title">${day.full}<small>${formatDate(date, { day: 'numeric', month: 'short' })}</small></span><span class="week-day-count">${lessons.length ? `${lessons.length} ${plural(lessons.length, 'пара', 'пары', 'пар')}` : 'выходной'}</span></div>${content}</article>`;
     }).join('');
@@ -247,7 +250,7 @@
       const response = await fetch(`${DATA_ROOT}groups.json`, { cache: 'no-cache' });
       if (!response.ok) throw new Error('groups-not-found');
       state.groups = await response.json();
-      const saved = safeStorageGet(GROUP_KEY);
+      const saved = safeStorageGet(GROUP_KEY) || safeStorageGet('groupId');
       const match = state.groups.find((group) => String(group.id) === String(saved));
       if (match) await selectGroup(match.id);
       else if (state.groups.length) { renderAll(); openGroupDialog(); }
