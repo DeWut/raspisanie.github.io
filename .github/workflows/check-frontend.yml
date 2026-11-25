@@ -1,0 +1,74 @@
+name: Check frontend
+
+on:
+  push:
+    branches:
+      - main
+      - feature/smart-campus-step-1
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check Mini App JavaScript
+        run: node --check miniapp/app.js
+
+      - name: Check inline page scripts
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          class Scripts(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.in_script = False
+                  self.external = False
+                  self.parts = []
+                  self.current = []
+
+              def handle_starttag(self, tag, attrs):
+                  if tag == "script":
+                      self.in_script = True
+                      self.external = any(k == "src" for k, _ in attrs)
+                      self.current = []
+
+              def handle_data(self, data):
+                  if self.in_script and not self.external:
+                      self.current.append(data)
+
+              def handle_endtag(self, tag):
+                  if tag == "script" and self.in_script:
+                      if not self.external:
+                          self.parts.append("".join(self.current))
+                      self.in_script = False
+                      self.external = False
+
+          for page in ("index.html", "index2.html"):
+              parser = Scripts()
+              parser.feed(Path(page).read_text(encoding="utf-8"))
+              for number, script in enumerate(parser.parts, 1):
+                  Path(f"/tmp/{page}.{number}.js").write_text(script, encoding="utf-8")
+          PY
+          for file in /tmp/index.html.*.js /tmp/index2.html.*.js; do
+            [ -f "$file" ] && node --check "$file"
+          done
+
+      - name: Check Python parser syntax
+        run: python -m py_compile update_schedule.py
