@@ -74,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
-    tracing::info!("SMART CAMPUS API listening on {}", addr);
+    tracing::info!("SPBFTUIT API listening on {}", addr);
 
     axum::serve(listener, app).await?;
 
