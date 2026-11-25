@@ -1,4 +1,4 @@
-# SMART CAMPUS backend
+# SPBFTUIT — серверная часть
 
 ## Local run
 
@@ -42,7 +42,7 @@ The bot intentionally does not ingest ordinary group-chat messages yet. Chat-bas
 
 ## Data handling status (internal engineering note)
 
-SMART CAMPUS is a separate application from the university Moodle site. The public [Moodle data-retention summary](https://edu.spbftu.ru/admin/tool/dataprivacy/summary.php) describes Moodle's default categories and does not define SMART CAMPUS's purposes or retention periods. Its visible default summary currently says that no retention period is defined. This is not an approved privacy notice or authorization for SMART CAMPUS processing.
+SPBFTUIT is a separate application from the university Moodle site. The public [Moodle data-retention summary](https://edu.spbftu.ru/admin/tool/dataprivacy/summary.php) describes Moodle's default categories and does not define SMART CAMPUS's purposes or retention periods. Its visible default summary currently says that no retention period is defined. This is not an approved privacy notice or authorization for SMART CAMPUS processing.
 
 The backend schema can persist:
 
@@ -52,3 +52,5 @@ The backend schema can persist:
 - Feature data tied to accounts, including task progress, team applications, queue entries, help posts, and Moodle-deadline records when those features are used.
 
 The bot does not ingest ordinary group messages. A self-service account export/deletion flow and an application retention schedule are not implemented. Role audit data and account-linked feature records currently have no application-level expiry. Before production rollout, the university/service owner should approve the purposes, retention periods, deletion behavior (including audit records and backups), and a user-facing notice. Do not copy the Moodle summary into a SMART CAMPUS notice as if it applied to this backend.
+
+\n## Развёртывание на хостинге\n\nДля контейнерного хостинга используй Dockerfile в корне репозитория. Build context должен быть корнем репозитория. Укажи переменные из `backend/.env.example` в панели хостинга, не загружая файл `.env` в Git. Обязательны `DATABASE_URL` (PostgreSQL с pgvector и pg_trgm), `TELOXIDE_TOKEN` и числовой `ADMIN_TELEGRAM_ID`. Для кнопки Mini App укажи публичный HTTPS `WEBAPP_URL`. `OPENAI_API_KEY` нужен только функциям RAG. Порт задаётся хостингом через `PORT`; сервис слушает `0.0.0.0`. Миграции применяются при старте приложения.\n
