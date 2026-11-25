@@ -120,7 +120,7 @@ pub async fn run(state: Arc<AppState>) {
         let state=state.clone();
         async move { handle(bot,state,message).await }
     });
-    Dispatcher::builder(bot,handler).enable_ctrlc_handler().build().dispatch().await;
+    Dispatcher::builder(bot,handler).build().dispatch().await;
 }
 
 async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
