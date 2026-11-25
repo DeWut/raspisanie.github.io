@@ -135,6 +135,9 @@
     const lessons = state.schedule?.lessons?.[String(dayNumber(date))] || [];
     const parity = isOddWeek(date) ? 'нечёт' : 'чёт';
     return lessons.filter((lesson) => {
+      const name = String(lesson.name || '').trim();
+      if (!name || /^(загрузка(?:…|\.\.\.)?|loading(?:…|\.\.\.)?)$/i.test(name)) return false;
+      if (!lesson.start || !lesson.end) return false;
       if (filter === 'odd') return lesson.week === '*' || lesson.week === 'нечёт';
       if (filter === 'even') return lesson.week === '*' || lesson.week === 'чёт';
       if (filter === 'current') return lesson.week === '*' || lesson.week === parity;
@@ -168,41 +171,123 @@
     $('#group-name').textContent = selected?.name || state.schedule?.name || 'Выбрать группу';
     $('#sync-bot-group').hidden = !tg?.sendData || !state.schedule?.id;
   }
+  function lessonType(name) {
+    const match = String(name || '').trim().match(/\\s+(Лек\\.|Пр\\.|Лаб\\.)$/i);
+    if (!match) return '';
+    return ({ 'лек.': 'Лекция', 'пр.': 'Практика', 'лаб.': 'Лабораторная' })[match[1].toLowerCase()] || match[1];
+  }
+  function lessonBaseName(name) {
+    return String(name || '').trim().replace(/\\s+(Лек\\.|Пр\\.|Лаб\\.)$/i, '').trim();
+  }
+  function compactLessonTitle(name) {
+    const value = String(name || '').trim();
+    if (/социально-ознакомительным практикумом/i.test(value) && /парк\\s+лта/i.test(value)) {
+      return 'Социально-ознакомительный практикум · Парк ЛТА';
+    }
+    return value.length > 78 ? value.slice(0, 75).trimEnd() + '…' : value;
+  }
+  function groupLessonsBySlot(lessons) {
+    const slots = new Map();
+    for (const lesson of lessons) {
+      const key = [lesson.pair ?? '', lesson.start || '', lesson.end || ''].join('|');
+      if (!slots.has(key)) slots.set(key, {
+        pair: lesson.pair,
+        start: lesson.start,
+        end: lesson.end,
+        entries: [],
+        week: lesson.week || '*',
+      });
+      const slot = slots.get(key);
+      const entryKey = [lesson.name || '', lesson.teacher || ''].join('|');
+      let entry = slot.entries.find((item) => item.key === entryKey);
+      if (!entry) {
+        entry = { key: entryKey, name: lesson.name || 'Занятие', teacher: lesson.teacher || '', rooms: [], week: lesson.week || '*' };
+        slot.entries.push(entry);
+      }
+      const room = String(lesson.room || '').trim();
+      if (room && !entry.rooms.includes(room)) entry.rooms.push(room);
+      if (lesson.week && lesson.week !== '*' && !slot.week) slot.week = lesson.week;
+    }
+    return [...slots.values()].sort((a, b) => minutes(a.start) - minutes(b.start));
+  }
+  function slotTitle(slot) {
+    if (slot.entries.length === 1) return compactLessonTitle(slot.entries[0].name);
+    const bases = slot.entries.map((entry) => lessonBaseName(entry.name));
+    return bases.every((name) => name === bases[0]) ? compactLessonTitle(bases[0]) : 'Несколько занятий';
+  }
+  function formatEntryRooms(entry) {
+    const rooms = entry.rooms.map(parseRoom);
+    if (rooms.length > 1) {
+      const parsed = rooms.map((room) => room.match(/^(.*), аудитория (.+)$/));
+      if (parsed.every(Boolean) && parsed.every((item) => item[1] === parsed[0][1])) {
+        return parsed[0][1] + ', аудитории ' + parsed.map((item) => item[2]).join(' и ');
+      }
+    }
+    return rooms.join(' · ');
+  }
+  function slotSummary(slot) {
+    const title = slotTitle(slot);
+    const firstRoom = slot.entries.length ? formatEntryRooms(slot.entries[0]) : '';
+    const extra = slot.entries.length > 1 ? ` · ещё ${slot.entries.length - 1} ${plural(slot.entries.length - 1, 'вариант', 'варианта', 'вариантов')}` : '';
+    return [title, firstRoom, `в ${slot.start}${extra}`].filter(Boolean).join(' · ');
+  }
+  function pairOrdinal(pair) {
+    const number = Number(pair);
+    if (number === 1) return 'первой';
+    return Number.isFinite(number) && number > 0 ? `${number}-й` : '';
+  }
   function countPairs(lessons) {
-    return new Set(lessons.map((lesson) => lesson.pair ?? lesson.start)).size;
+    return groupLessonsBySlot(lessons).length;
   }
   function getStatus(date, lessons) {
+    const slots = groupLessonsBySlot(lessons);
     if (dateKey(date) !== dateKey(startOfDay(new Date()))) {
-      const count = countPairs(lessons);
-      return { title: `${count} ${plural(count, 'пара', 'пары', 'пар')}`, subtitle: formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }), next: 'Открой сегодняшний день, чтобы увидеть текущий статус' };
+      const count = slots.length;
+      return {
+        title: `${count} ${plural(count, 'пара', 'пары', 'пар')}`,
+        subtitle: formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }),
+        next: '',
+      };
     }
     const parts = moscowDateParts();
     const current = Number(parts.hour) * 60 + Number(parts.minute);
-    const activeIndex = lessons.findIndex((lesson) => current >= minutes(lesson.start) && current < minutes(lesson.end));
-    const nextIndex = lessons.findIndex((lesson) => current < minutes(lesson.start));
-    const active = activeIndex >= 0 ? lessons[activeIndex] : null;
-    const next = nextIndex >= 0 ? lessons[nextIndex] : null;
-    const describe = (lesson) => [lesson.name, lesson.room ? parseRoom(lesson.room) : ''].filter(Boolean).join(' · ');
-    if (active) return { title: 'Идёт пара', subtitle: `${active.name} · до ${active.end}`, next: next ? `Следующее: ${describe(next)} · в ${next.start}` : 'Следующее: после этой пары занятий больше нет' };
-    // Обеденное время фиксировано университетским расписанием: 12:45–13:30.
+    const activeIndex = slots.findIndex((slot) => current >= minutes(slot.start) && current < minutes(slot.end));
+    const nextIndex = slots.findIndex((slot) => current < minutes(slot.start));
+    const active = activeIndex >= 0 ? slots[activeIndex] : null;
+    const next = nextIndex >= 0 ? slots[nextIndex] : null;
+    if (active) {
+      return {
+        title: active.pair ? `Идёт ${pairOrdinal(active.pair)} пару` : 'Идёт пара',
+        subtitle: `${slotTitle(active)} · до ${active.end}`,
+        next: next ? `Следующая: ${slotSummary(next)}` : 'После этой пары занятий больше нет',
+      };
+    }
+    // University lunch window is fixed: 12:45–13:30.
     if (current >= 12 * 60 + 45 && current < 13 * 60 + 30) {
-      const until = next ? minutes(next.start) - current : 0;
-      const timeHint = next ? (until < 60 ? `через ${until} мин` : `в ${next.start}`) : '';
       return {
         title: 'Обед',
         subtitle: '12:45–13:30 · время отдохнуть и перекусить',
-        next: next ? `Следующее: ${describe(next)} · ${timeHint}` : 'Следующее: на сегодня занятий больше нет'
+        next: next ? `Следующая: ${slotSummary(next)}` : 'На сегодня занятий больше нет',
       };
     }
     if (next) {
-      const previous = lessons.slice(0, nextIndex).at(-1);
-      const stateLabel = previous ? 'Перемена' : 'До первой пары';
-      const stateDetail = previous ? 'Можно немного передохнуть' : 'Пока можно спокойно подготовиться';
-      const until = minutes(next.start) - current;
-      const timeHint = until < 60 ? `через ${until} мин` : `в ${next.start}`;
-      return { title: stateLabel, subtitle: stateDetail, next: `Следующее: ${describe(next)} · ${timeHint}` };
+      const previous = slots.slice(0, nextIndex).at(-1);
+      const nextPairLabel = next.pair ? `${pairOrdinal(next.pair)} пары` : 'следующей пары';
+      const stateTitle = previous ? 'Перемена' : `До ${nextPairLabel}`;
+      const stateSubtitle = previous
+        ? `До ${nextPairLabel} · начнётся в ${next.start}`
+        : (Number(next.pair) > 1 ? 'Первая пара сегодня не проводится по расписанию' : 'Пока можно спокойно подготовиться');
+      return {
+        title: stateTitle,
+        subtitle: stateSubtitle,
+        next: `Следующая: ${slotSummary(next)}`,
+      };
     }
-    return { title: lessons.length ? 'Занятия закончились' : 'Сегодня без пар', subtitle: 'Сейчас время отдохнуть 🌿', next: 'Следующее: на сегодня занятий больше нет' };
+    return {
+      title: slots.length ? 'Занятия закончились' : 'Сегодня без пар',
+      subtitle: 'Сейчас время отдохнуть 🌿',
+      next: 'На сегодня занятий больше нет',
+    };
   }
   function plural(value, one, few, many) {
     const abs = Math.abs(value) % 100;
@@ -220,11 +305,14 @@
     $('#hero-title').textContent = status.title;
     $('#hero-subtitle').textContent = status.subtitle;
     $('#hero-next').textContent = status.next;
+    $('#hero-next').hidden = !today || !status.next;
+    $('.hero-card').classList.toggle('summary-only', !today);
     $('#hero-footer-text').textContent = state.schedule?.updated ? `Обновлено ${state.schedule.updated}` : 'Расписание загружено';
     $('#week-label').textContent = `${isOddWeek(state.selectedDate) ? 'нечётная' : 'чётная'} неделя`;
     $('#welcome-date').textContent = today ? 'ТВОЙ УЧЕБНЫЙ ДЕНЬ' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' }).toUpperCase();
-    $('#schedule-heading').textContent = today ? 'Пары на сегодня' : 'Пары на выбранный день';
-    $('#today-button').textContent = today ? 'Сегодня' : 'К сегодня';
+    $('#schedule-heading').textContent = today ? 'Пары на сегодня' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' });
+    $('#today-button').textContent = 'Сегодня';
+    $('#today-button').hidden = !today;
   }
   function renderDays() {
     const monday = weekStart(state.selectedDate);
@@ -239,55 +327,64 @@
       renderAll();
     }));
   }
-  function lessonMarkup(lesson, index, date) {
-    const now = new Date();
-    const nowParts = moscowDateParts(now);
+  function lessonMarkup(slot, index, date) {
+    const nowParts = moscowDateParts();
     const currentMinutes = Number(nowParts.hour) * 60 + Number(nowParts.minute);
-    const current = dateKey(date) === dateKey(startOfDay(now)) && currentMinutes >= minutes(lesson.start) && currentMinutes < minutes(lesson.end);
-    const pair = lesson.pair ? `<small>${lesson.pair} пара</small>` : '';
-    const teacher = lesson.teacher ? `<span class="meta-item"><svg class="meta-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2z"/></svg>${escapeHtml(lesson.teacher)}</span>` : '';
-    const room = lesson.room ? `<span class="meta-item"><svg class="meta-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>${escapeHtml(parseRoom(lesson.room))}</span>` : '';
-    const week = lesson.week && lesson.week !== '*' ? `<span class="week-badge">${escapeHtml(lesson.week)} нед.</span>` : '';
-    return `<article class="lesson-card${current ? ' is-current' : ''}" data-lesson-index="${index}" style="animation-delay:${Math.min(index * 35, 175)}ms">${week}<div class="lesson-time">${escapeHtml(lesson.start)}<small>— ${escapeHtml(lesson.end)}</small>${pair}</div><div class="lesson-main">${current ? '<span class="current-tag">● Идёт сейчас</span>' : ''}<h3 class="lesson-title">${escapeHtml(lesson.name)}</h3><div class="lesson-meta">${teacher}${room}</div></div></article>`;
+    const today = dateKey(date) === dateKey(startOfDay(new Date()));
+    const current = today && currentMinutes >= minutes(slot.start) && currentMinutes < minutes(slot.end);
+    const weekValues = [...new Set(slot.entries.map((entry) => entry.week).filter((week) => week && week !== '*'))];
+    const week = weekValues.length === 1 ? `<span class="week-badge">${escapeHtml(weekValues[0])} нед.</span>` : '';
+    const commonTitle = slotTitle(slot);
+    const hasCommonTitle = slot.entries.length > 1 && slot.entries.every((entry) => lessonBaseName(entry.name) === lessonBaseName(slot.entries[0].name));
+    const entries = slot.entries.map((entry) => {
+      const teacher = entry.teacher ? `<span class="meta-item"><svg class="meta-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2z"/></svg>${escapeHtml(entry.teacher)}</span>` : '';
+      const roomText = formatEntryRooms(entry);
+      const room = roomText ? `<span class="meta-item"><svg class="meta-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>${escapeHtml(roomText)}</span>` : '';
+      const type = lessonType(entry.name);
+      const label = hasCommonTitle ? type : (slot.entries.length > 1 ? compactLessonTitle(entry.name) : '');
+      return `<div class="lesson-variant">${label ? `<span class="lesson-variant-type">${escapeHtml(label)}</span>` : ''}<div class="lesson-meta">${teacher}${room}</div></div>`;
+    }).join('');
+    return `<article class="lesson-card${current ? ' is-current' : ''}${slot.entries.length > 1 ? ' has-variants' : ''}" data-slot-index="${index}" style="animation-delay:${Math.min(index * 35, 175)}ms">${week}<div class="lesson-time">${escapeHtml(slot.start)}<small>— ${escapeHtml(slot.end)}</small><small>${slot.pair ? `${escapeHtml(slot.pair)} пара` : ''}</small></div><div class="lesson-main">${current ? '<span class="current-tag">● Идёт сейчас</span>' : ''}<h3 class="lesson-title">${escapeHtml(commonTitle)}</h3><div class="lesson-variants">${entries}</div></div></article>`;
   }
   function renderSchedule() {
     const lessons = getLessons(state.selectedDate);
+    const slots = groupLessonsBySlot(lessons);
     const list = $('#schedule-list');
     if (!state.schedule) {
-      list.innerHTML = '<div class="empty-card"><span class="empty-illustration"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg></span><strong>Сначала выбери группу</strong><p>Найди свою группу, и мы покажем расписание на сегодня и всю неделю.</p></div>';
+      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">✦</span><strong>Сначала выбери группу</strong><p>Найди свою группу, и мы покажем расписание на сегодня и всю неделю.</p></div>';
       $('#updated-note').textContent = '';
+      $('#schedule-count').textContent = '';
       return;
     }
-    if (!lessons.length) {
+    if (!slots.length) {
       list.innerHTML = '<div class="empty-card"><span class="empty-illustration">☼</span><strong>Пар нет</strong><p>На этот день занятий не найдено. Проверь соседние дни или открой расписание в ЕИОС.</p></div>';
     } else {
-      list.innerHTML = lessons.map((lesson, index) => lessonMarkup(lesson, index, state.selectedDate)).join('');
+      list.innerHTML = slots.map((slot, index) => lessonMarkup(slot, index, state.selectedDate)).join('');
     }
     $('#updated-note').textContent = state.schedule.updated ? `Данные ЕИОС обновлены ${state.schedule.updated}` : 'Источник: расписание СПбГЛТУ';
     const isToday = dateKey(state.selectedDate) === dateKey(startOfDay(new Date()));
-    let remaining = lessons;
+    let remainingSlots = slots;
     let firstPairLabel = '';
     if (isToday) {
       const nowParts = moscowDateParts();
       const nowMinutes = Number(nowParts.hour) * 60 + Number(nowParts.minute);
-      const firstRemaining = lessons.findIndex((lesson) => nowMinutes < minutes(lesson.end));
-      remaining = firstRemaining >= 0 ? lessons.slice(firstRemaining) : [];
-      if (firstRemaining >= 0) {
-        const pairNumber = Number(lessons[firstRemaining].pair) || firstRemaining + 1;
-        firstPairLabel = ` · ${pairNumber === 2 ? 'со' : 'с'} ${pairNumber}-й`;
+      const firstRemaining = slots.findIndex((slot) => nowMinutes < minutes(slot.end));
+      remainingSlots = firstRemaining >= 0 ? slots.slice(firstRemaining) : [];
+      if (firstRemaining >= 0 && slots[firstRemaining].pair) {
+        const pairNumber = Number(slots[firstRemaining].pair);
+        firstPairLabel = ` · ${pairNumber === 2 ? 'со' : 'с'} ${pairOrdinal(pairNumber)}`;
       }
     }
-    const remainingPairCount = countPairs(remaining);
-    $('#schedule-count').textContent = remainingPairCount
-      ? `${remainingPairCount} ${plural(remainingPairCount, 'пара', 'пары', 'пар')}${firstPairLabel}`
+    $('#schedule-count').textContent = remainingSlots.length
+      ? `${remainingSlots.length} ${plural(remainingSlots.length, 'пара', 'пары', 'пар')}${firstPairLabel}`
       : (isToday ? 'На сегодня всё' : 'Пар нет');
-    list.querySelectorAll('[data-lesson-index]').forEach((card) => {
-      const open = () => openLessonDetails(lessons[Number(card.dataset.lessonIndex)], state.selectedDate);
+    list.querySelectorAll('[data-slot-index]').forEach((card) => {
+      const open = () => openLessonDetails(slots[Number(card.dataset.slotIndex)], state.selectedDate);
       card.addEventListener('click', open);
       card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
       card.setAttribute('tabindex', '0');
       card.setAttribute('role', 'button');
-      card.setAttribute('aria-label', `Подробнее: ${lessons[Number(card.dataset.lessonIndex)].name}`);
+      card.setAttribute('aria-label', `Подробнее: ${slotTitle(slots[Number(card.dataset.slotIndex)])}`);
     });
   }
   function alignWeekToSelectedParity() {
@@ -311,15 +408,15 @@
     $('#week-list').innerHTML = DAYS.map((day, index) => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
       const lessons = getLessons(date);
-      const visibleLessons = lessons;
-      const content = visibleLessons.length ? visibleLessons.map((lesson, lessonIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${lessonIndex}"><div class="week-lesson-time">${escapeHtml(lesson.start)}<br>${escapeHtml(lesson.end)}</div><div><p class="week-lesson-title">${escapeHtml(lesson.name)}</p><span class="week-lesson-meta">${[lesson.room, lesson.teacher].filter(Boolean).map(escapeHtml).join(' · ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
+      const slots = groupLessonsBySlot(lessons);
+      const content = slots.length ? slots.map((slot, slotIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${slotIndex}"><div class="week-lesson-time">${escapeHtml(slot.start)}<br>${escapeHtml(slot.end)}</div><div><p class="week-lesson-title">${escapeHtml(slotTitle(slot))}</p><span class="week-lesson-meta">${slot.entries.length > 1 ? `${slot.entries.length} варианта · ` : ''}${slot.entries.map((entry) => [entry.teacher, formatEntryRooms(entry)].filter(Boolean).join(' · ')).filter(Boolean).join(' / ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
       const selected = dateKey(date) === dateKey(state.selectedDate);
-      return `<article class="week-day"${selected ? ' style="border-color:#bfd493"' : ''}><div class="week-day-head"><span class="week-day-title">${day.full}<small>${formatDate(date, { day: 'numeric', month: 'short' })}</small></span><span class="week-day-count">${lessons.length ? `${lessons.length} ${plural(lessons.length, 'пара', 'пары', 'пар')}` : 'выходной'}</span></div>${content}</article>`;
+      return `<article class="week-day"${selected ? ' style="border-color:#bfd493"' : ''}><div class="week-day-head"><span class="week-day-title">${day.full}<small>${formatDate(date, { day: 'numeric', month: 'short' })}</small></span><span class="week-day-count">${slots.length ? `${slots.length} ${plural(slots.length, 'пара', 'пары', 'пар')}` : 'выходной'}</span></div>${content}</article>`;
     }).join('');
     $('#week-list').querySelectorAll('[data-week-day]').forEach((button) => button.addEventListener('click', () => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + Number(button.dataset.weekDay) - 1);
-      const lessons = getLessons(date);
-      openLessonDetails(lessons[Number(button.dataset.weekIndex)], date);
+      const slots = groupLessonsBySlot(getLessons(date));
+      openLessonDetails(slots[Number(button.dataset.weekIndex)], date);
     }));
   }
   function renderAll() {
@@ -452,18 +549,27 @@
       box.textContent = 'Не удалось загрузить погоду. Проверь подключение к интернету.';
     }
   }
-  function openLessonDetails(lesson, date) {
-    if (!lesson) return;
+  function openLessonDetails(slot, date) {
+    if (!slot) return;
     $('#detail-date').textContent = formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
-    $('#detail-name').textContent = lesson.name || 'Занятие';
-    $('#detail-time').textContent = `${lesson.start} — ${lesson.end}${lesson.pair ? ` · ${lesson.pair} пара` : ''}`;
-    const teacherNames = String(lesson.teacher || '').split(',').map((name) => name.trim()).filter(Boolean);
-    $('#detail-teacher').innerHTML = teacherNames.length ? teacherNames.map((short) => {
-      const data = teachersDB[short];
-      return data?.url ? `<a class="teacher-profile" href="${escapeHtml(data.url)}" target="_blank" rel="noopener">${escapeHtml(data.name)}</a>` : `<strong>${escapeHtml(data?.name || short)}</strong>`;
-    }).join('<br>') : 'Не указан';
-    $('#detail-room').textContent = parseRoom(lesson.room) || 'Не указана';
-    $('#detail-week').textContent = lesson.week === '*' ? 'Каждую неделю' : lesson.week || 'Не указана';
+    $('#detail-name').textContent = slotTitle(slot);
+    $('#detail-time').textContent = `${slot.start} — ${slot.end}${slot.pair ? ` · ${slot.pair} пара` : ''}`;
+    const teacherLines = slot.entries.map((entry) => {
+      const teacherNames = String(entry.teacher || '').split(',').map((name) => name.trim()).filter(Boolean);
+      const teacherLinks = teacherNames.map((short) => {
+        const data = teachersDB[short];
+        return data?.url ? `<a class="teacher-profile" href="${escapeHtml(data.url)}" target="_blank" rel="noopener">${escapeHtml(data.name)}</a>` : `<strong>${escapeHtml(data?.name || short)}</strong>`;
+      }).join(', ') || 'Преподаватель не указан';
+      const type = lessonType(entry.name);
+      return `<div class="detail-variant">${type ? `<b>${escapeHtml(type)}</b><br>` : ''}${teacherLinks}</div>`;
+    });
+    $('#detail-teacher').innerHTML = teacherLines.join('<hr>');
+    $('#detail-room').innerHTML = slot.entries.map((entry) => {
+      const type = lessonType(entry.name);
+      return `<div class="detail-variant">${type ? `<b>${escapeHtml(type)}</b>: ` : ''}${escapeHtml(formatEntryRooms(entry) || 'Аудитория не указана')}</div>`;
+    }).join('');
+    const weeks = [...new Set(slot.entries.map((entry) => entry.week).filter(Boolean))];
+    $('#detail-week').textContent = weeks.includes('*') || !weeks.length ? 'Каждую неделю' : weeks.join(', ');
     $('#lesson-dialog').showModal();
   }
   function bindEvents() {
