@@ -220,6 +220,7 @@
     $('#week-label').textContent = `${isOddWeek(state.selectedDate) ? 'нечётная' : 'чётная'} неделя`;
     $('#welcome-date').textContent = today ? 'ТВОЙ УЧЕБНЫЙ ДЕНЬ' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' }).toUpperCase();
     $('#schedule-heading').textContent = today ? 'Пары на сегодня' : 'Пары на выбранный день';
+    $('#today-button').textContent = today ? 'Сегодня' : 'К сегодня';
   }
   function renderDays() {
     const monday = weekStart(state.selectedDate);
