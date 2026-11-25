@@ -1712,7 +1712,7 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
                         match bot.send_message(
                             ChatId(telegram_id),
                             format!(
-                                "⏰ Через 10 минут пара: {}\\nНачало: {}",
+                                "⏰ Через 10 минут пара: {}\nНачало: {}",
                                 subject,
                                 moscow_time(starts_at, "%H:%M")
                             ),
