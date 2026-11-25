@@ -200,3 +200,13 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .teacher-profile { color:var(--forest); font-weight:700; text-decoration:none; }
 .lesson-details a { text-decoration:underline; text-underline-offset:2px; }
 @media(max-width:420px) { .quick-actions { right:14px; bottom:calc(90px + var(--tg-safe-bottom)); } }
+
+
+/* Normalize controls across mobile browsers and Telegram WebView. */
+button, input, select, textarea { -webkit-appearance: none; appearance: none; }
+button { font-family: inherit; }
+.filter-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; gap: 4px; width: 100%; padding: 4px; margin: 0 0 15px; border: 1px solid #e5eae1; border-radius: 16px; background: #edf1e9; }
+.filter-chip { width: 100%; min-width: 0; min-height: 38px; padding: 0 5px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #68766b; font-size: clamp(9px, 2.7vw, 11px); line-height: 1.15; font-weight: 750; white-space: nowrap; cursor: pointer; }
+.filter-chip.active { border-color: #173d2e; background: #173d2e; color: #fff; box-shadow: 0 3px 9px rgba(23,61,46,.14); }
+.filter-chip:focus-visible, .icon-button:focus-visible, .text-button:focus-visible, .nav-item:focus-visible, .group-pill:focus-visible { outline: 2px solid #86a957; outline-offset: 2px; }
+@media (max-width: 360px) { .filter-bar { gap: 2px; padding: 3px; } .filter-chip { font-size: 9px; } }
