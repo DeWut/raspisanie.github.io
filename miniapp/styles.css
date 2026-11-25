@@ -210,3 +210,7 @@ button { font-family: inherit; }
 .filter-chip.active { border-color: #173d2e; background: #173d2e; color: #fff; box-shadow: 0 3px 9px rgba(23,61,46,.14); }
 .filter-chip:focus-visible, .icon-button:focus-visible, .text-button:focus-visible, .nav-item:focus-visible, .group-pill:focus-visible { outline: 2px solid #86a957; outline-offset: 2px; }
 @media (max-width: 360px) { .filter-bar { gap: 2px; padding: 3px; } .filter-chip { font-size: 9px; } }
+
+.online-indicator { display:inline-flex; align-items:center; gap:5px; margin-top:4px; color:#6e8d4c; font-size:9px; font-weight:700; letter-spacing:0; }
+.online-indicator[hidden] { display:none !important; }
+.online-indicator::before { width:6px; height:6px; border-radius:50%; background:#83ad49; content:""; box-shadow:0 0 0 3px rgba(131,173,73,.12); }
