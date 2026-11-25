@@ -141,19 +141,6 @@ async fn selected_group(db: &PgPool, telegram_id: i64, chat_id: i64) -> Option<u
     }
 }
 
-async fn is_chat_admin(bot: &Bot, message: &Message) -> bool {
-    let Some(user) = message.from.as_ref() else {
-        return false;
-    };
-
-    match bot.get_chat_administrators(message.chat.id).await {
-        Ok(admins) => admins.iter().any(|member| member.user.id == user.id),
-        Err(error) => {
-            tracing::warn!("Could not check chat administrators: {error}");
-            false
-        }
-    }
-}
 
 fn period(command: &str) -> (DateTime<Utc>, DateTime<Utc>) {
     let now = Utc::now();
@@ -378,8 +365,17 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "/setgroup" => {
             if !is_group_chat {
                 "Эта команда предназначена для группового чата Telegram.".into()
-            } else if !is_chat_admin(&bot, &message).await {
-                "⛔ Только администратор чата может менять учебную группу.".into()
+            } else if !matches!(
+                crate::services::chat_roles::sync_member(
+                    &bot, db, message.chat.id, telegram_id
+                )
+                .await
+                .ok()
+                .flatten()
+                .as_deref(),
+                Some("owner" | "admin")
+            ) {
+                "⛔ Менять учебную группу чата может только создатель или администратор Telegram.".into()
             } else if argument.is_empty() {
                 "Укажи группу: /setgroup ЛПб-ИСИТ-26-1".into()
             } else {
@@ -500,11 +496,16 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     let target_id = parts.next().and_then(|value| value.parse::<i64>().ok());
                     let requested_role = parts.next().unwrap_or("");
 
-                    if parts.next().is_some()
-                        || target_id.is_none()
-                        || !matches!(requested_role, "senior_moderator" | "moderator" | "helper" | "member")
-                    {
-                        "Формат: /role TELEGRAM_ID senior_moderator|moderator|helper|member".into()
+                    let can_assign_senior = actor_role.as_deref() == Some("owner");
+                    let valid_role = matches!(requested_role, "moderator" | "helper" | "member")
+                        || (can_assign_senior && requested_role == "senior_moderator");
+
+                    if parts.next().is_some() || target_id.is_none() || !valid_role {
+                        if can_assign_senior {
+                            "Формат: /role TELEGRAM_ID senior_moderator|moderator|helper|member".into()
+                        } else {
+                            "Администратор Telegram может назначать только moderator, helper или member. Старшего модератора назначает создатель чата.".into()
+                        }
                     } else {
                         let target_id = target_id.unwrap();
                         let target_role = crate::services::chat_roles::sync_member(
