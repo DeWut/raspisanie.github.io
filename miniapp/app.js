@@ -14,14 +14,24 @@
   const TIME_ZONE = 'Europe/Moscow';
   const SEMESTER_START = new Date(Date.UTC(2026, 7, 31, 12));
   const GROUP_KEY = 'smart-campus-group-id';
-  const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), weekAnchorDate: startOfDay(new Date()), view: 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
+  const pageParams = new URLSearchParams(location.search);
+  const isWeekPage = document.body.dataset.page === 'week';
+  const requestedDate = pageParams.get('date');
+  const parsedRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? new Date(requestedDate + 'T12:00:00Z') : null;
+  const state = { groups: [], schedule: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
   const DATA_ROOT = new URL('../data/', document.currentScript?.src || new URL('miniapp/app.js', location.href)).href;
-  const DATA_FALLBACK = 'https://raw.githubusercontent.com/DeWut/raspisanie.github.io/main/data/';
+  const DATA_FALLBACKS = [
+    'https://cdn.jsdelivr.net/gh/DeWut/raspisanie.github.io@main/data/',
+    'https://raw.githubusercontent.com/DeWut/raspisanie.github.io/main/data/',
+  ];
   async function fetchDataFile(path) {
-    const candidates = [new URL(path, DATA_ROOT).href, new URL(path, DATA_FALLBACK).href];
+    const candidates = [...new Set([
+      new URL(path, DATA_ROOT).href,
+      ...DATA_FALLBACKS.map((root) => new URL(path, root).href),
+    ])];
     let lastError;
     for (const url of candidates) {
       try {
@@ -131,7 +141,7 @@
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   }
   function minutes(value) { const [hour, minute] = String(value || '0:0').split(':').map(Number); return hour * 60 + minute; }
-  function getLessons(date, filter = (state.view === 'week' ? state.filter : 'current')) {
+  function getLessons(date, filter = 'current') {
     const lessons = state.schedule?.lessons?.[String(dayNumber(date))] || [];
     const parity = isOddWeek(date) ? 'нечёт' : 'чёт';
     return lessons.filter((lesson) => {
@@ -394,44 +404,42 @@
       card.setAttribute('aria-label', `Подробнее: ${slotTitle(slots[Number(card.dataset.slotIndex)])}`);
     });
   }
-  function alignWeekToSelectedParity() {
-    const anchor = weekStart(state.weekAnchorDate || state.selectedDate);
-    if (isOddWeek(anchor) === (state.filter === 'odd')) { state.selectedDate = anchor; return; }
-    const target = new Date(anchor);
-    target.setUTCDate(target.getUTCDate() + 7);
-    state.selectedDate = target;
-  }
   function renderWeek() {
     const monday = weekStart(state.selectedDate);
     const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
     const currentMonday = weekStart(startOfDay(new Date()));
     const isCurrentWeek = dateKey(monday) === dateKey(currentMonday);
-    $('#week-range').textContent = `${isCurrentWeek ? 'Текущая неделя · ' : ''}${formatDate(monday)} — ${formatDate(sunday)}`;
-    $('#week-current-button').classList.toggle('active', isCurrentWeek && state.filter === 'current');
-    document.querySelectorAll('[data-filter]').forEach((button) => {
-      const parity = isOddWeek(state.selectedDate) ? 'odd' : 'even';
-      button.classList.toggle('active', button.dataset.filter === (state.filter === 'current' ? parity : state.filter));
-    });
+    const parityLabel = isOddWeek(monday) ? 'Нечётная учебная неделя' : 'Чётная учебная неделя';
+    $('#week-range').textContent = formatDate(monday, { day: 'numeric', month: 'long' }) + ' — ' + formatDate(sunday, { day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' + parityLabel.toLowerCase();
+    $('#week-current-label').textContent = isCurrentWeek ? 'Текущая неделя' : parityLabel;
     $('#week-list').innerHTML = DAYS.map((day, index) => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
-      const lessons = getLessons(date);
-      const slots = groupLessonsBySlot(lessons);
-      const content = slots.length ? slots.map((slot, slotIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${slotIndex}"><div class="week-lesson-time">${escapeHtml(slot.start)}<br>${escapeHtml(slot.end)}</div><div><p class="week-lesson-title">${escapeHtml(slotTitle(slot))}</p><span class="week-lesson-meta">${slot.entries.length > 1 ? `${slot.entries.length} варианта · ` : ''}${slot.entries.map((entry) => [entry.teacher, formatEntryRooms(entry)].filter(Boolean).join(' · ')).filter(Boolean).join(' / ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
-      const selected = dateKey(date) === dateKey(state.selectedDate);
-      return `<article class="week-day"${selected ? ' style="border-color:#bfd493"' : ''}><div class="week-day-head"><span class="week-day-title">${day.full}<small>${formatDate(date, { day: 'numeric', month: 'short' })}</small></span><span class="week-day-count">${slots.length ? `${slots.length} ${plural(slots.length, 'пара', 'пары', 'пар')}` : 'выходной'}</span></div>${content}</article>`;
+      const slots = groupLessonsBySlot(getLessons(date, 'current'));
+      const content = slots.length ? slots.map((slot, slotIndex) => {
+        const meta = slot.entries.map((entry) => [entry.teacher, formatEntryRooms(entry)].filter(Boolean).join(' · ')).filter(Boolean).join(' / ');
+        return '<button type="button" class="week-lesson" data-week-day="' + day.id + '" data-week-index="' + slotIndex + '"><div class="week-lesson-time">' + escapeHtml(slot.start) + '<br>' + escapeHtml(slot.end) + '</div><div><p class="week-lesson-title">' + escapeHtml(slotTitle(slot)) + '</p><span class="week-lesson-meta">' + (slot.entries.length > 1 ? slot.entries.length + ' варианта · ' : '') + escapeHtml(meta) + '</span></div></button>';
+      }).join('') : '<p class="week-empty">Занятий нет</p>';
+      const count = slots.length ? slots.length + ' ' + plural(slots.length, 'пара', 'пары', 'пар') : 'выходной';
+      return '<article class="week-day"><div class="week-day-head"><span class="week-day-title">' + day.full + '<small>' + formatDate(date, { day: 'numeric', month: 'short' }) + '</small></span><span class="week-day-count">' + count + '</span></div>' + content + '</article>';
     }).join('');
     $('#week-list').querySelectorAll('[data-week-day]').forEach((button) => button.addEventListener('click', () => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + Number(button.dataset.weekDay) - 1);
-      const slots = groupLessonsBySlot(getLessons(date));
+      const slots = groupLessonsBySlot(getLessons(date, 'current'));
       openLessonDetails(slots[Number(button.dataset.weekIndex)], date);
     }));
   }
   function renderAll() {
     updateGroupLabel();
+    if (isWeekPage) {
+      $('#today-view').classList.add('hidden');
+      $('.hero-card').classList.add('hidden');
+      $('#week-view').classList.remove('hidden');
+      renderWeek();
+      return;
+    }
     renderHero();
     renderDays();
     renderSchedule();
-    renderWeek();
   }
   function openGroupDialog() {
     renderGroupOptions('');
@@ -483,20 +491,13 @@
     }
   }
   function switchView(view) {
-    const nextView = view === 'week' ? 'week' : 'today';
-    if (nextView === 'week' && state.view !== 'week') state.weekAnchorDate = new Date(state.selectedDate);
-    state.view = nextView;
-    $('#today-view').classList.toggle('hidden', state.view !== 'today');
-    $('#week-view').classList.toggle('hidden', state.view !== 'week');
-    document.querySelectorAll('[data-view-toggle]').forEach((button) => {
-      const active = button.dataset.viewToggle === state.view;
-      button.classList.toggle('active', active);
-      button.setAttribute('aria-pressed', String(active));
-    });
-    if (state.view === 'week') {
-      if (state.filter !== 'current') alignWeekToSelectedParity();
-      renderAll();
-    }
+    if (view !== 'today') return;
+    location.href = './index.html';
+  }
+  function openWeek(date) {
+    const url = new URL('./week.html', location.href);
+    url.searchParams.set('date', dateKey(date));
+    location.href = url.href;
   }
 
   function closeQuickMenu() {
@@ -532,14 +533,13 @@
     grid.querySelectorAll('[data-calendar-date]').forEach((button) => button.addEventListener('click', () => {
       const date = new Date(`${button.dataset.calendarDate}T12:00:00Z`);
       const lessons = getLessons(date, 'current');
-      $('#calendar-details').innerHTML = `<strong>${escapeHtml(formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }))}</strong><div class="calendar-lesson-list">${lessons.length ? lessons.map((lesson) => `<p><b>${escapeHtml(lesson.start)}–${escapeHtml(lesson.end)}</b> ${escapeHtml(lesson.name)}<small>${escapeHtml(parseRoom(lesson.room))}</small></p>`).join('') : '<p>Пар нет</p>'}</div><button type="button" class="text-button" id="calendar-open-day">Открыть этот день</button>`;
+      $('#calendar-details').innerHTML = '<strong>' + escapeHtml(formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' })) + '</strong><div class="calendar-lesson-list">' + (lessons.length ? lessons.map((lesson) => '<p><b>' + escapeHtml(lesson.start) + '–' + escapeHtml(lesson.end) + '</b> ' + escapeHtml(lesson.name) + '<small>' + escapeHtml(parseRoom(lesson.room)) + '</small></p>').join('') : '<p>Пар нет</p>') + '</div><div class="calendar-actions"><button type="button" class="text-button" id="calendar-open-day">Открыть день</button><button type="button" class="text-button" id="calendar-open-week">Открыть неделю</button></div>';
       $('#calendar-open-day').addEventListener('click', () => {
         state.selectedDate = date;
-        state.view = 'today';
-        switchView('today');
-        renderAll();
         $('#calendar-dialog').close();
+        renderAll();
       });
+      $('#calendar-open-week').addEventListener('click', () => openWeek(date));
     }));
   }
   async function loadWeather() {
@@ -583,17 +583,8 @@
     $('#group-button').addEventListener('click', openGroupDialog);
     document.querySelectorAll('[data-view-toggle]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewToggle)));
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
-    document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
-      state.filter = button.dataset.filter;
-      alignWeekToSelectedParity();
-      renderAll();
-    }));
-    $('#week-current-button').addEventListener('click', () => {
-      state.filter = 'current';
-      state.selectedDate = startOfDay(new Date());
-      state.weekAnchorDate = new Date(state.selectedDate);
-      renderAll();
-    });
+    $('#week-prev')?.addEventListener('click', () => { state.selectedDate = new Date(weekStart(state.selectedDate)); state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
+    $('#week-next')?.addEventListener('click', () => { state.selectedDate = new Date(weekStart(state.selectedDate)); state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() + 7); renderAll(); });
     $('#quick-main').addEventListener('click', () => {
       const open = $('#quick-menu').classList.toggle('open');
       $('#quick-main').classList.toggle('active', open);
@@ -627,7 +618,15 @@
       tg.setBackgroundColor?.('#f5f7f2');
     }
     setGreeting();
-    $('#welcome-date').textContent = formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+    if (isWeekPage) {
+      document.body.classList.add('week-page');
+      $('#welcome-date').textContent = 'РАСПИСАНИЕ';
+      $('#greeting').textContent = 'Неделя';
+      $('#week-view').classList.remove('hidden');
+      $('#week-back').href = './index.html';
+    } else {
+      $('#welcome-date').textContent = formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+    }
     bindEvents();
     updatePresence();
     window.setInterval(updatePresence, 45_000);
