@@ -11,8 +11,11 @@ pub mod schedule;
 pub mod teams;
 pub mod tracker;
 
-use axum::{routing::{get, post, put}, Router};
 use crate::state::SharedState;
+use axum::{
+    routing::{get, post, put},
+    Router,
+};
 
 pub fn router() -> Router<SharedState> {
     Router::new()
@@ -24,19 +27,43 @@ pub fn router() -> Router<SharedState> {
         .route("/api/rooms", get(rooms::list_rooms))
         .route("/api/calendar", get(calendar::calendar))
         .route("/api/rag/chat", post(rag::chat))
-        .route("/api/tracker/tasks", get(tracker::list_tasks).post(tracker::create_task))
-        .route("/api/tracker/tasks/:task_id/progress", put(tracker::update_progress))
-        .route("/api/teams", get(teams::list_projects).post(teams::create_project))
-        .route("/api/teams/:project_id/applications", post(teams::apply_to_project))
-        .route("/api/queue", get(queue::list_sessions).post(queue::create_session))
+        .route(
+            "/api/tracker/tasks",
+            get(tracker::list_tasks).post(tracker::create_task),
+        )
+        .route(
+            "/api/tracker/tasks/:task_id/progress",
+            put(tracker::update_progress),
+        )
+        .route(
+            "/api/teams",
+            get(teams::list_projects).post(teams::create_project),
+        )
+        .route(
+            "/api/teams/:project_id/applications",
+            post(teams::apply_to_project),
+        )
+        .route(
+            "/api/queue",
+            get(queue::list_sessions).post(queue::create_session),
+        )
         .route("/api/queue/:session_id/join", post(queue::join_queue))
         .route("/api/help", get(help::list_posts).post(help::create_post))
         .route("/api/help/:post_id", put(help::update_post))
-        .route("/api/deadlines", get(deadlines::list_deadlines).post(deadlines::create_deadline))
-        .route("/api/deadlines/:deadline_id/complete", put(deadlines::complete_deadline))
+        .route(
+            "/api/deadlines",
+            get(deadlines::list_deadlines).post(deadlines::create_deadline),
+        )
+        .route(
+            "/api/deadlines/:deadline_id/complete",
+            put(deadlines::complete_deadline),
+        )
 }
 
-pub(crate) async fn user_id(state: &SharedState, auth: &crate::auth::AuthUser) -> Result<uuid::Uuid, crate::error::AppError> {
+pub(crate) async fn user_id(
+    state: &SharedState,
+    auth: &crate::auth::AuthUser,
+) -> Result<uuid::Uuid, crate::error::AppError> {
     let user_id = sqlx::query_scalar::<_, uuid::Uuid>(
         "INSERT INTO users (telegram_id, username, first_name, last_name, photo_url) VALUES ($1,$2,$3,$4,$5) \
          ON CONFLICT (telegram_id) DO UPDATE SET username=COALESCE(EXCLUDED.username, users.username), \

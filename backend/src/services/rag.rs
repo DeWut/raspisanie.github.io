@@ -98,9 +98,14 @@ impl RagService {
             .user_agent("SPbFTU-SmartCampus-RAG/1.0")
             .build()?;
         Ok(Self {
-            db, http, api_key, api_base: api_base.into().trim_end_matches('/').to_owned(),
-            embedding_model: embedding_model.into(), embedding_dim,
-            chat_model: chat_model.into(), crawl,
+            db,
+            http,
+            api_key,
+            api_base: api_base.into().trim_end_matches('/').to_owned(),
+            embedding_model: embedding_model.into(),
+            embedding_dim,
+            chat_model: chat_model.into(),
+            crawl,
         })
     }
 
@@ -111,24 +116,38 @@ impl RagService {
         if url.scheme() != "https" && url.scheme() != "http" {
             return Err(RagError::InvalidUrl);
         }
-        let host = url.host_str().ok_or(RagError::InvalidUrl)?.to_ascii_lowercase();
+        let host = url
+            .host_str()
+            .ok_or(RagError::InvalidUrl)?
+            .to_ascii_lowercase();
         if !self.crawl.allowed_hosts.contains(&host)
-            || url.username() != "" || url.password().is_some()
-            || host == "localhost" || host.ends_with(".localhost")
+            || url.username() != ""
+            || url.password().is_some()
+            || host == "localhost"
+            || host.ends_with(".localhost")
         {
             return Err(RagError::InvalidUrl);
         }
 
         let response = self.http.get(url.clone()).send().await?;
         if !response.status().is_success() {
-            return Err(RagError::Api(format!("crawler HTTP status {}", response.status())));
+            return Err(RagError::Api(format!(
+                "crawler HTTP status {}",
+                response.status()
+            )));
         }
-        let content_type = response.headers().get(reqwest::header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok()).unwrap_or("");
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
         if !content_type.to_ascii_lowercase().contains("text/html") {
             return Err(RagError::UnsupportedContentType);
         }
-        if response.content_length().is_some_and(|n| n as usize > self.crawl.max_page_bytes) {
+        if response
+            .content_length()
+            .is_some_and(|n| n as usize > self.crawl.max_page_bytes)
+        {
             return Err(RagError::PageTooLarge);
         }
         let bytes = response.bytes().await?;
@@ -138,27 +157,39 @@ impl RagService {
         let html = String::from_utf8_lossy(&bytes);
         let document = scraper::Html::parse_document(&html);
         let title_selector = scraper::Selector::parse("title").expect("static selector");
-        let title = document.select(&title_selector).next()
+        let title = document
+            .select(&title_selector)
+            .next()
             .map(|n| n.text().collect::<Vec<_>>().join(" "))
             .map(|s| normalize(&s))
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| url.host_str().unwrap_or("Web page").to_owned());
 
         let body_selector = scraper::Selector::parse("body").expect("static selector");
-        let content = document.select(&body_selector).next()
+        let content = document
+            .select(&body_selector)
+            .next()
             .map(|body| {
                 let mut text = Vec::new();
                 for node in body.text() {
                     let part = normalize(node);
-                    if !part.is_empty() { text.push(part); }
+                    if !part.is_empty() {
+                        text.push(part);
+                    }
                 }
                 text.join(" ")
             })
             .unwrap_or_default();
         if content.trim().is_empty() {
-            return Err(RagError::Api("HTML page contains no readable body text".into()));
+            return Err(RagError::Api(
+                "HTML page contains no readable body text".into(),
+            ));
         }
-        Ok(CrawledDocument { title, source_url: url.to_string(), content })
+        Ok(CrawledDocument {
+            title,
+            source_url: url.to_string(),
+            content,
+        })
     }
 
     /// Crawls, chunks, embeds and atomically replaces the stored chunks for a URL.
@@ -168,9 +199,15 @@ impl RagService {
     }
 
     pub async fn index_document(&self, doc: &CrawledDocument) -> Result<Uuid, RagError> {
-        let chunks = chunk_text(&doc.content, self.crawl.chunk_chars, self.crawl.chunk_overlap);
+        let chunks = chunk_text(
+            &doc.content,
+            self.crawl.chunk_chars,
+            self.crawl.chunk_overlap,
+        );
         if chunks.is_empty() || chunks.len() > MAX_CHUNKS_PER_DOCUMENT {
-            return Err(RagError::Api("document has no text or exceeds chunk limit".into()));
+            return Err(RagError::Api(
+                "document has no text or exceeds chunk limit".into(),
+            ));
         }
 
         let mut embedded = Vec::with_capacity(chunks.len());
@@ -190,48 +227,77 @@ impl RagService {
         .fetch_one(&mut *tx).await?;
 
         sqlx::query("DELETE FROM rag_chunks WHERE document_id = $1")
-            .bind(document_id).execute(&mut *tx).await?;
+            .bind(document_id)
+            .execute(&mut *tx)
+            .await?;
 
         for (index, (chunk, vector)) in chunks.iter().zip(embedded.iter()).enumerate() {
             let vector_literal = vector_to_pg(vector);
             sqlx::query(
                 "INSERT INTO rag_chunks (document_id, chunk_index, content, embedding, metadata) \
-                 VALUES ($1, $2, $3, $4::vector, jsonb_build_object('source',$5))"
+                 VALUES ($1, $2, $3, $4::vector, jsonb_build_object('source',$5))",
             )
             .bind(document_id)
             .bind(index as i32)
             .bind(chunk)
             .bind(vector_literal)
             .bind(&doc.source_url)
-            .execute(&mut *tx).await?;
+            .execute(&mut *tx)
+            .await?;
         }
         tx.commit().await?;
         Ok(document_id)
     }
 
     pub async fn embed(&self, text: &str) -> Result<Vec<f32>, RagError> {
-        let key = self.api_key.as_deref().ok_or_else(|| RagError::Api("OPENAI_API_KEY is not configured".into()))?;
+        let key = self
+            .api_key
+            .as_deref()
+            .ok_or_else(|| RagError::Api("OPENAI_API_KEY is not configured".into()))?;
         #[derive(Serialize)]
-        struct Request<'a> { model: &'a str, input: &'a str }
+        struct Request<'a> {
+            model: &'a str,
+            input: &'a str,
+        }
         #[derive(Deserialize)]
-        struct Response { data: Vec<EmbeddingItem> }
+        struct Response {
+            data: Vec<EmbeddingItem>,
+        }
         #[derive(Deserialize)]
-        struct EmbeddingItem { embedding: Vec<f32> }
+        struct EmbeddingItem {
+            embedding: Vec<f32>,
+        }
 
-        let response = self.http.post(format!("{}/embeddings", self.api_base))
+        let response = self
+            .http
+            .post(format!("{}/embeddings", self.api_base))
             .bearer_auth(key)
-            .json(&Request { model: &self.embedding_model, input: text })
-            .send().await?;
+            .json(&Request {
+                model: &self.embedding_model,
+                input: text,
+            })
+            .send()
+            .await?;
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            return Err(RagError::Api(format!("embeddings HTTP {status}: {}", truncate(&body, 500))));
+            return Err(RagError::Api(format!(
+                "embeddings HTTP {status}: {}",
+                truncate(&body, 500)
+            )));
         }
         let parsed: Response = response.json().await?;
-        let vector = parsed.data.into_iter().next()
-            .ok_or_else(|| RagError::Api("embeddings response has no data".into()))?.embedding;
+        let vector = parsed
+            .data
+            .into_iter()
+            .next()
+            .ok_or_else(|| RagError::Api("embeddings response has no data".into()))?
+            .embedding;
         if vector.len() != self.embedding_dim || vector.iter().any(|v| !v.is_finite()) {
-            return Err(RagError::Api(format!("embedding dimension mismatch; expected {}", self.embedding_dim)));
+            return Err(RagError::Api(format!(
+                "embedding dimension mismatch; expected {}",
+                self.embedding_dim
+            )));
         }
         Ok(vector)
     }
@@ -241,40 +307,79 @@ impl RagService {
     pub async fn chat(&self, question: &str, top_k: i64) -> Result<ChatAnswer, RagError> {
         let question = question.trim();
         if question.is_empty() || question.len() > 8_000 {
-            return Err(RagError::Api("question must contain 1..8000 characters".into()));
+            return Err(RagError::Api(
+                "question must contain 1..8000 characters".into(),
+            ));
         }
         let query_vector = vector_to_pg(&self.embed(question).await?);
         let rows = sqlx::query_as::<_, (Uuid, String, Option<String>, String, f32)>(
             "SELECT d.id, d.title, d.source, c.content, \
              (1 - (c.embedding <=> $1::vector))::real AS similarity \
              FROM rag_chunks c JOIN rag_documents d ON d.id=c.document_id \
-             WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::vector LIMIT $2"
+             WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::vector LIMIT $2",
         )
         .bind(query_vector)
         .bind(top_k.clamp(1, 8))
-        .fetch_all(&self.db).await?;
+        .fetch_all(&self.db)
+        .await?;
 
-        let sources: Vec<RagSource> = rows.into_iter().map(|(document_id,title,source,content,similarity)| {
-            RagSource { document_id, title, source, content, similarity }
-        }).collect();
+        let sources: Vec<RagSource> = rows
+            .into_iter()
+            .map(
+                |(document_id, title, source, content, similarity)| RagSource {
+                    document_id,
+                    title,
+                    source,
+                    content,
+                    similarity,
+                },
+            )
+            .collect();
         if sources.is_empty() {
-            return Ok(ChatAnswer { answer: "В базе знаний пока нет подходящих материалов.".into(), sources });
+            return Ok(ChatAnswer {
+                answer: "В базе знаний пока нет подходящих материалов.".into(),
+                sources,
+            });
         }
 
         #[derive(Serialize)]
-        struct Message<'a> { role: &'a str, content: String }
+        struct Message<'a> {
+            role: &'a str,
+            content: String,
+        }
         #[derive(Serialize)]
-        struct ChatRequest<'a> { model: &'a str, temperature: f32, messages: Vec<Message<'a>> }
+        struct ChatRequest<'a> {
+            model: &'a str,
+            temperature: f32,
+            messages: Vec<Message<'a>>,
+        }
         #[derive(Deserialize)]
-        struct ChatResponse { choices: Vec<Choice> }
+        struct ChatResponse {
+            choices: Vec<Choice>,
+        }
         #[derive(Deserialize)]
-        struct Choice { message: ChatMessage }
+        struct Choice {
+            message: ChatMessage,
+        }
         #[derive(Deserialize)]
-        struct ChatMessage { content: String }
+        struct ChatMessage {
+            content: String,
+        }
 
-        let context = sources.iter().enumerate().map(|(i,s)| {
-            format!("[Источник {}: {} | {}]\n{}", i+1, s.title, s.source.as_deref().unwrap_or(""), s.content)
-        }).collect::<Vec<_>>().join("\n\n---\n\n");
+        let context = sources
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                format!(
+                    "[Источник {}: {} | {}]\n{}",
+                    i + 1,
+                    s.title,
+                    s.source.as_deref().unwrap_or(""),
+                    s.content
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n---\n\n");
         let body = ChatRequest {
             model: &self.chat_model, temperature: 0.2,
             messages: vec![
@@ -282,16 +387,31 @@ impl RagService {
                 Message { role: "user", content: format!("Материалы:\n{context}\n\nВопрос: {question}") },
             ],
         };
-        let key = self.api_key.as_deref().ok_or_else(|| RagError::Api("OPENAI_API_KEY is not configured".into()))?;
-        let response = self.http.post(format!("{}/chat/completions", self.api_base))
-            .bearer_auth(key).json(&body).send().await?;
+        let key = self
+            .api_key
+            .as_deref()
+            .ok_or_else(|| RagError::Api("OPENAI_API_KEY is not configured".into()))?;
+        let response = self
+            .http
+            .post(format!("{}/chat/completions", self.api_base))
+            .bearer_auth(key)
+            .json(&body)
+            .send()
+            .await?;
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            return Err(RagError::Api(format!("chat HTTP {status}: {}", truncate(&body, 500))));
+            return Err(RagError::Api(format!(
+                "chat HTTP {status}: {}",
+                truncate(&body, 500)
+            )));
         }
         let parsed: ChatResponse = response.json().await?;
-        let answer = parsed.choices.into_iter().next().map(|c| c.message.content)
+        let answer = parsed
+            .choices
+            .into_iter()
+            .next()
+            .map(|c| c.message.content)
             .filter(|s| !s.trim().is_empty())
             .ok_or_else(|| RagError::Api("chat response has no answer".into()))?;
         Ok(ChatAnswer { answer, sources })
@@ -308,7 +428,9 @@ pub fn chunk_text(input: &str, max_chars: usize, overlap: usize) -> Vec<String> 
     let overlap = overlap.min(max_chars.saturating_sub(1));
     let text = normalize(input);
     let chars: Vec<char> = text.chars().collect();
-    if chars.is_empty() { return Vec::new(); }
+    if chars.is_empty() {
+        return Vec::new();
+    }
 
     let mut chunks = Vec::new();
     let mut start = 0;
@@ -316,22 +438,46 @@ pub fn chunk_text(input: &str, max_chars: usize, overlap: usize) -> Vec<String> 
         let hard_end = (start + max_chars).min(chars.len());
         let mut end = hard_end;
         if hard_end < chars.len() {
-            if let Some(relative) = chars[start..hard_end].iter().rposition(|c| c.is_whitespace()) {
-                if relative > max_chars / 2 { end = start + relative; }
+            if let Some(relative) = chars[start..hard_end]
+                .iter()
+                .rposition(|c| c.is_whitespace())
+            {
+                if relative > max_chars / 2 {
+                    end = start + relative;
+                }
             }
         }
-        if end <= start { end = hard_end; }
-        let chunk: String = chars[start..end].iter().collect::<String>().trim().to_owned();
-        if !chunk.is_empty() { chunks.push(chunk); }
-        if end == chars.len() { break; }
+        if end <= start {
+            end = hard_end;
+        }
+        let chunk: String = chars[start..end]
+            .iter()
+            .collect::<String>()
+            .trim()
+            .to_owned();
+        if !chunk.is_empty() {
+            chunks.push(chunk);
+        }
+        if end == chars.len() {
+            break;
+        }
         start = end.saturating_sub(overlap);
-        if start == end { start += 1; }
+        if start == end {
+            start += 1;
+        }
     }
     chunks
 }
 
 fn vector_to_pg(vector: &[f32]) -> String {
-    format!("[{}]", vector.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","))
+    format!(
+        "[{}]",
+        vector
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    )
 }
 
 fn truncate(s: &str, max: usize) -> String {

@@ -1,10 +1,6 @@
 use std::collections::BTreeMap;
 
-use axum::{
-    async_trait,
-    extract::FromRequestParts,
-    http::request::Parts,
-};
+use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
@@ -62,7 +58,11 @@ impl FromRequestParts<std::sync::Arc<AppState>> for AuthUser {
             .filter(|value| !value.is_empty())
             .ok_or(AppError::Unauthorized)?;
 
-        let bot_token = state.config.teloxide_token.as_deref().ok_or(AppError::Unauthorized)?;
+        let bot_token = state
+            .config
+            .teloxide_token
+            .as_deref()
+            .ok_or(AppError::Unauthorized)?;
         let fields = parse_init_data(init_data)?;
         validate_init_data(&fields, bot_token)?;
 
@@ -93,7 +93,10 @@ impl FromRequestParts<std::sync::Arc<AppState>> for AuthUser {
 fn parse_init_data(raw: &str) -> Result<BTreeMap<String, String>, AppError> {
     let mut fields = BTreeMap::new();
     for (key, value) in url::form_urlencoded::parse(raw.as_bytes()) {
-        if fields.insert(key.into_owned(), value.into_owned()).is_some() {
+        if fields
+            .insert(key.into_owned(), value.into_owned())
+            .is_some()
+        {
             return Err(AppError::Unauthorized);
         }
     }
@@ -103,10 +106,7 @@ fn parse_init_data(raw: &str) -> Result<BTreeMap<String, String>, AppError> {
     Ok(fields)
 }
 
-fn validate_init_data(
-    fields: &BTreeMap<String, String>,
-    bot_token: &str,
-) -> Result<(), AppError> {
+fn validate_init_data(fields: &BTreeMap<String, String>, bot_token: &str) -> Result<(), AppError> {
     let supplied_hash = fields.get("hash").ok_or(AppError::Unauthorized)?;
     let supplied_hash = decode_hex(supplied_hash).ok_or(AppError::Unauthorized)?;
 
@@ -122,12 +122,16 @@ fn validate_init_data(
     secret_mac.update(bot_token.as_bytes());
     let secret_key = secret_mac.finalize().into_bytes();
 
-    let mut data_mac =
-        HmacSha256::new_from_slice(&secret_key).map_err(|_| AppError::Internal)?;
+    let mut data_mac = HmacSha256::new_from_slice(&secret_key).map_err(|_| AppError::Internal)?;
     data_mac.update(data_check_string.as_bytes());
     let expected_hash = data_mac.finalize().into_bytes();
 
-    if expected_hash.as_slice().ct_eq(supplied_hash.as_slice()).unwrap_u8() != 1 {
+    if expected_hash
+        .as_slice()
+        .ct_eq(supplied_hash.as_slice())
+        .unwrap_u8()
+        != 1
+    {
         return Err(AppError::Unauthorized);
     }
     Ok(())

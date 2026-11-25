@@ -34,15 +34,34 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self {
             Self::BadRequest => (StatusCode::BAD_REQUEST, "bad_request", "Invalid request"),
-            Self::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required"),
+            Self::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "Authentication required",
+            ),
             Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden", "Access denied"),
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found", "Resource not found"),
             Self::Conflict => (StatusCode::CONFLICT, "conflict", "Resource conflict"),
-            Self::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "database_error", "Internal server error"),
-            Self::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Internal server error"),
+            Self::Database(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "database_error",
+                "Internal server error",
+            ),
+            Self::Internal => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Internal server error",
+            ),
         };
 
-        (status, Json(ErrorBody { error: code, message })).into_response()
+        (
+            status,
+            Json(ErrorBody {
+                error: code,
+                message,
+            }),
+        )
+            .into_response()
     }
 }
 

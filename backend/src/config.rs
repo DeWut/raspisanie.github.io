@@ -39,7 +39,9 @@ impl Config {
         let admin_telegram_id = parse_or("ADMIN_TELEGRAM_ID", 0_i64)?;
         let embedding_dim = parse_or("EMBEDDING_DIM", 1536_usize)?;
         if embedding_dim != 1536 {
-            return Err(ConfigError::Invalid("EMBEDDING_DIM (database uses vector(1536))"));
+            return Err(ConfigError::Invalid(
+                "EMBEDDING_DIM (database uses vector(1536))",
+            ));
         }
 
         let dev_bypass_auth = env_value("DEV_BYPASS_AUTH")
