@@ -219,3 +219,6 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .lesson-card:focus-visible, .week-lesson:focus-visible { outline:2px solid #86a957; outline-offset:2px; }
 .lesson-details p { display:grid; grid-template-columns:110px 1fr; gap:10px; align-items:start; }
 .teacher-profile { color:var(--forest); text-decoration:underline; text-decoration-color:#b7c9a9; text-underline-offset:3px; }
+
+.meta-svg { width:13px; height:13px; flex:0 0 auto; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.empty-illustration svg { width:23px; height:23px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
