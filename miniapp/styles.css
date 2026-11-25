@@ -283,3 +283,30 @@ button { font-family: inherit; }
   .lesson-card { grid-template-columns:52px minmax(0,1fr); gap:9px; padding:12px; }
   .lesson-card.has-variants .lesson-meta { font-size:8px; }
 }
+
+/* Dedicated weekly timetable opened from the calendar. */
+.calendar-actions { display:flex; gap:8px; margin-top:12px; }
+.calendar-actions .text-button { flex:1; }
+.week-page .hero-card,
+.week-page #today-view,
+.week-page .schedule-toolbar,
+.week-page .source-note,
+.week-page .quick-actions { display:none !important; }
+.week-page .welcome-row { padding-bottom:10px; }
+.week-page .week-section { display:block !important; padding-top:12px; }
+.week-page-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0 18px; }
+.week-back { color:var(--forest); text-decoration:none; font-size:12px; font-weight:750; }
+.week-current-label { padding:7px 10px; border-radius:999px; background:var(--lime-soft); color:var(--forest); font-size:10px; font-weight:750; }
+.week-navigation { display:grid; grid-template-columns:38px minmax(0,1fr) 38px; align-items:center; gap:8px; margin:0 0 14px; }
+.week-navigation .icon-button { width:36px; height:36px; border-radius:12px; background:#fff; color:var(--forest); font-size:23px; }
+.week-navigation .week-range { justify-content:center; margin:0; padding:10px 6px; text-align:center; font-size:10px; line-height:1.4; }
+.week-page .week-list { gap:12px; }
+.week-page .week-day { padding:15px; border-radius:17px; }
+.week-page .week-day-title { font-size:13px; }
+.week-page .week-lesson { grid-template-columns:60px minmax(0,1fr); gap:12px; padding:12px 2px; }
+.week-page .week-lesson-time { font-size:11px; }
+.week-page .week-lesson-title { font-size:12px; }
+.week-page .week-lesson-meta { font-size:10px; line-height:1.45; }
+@media (min-width:700px) {
+  .week-page .week-list { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+}
