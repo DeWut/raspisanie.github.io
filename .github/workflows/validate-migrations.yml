@@ -1,0 +1,61 @@
+name: Validate database migrations
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check configured database
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Set MIGRATION_DATABASE_URL to a disposable PostgreSQL 16 database with pgvector installed."
+            exit 1
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features rustls,postgres
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: cargo sqlx migrate run --source backend/migrations
+
+      - name: Verify all 16 tables and HNSW index
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+            expected text[] := ARRAY[
+              'sync_metadata','groups','teachers','rooms','lessons','users',
+              'rag_documents','rag_chunks','group_tasks','user_task_progress',
+              'team_projects','team_applications','queue_sessions','queue_entries',
+              'help_board','moodle_deadlines'
+            ];
+            missing text[];
+          BEGIN
+            SELECT array_agg(t) INTO missing
+            FROM unnest(expected) AS t
+            WHERE to_regclass('public.' || t) IS NULL;
+            IF missing IS NOT NULL THEN
+              RAISE EXCEPTION 'Missing tables: %', missing;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname='public' AND indexname='idx_rag_chunks_embedding_hnsw'
+            ) THEN
+              RAISE EXCEPTION 'HNSW index missing';
+            END IF;
+          END $$;
+          SQL
