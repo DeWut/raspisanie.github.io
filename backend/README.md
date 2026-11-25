@@ -8,7 +8,7 @@
 4. Run the service from this directory:
 
 ```bash
-cargo run
+cargo run --bin smart-campus-backend
 ```
 
 The service applies SQLx migrations at startup, starts the HTTP API on `PORT` (default 8080), and starts Telegram long polling when `TELOXIDE_TOKEN` is configured.
