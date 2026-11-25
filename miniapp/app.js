@@ -19,9 +19,15 @@
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
   const DATA_ROOT = new URL('../data/', document.currentScript?.src || new URL('miniapp/app.js', location.href)).href;
-  const DATA_FALLBACK = 'https://raw.githubusercontent.com/DeWut/raspisanie.github.io/main/data/';
+  const DATA_FALLBACKS = [
+    'https://cdn.jsdelivr.net/gh/DeWut/raspisanie.github.io@main/data/',
+    'https://raw.githubusercontent.com/DeWut/raspisanie.github.io/main/data/',
+  ];
   async function fetchDataFile(path) {
-    const candidates = [new URL(path, DATA_ROOT).href, new URL(path, DATA_FALLBACK).href];
+    const candidates = [...new Set([
+      new URL(path, DATA_ROOT).href,
+      ...DATA_FALLBACKS.map((root) => new URL(path, root).href),
+    ])];
     let lastError;
     for (const url of candidates) {
       try {
