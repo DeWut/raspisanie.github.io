@@ -4,7 +4,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>Видеомаршруты — СПбГЛТУ</title>
+    <title>SPBFTUIT — маршруты по университету</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -32,19 +32,7 @@
         }
 
         /* --- Фоновый текст --- */
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-            pointer-events: none;
-            opacity: 0.045;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='130'%3E%3Ctext x='50%25' y='50%25' fill='%23000000' font-family='Arial, sans-serif' font-size='15' font-weight='bold' text-anchor='middle' transform='rotate(-25 130 65)'%3EP.S: Я люблю монстер%3C/text%3E%3C/svg%3E");
-            background-repeat: repeat;
-        }
+        body::before { content: none; }
 
         /* --- Банки Monster Energy --- */
         .monster-peek {
@@ -273,22 +261,27 @@
             .route-name { font-size: 0.95rem; }
             .modal { padding: 14px; }
         }
-    </style>
+    
+ :root { --bg-color:#f5f7f2; --card-bg:#fff; --text-color:#17221c; --accent-color:#173d2e; --accent-hover:#24533d; --border-color:#e3e9e1; }
+ body { background:#f5f7f2; color:#17221c; }
+ .header-card,.route-card { border:1px solid #e3e9e1; border-radius:22px; box-shadow:0 8px 24px rgba(23,61,46,.06); }
+ .header-card { padding:22px; }
+ .route-card { border-left:4px solid #9dbd65; }
+ .route-icon { background:#edf5d4; color:#24533d; }
+ .back-btn { background:#173d2e; border-radius:999px; }
+ .video-container { position:relative; }
+ .video-unavailable { display:none; position:absolute; inset:0; padding:20px; align-items:center; justify-content:center; color:#fff; background:#173d2e; text-align:center; font-size:14px; line-height:1.6; }
+ .video-unavailable.show { display:flex; }
+ @media(max-width:640px) { body { padding:12px 10px 70px; } .header-card { border-radius:20px; } }
+ </style>
 </head>
 <body>
-
-<div class="monster-peek monster-peek-left" id="monsterLeft">
-    <img src="monster.png" alt="Monster Energy Left">
-</div>
-<div class="monster-peek monster-peek-right" id="monsterRight">
-    <img src="monster.png" alt="Monster Energy Right">
-</div>
 
 <div class="container">
     <div class="header-card">
         <div class="header-title">
-            <h2>Видеомаршруты СПбГЛТУ</h2>
-            <p>Наглядные инструкции по корпусам и территории</p>
+            <h2>Маршруты по университету</h2>
+            <p>Как найти нужный кабинет и службу</p>
         </div>
         <a href="index.html" class="back-btn">
             <i class="fa fa-arrow-left"></i> К расписанию
@@ -360,7 +353,7 @@
     function openVideoModal(title, videoSrc) {
         document.getElementById('v-title').innerText = title;
         const player = document.getElementById('routeVideo');
-        player.src = videoSrc;
+        const fallback = document.getElementById('videoUnavailable');\n        fallback.classList.remove('show');\n        player.onerror = () => fallback.classList.add('show');\n        player.onloadeddata = () => fallback.classList.remove('show');\n        player.src = videoSrc;
         document.getElementById('videoModal').classList.add('active');
         player.play().catch(e => {
             // Игнорируем блокировку автопроизведения в некоторых браузерах
