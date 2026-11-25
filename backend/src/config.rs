@@ -55,7 +55,7 @@ impl Config {
         }
 
         let cors_allowed_origins = env_value("CORS_ALLOWED_ORIGINS")
-            .unwrap_or_else(|| "http://localhost:5173".to_owned())
+            .unwrap_or_else(|| "http://localhost:5173,https://dewut.github.io".to_owned())
             .split(',')
             .map(str::trim)
             .filter(|origin| !origin.is_empty())
