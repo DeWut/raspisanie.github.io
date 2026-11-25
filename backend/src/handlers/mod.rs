@@ -4,6 +4,7 @@ pub mod groups;
 pub mod health;
 pub mod help;
 pub mod me;
+pub mod presence;
 pub mod queue;
 pub mod rag;
 pub mod rooms;
@@ -20,6 +21,8 @@ use axum::{
 pub fn router() -> Router<SharedState> {
     Router::new()
         .route("/health", get(health::health))
+        .route("/api/presence", get(presence::count))
+        .route("/api/presence/ping", post(presence::ping))
         .route("/api/me", get(me::get_me).put(me::update_me))
         .route("/api/groups", get(groups::list_groups))
         .route("/api/groups/:group_id", get(groups::get_group))
