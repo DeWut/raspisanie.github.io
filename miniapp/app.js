@@ -126,7 +126,7 @@
     return many;
   }
   function renderHero() {
-    const lessons = getLessons(state.selectedDate);
+    const lessons = getLessons(state.selectedDate, 'current');
     const today = dateKey(state.selectedDate) === dateKey(startOfDay(new Date()));
     const status = getStatus(state.selectedDate, lessons);
     $('#hero-label').textContent = today ? 'СЕГОДНЯ' : formatDate(state.selectedDate, { weekday: 'long' }).toUpperCase();
