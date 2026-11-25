@@ -138,7 +138,14 @@
       list.innerHTML = lessons.map((lesson, index) => lessonMarkup(lesson, index, state.selectedDate)).join('');
     }
     $('#updated-note').textContent = state.schedule.updated ? `Данные ЕИОС обновлены ${state.schedule.updated}` : 'Источник: расписание СПбГЛТУ';
-    list.querySelectorAll('[data-lesson-index]').forEach((card) => card.addEventListener('click', () => openLessonDetails(lessons[Number(card.dataset.lessonIndex)], state.selectedDate)));
+    list.querySelectorAll('[data-lesson-index]').forEach((card) => {
+      const open = () => openLessonDetails(lessons[Number(card.dataset.lessonIndex)], state.selectedDate);
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', `Подробнее: ${lessons[Number(card.dataset.lessonIndex)].name}`);
+    });
   }
   function renderWeek() {
     const monday = weekStart(state.selectedDate);
@@ -252,7 +259,9 @@
         if (!query || haystack.includes(query)) matches.push({ lesson, date, day });
       });
     });
-    $('#search-hint').textContent = query ? `Найдено занятий: ${matches.length}` : 'Показываем занятия выбранной недели. Введи предмет, преподавателя или аудиторию.';
+    const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
+    $('#search-week-range').textContent = `${formatDate(monday)} — ${formatDate(sunday)}`;
+    $('#search-hint').textContent = query ? `Найдено занятий: ${matches.length}` : 'Поиск по предмету, преподавателю или аудитории за выбранную неделю.';
     if (!matches.length) { results.innerHTML = '<div class="empty-card"><strong>Ничего не найдено</strong><p>Попробуй изменить запрос или выбрать другую неделю.</p></div>'; return; }
     results.innerHTML = matches.map(({ lesson, date, day }, index) => `<button type="button" class="search-result" data-result-index="${index}"><span class="search-result-time">${escapeHtml(lesson.start)}<span class="search-result-day">${day.short} · ${date.getUTCDate()}</span></span><span><span class="search-result-title">${escapeHtml(lesson.name)}</span><span class="search-result-meta">${escapeHtml([lesson.teacher, lesson.room].filter(Boolean).join(' · ') || 'Подробности не указаны')}</span></span></button>`).join('');
     results.querySelectorAll('[data-result-index]').forEach((button) => button.addEventListener('click', () => {
@@ -264,6 +273,8 @@
     $('#group-button').addEventListener('click', openGroupDialog);
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
     $('#schedule-search').addEventListener('input', (event) => { state.searchQuery = event.target.value; renderSearch(); });
+    $('#search-prev-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
+    $('#search-next-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() + 7); renderAll(); });
     $('#group-search').addEventListener('input', (event) => renderGroupOptions(event.target.value));
     $('#today-button').addEventListener('click', () => { state.selectedDate = startOfDay(new Date()); renderAll(); });
     $('#prev-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
