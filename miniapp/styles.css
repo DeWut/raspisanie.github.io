@@ -148,3 +148,6 @@ h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 34px); line-height: 1.08; let
 .lesson-details strong { color:var(--ink); font-size:12px; line-height:1.5; font-weight:650; }
 .lesson-card,.week-lesson { cursor:pointer; }
 .lesson-card:active,.week-lesson:active { opacity:.8; }
+
+.search-week-controls { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:4px 0 10px; }
+.search-week-controls span { color:var(--muted); font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; }
