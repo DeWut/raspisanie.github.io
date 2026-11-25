@@ -9,6 +9,7 @@ pub async fn sync_member(
     db: &PgPool,
     chat_id: ChatId,
     telegram_id: i64,
+    expected_username: Option<&str>,
 ) -> Result<Option<String>, String> {
     let configured: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id = $1 AND is_active = TRUE)",
@@ -27,6 +28,19 @@ pub async fn sync_member(
         .get_chat_member(chat_id, UserId(user_id))
         .await
         .map_err(|e| e.to_string())?;
+
+    let actual_username = member.user.username.as_deref();
+    if let Some(expected_username) = expected_username {
+        let expected = expected_username.trim_start_matches('@');
+        if !actual_username.is_some_and(|actual| actual.eq_ignore_ascii_case(expected)) {
+            return Err(format!(
+                "Telegram username @{} no longer matches the cached chat member. Ask the user to send a message or assign the role by replying to their message.",
+                expected
+            ));
+        }
+    }
+
+    remember_member_identity(db, chat_id, telegram_id, actual_username).await?;
 
     let (status, telegram_role) = if member.kind.is_owner() {
         ("creator", Some("owner"))
@@ -95,6 +109,80 @@ pub async fn sync_member(
         Some("admin") => "admin".to_owned(),
         _ => smart_role,
     }))
+}
+
+/// Stores usernames for members the bot has actually seen in this configured chat.
+/// This cache enables /role @username while avoiding guesses based on public profile names.
+pub async fn remember_member_identity(
+    db: &PgPool,
+    chat_id: ChatId,
+    telegram_id: i64,
+    username: Option<&str>,
+) -> Result<(), String> {
+    let mut tx = db.begin().await.map_err(|e| e.to_string())?;
+
+    if let Some(username) = username {
+        // A Telegram username can be reassigned. Clear any older cached owner
+        // of this username before recording the person who currently uses it.
+        sqlx::query(
+            r#"
+            UPDATE bot_chat_members
+            SET username = NULL, updated_at = now()
+            WHERE chat_id = $1
+              AND lower(username) = lower($2)
+              AND telegram_id <> $3
+            "#,
+        )
+        .bind(chat_id.0)
+        .bind(username)
+        .bind(telegram_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    sqlx::query(
+        r#"
+        INSERT INTO bot_chat_members
+            (chat_id, telegram_id, role, telegram_status, username)
+        SELECT $1, $2, 'member', 'member', $3
+        WHERE EXISTS (
+            SELECT 1 FROM bot_chat_settings
+            WHERE chat_id = $1 AND is_active = TRUE
+        )
+        ON CONFLICT (chat_id, telegram_id) DO UPDATE SET
+            username = EXCLUDED.username,
+            updated_at = now()
+        "#,
+    )
+    .bind(chat_id.0)
+    .bind(telegram_id)
+    .bind(username)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    tx.commit().await.map_err(|e| e.to_string())
+}
+
+/// Resolves a username only from identities observed in this chat.
+pub async fn find_member_by_username(
+    db: &PgPool,
+    chat_id: ChatId,
+    username: &str,
+) -> Result<Option<i64>, String> {
+    sqlx::query_scalar(
+        r#"
+        SELECT telegram_id
+        FROM bot_chat_members
+        WHERE chat_id = $1 AND lower(username) = lower($2)
+        "#,
+    )
+    .bind(chat_id.0)
+    .bind(username.trim_start_matches('@'))
+    .fetch_optional(db)
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Telegram administrators and the chat creator always have administrative access.
