@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use std::{sync::Arc, time::Duration};
 use teloxide::{
     prelude::*,
-    types::{KeyboardButton, KeyboardMarkup, Message},
+    types::{BotCommand, BotCommandScope, KeyboardButton, KeyboardMarkup, Message},
 };
 
 use crate::{
@@ -299,11 +299,25 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
 
     let is_group_chat = message.chat.id.0 < 0;
 
+    if is_group_chat {
+        let username = message.from.as_ref().and_then(|user| user.username.as_deref());
+        if let Err(error) = crate::services::chat_roles::remember_member_identity(
+            db,
+            message.chat.id,
+            telegram_id,
+            username,
+        )
+        .await
+        {
+            tracing::debug!("Could not cache Telegram chat member identity: {}", error);
+        }
+    }
+
     // Refresh Telegram's authoritative owner/admin/member status only for
     // management commands, avoiding an API request for every ordinary message.
     if is_group_chat && matches!(command, "/settings" | "/setgroup" | "/role") {
         if let Err(error) =
-            crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id).await
+            crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await
         {
             tracing::debug!("Could not synchronize Telegram chat member: {}", error);
         }
@@ -318,6 +332,8 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             ⏭ /next — следующая пара\n\
             👥 /group название — выбрать личную группу\n\
             🛠 /setgroup название — настроить группу чата\n\
+            👮 В группе: /role @username moderator\n\
+            ↩️ Ответом на сообщение: /role moderator\n\
             📚 /homework — домашние задания\n\
             🔔 /remind_on — включить личные напоминания\n\
             🔕 /remind_off — выключить напоминания\n\
@@ -400,6 +416,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                                 db,
                                 message.chat.id,
                                 telegram_id,
+                                None,
                             )
                             .await;
                             format!("✅ Для этого чата установлена группа: {}", name)
@@ -480,6 +497,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     db,
                     message.chat.id,
                     telegram_id,
+                    None,
                 )
                 .await
                 .ok()
@@ -490,69 +508,138 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                         .into()
                 } else {
                     let mut parts = argument.split_whitespace();
-                    let target_id = parts.next().and_then(|value| value.parse::<i64>().ok());
-                    let requested_role = parts.next().unwrap_or("");
+                    let first = parts.next().unwrap_or("");
+                    let second = parts.next();
+                    let has_extra = parts.next().is_some();
+                    let reply_user = message
+                        .reply_to_message
+                        .as_deref()
+                        .and_then(|replied| replied.from.as_ref());
 
-                    let can_assign_senior = actor_role.as_deref() == Some("owner");
-                    let valid_role = matches!(requested_role, "moderator" | "helper" | "member")
-                        || (can_assign_senior && requested_role == "senior_moderator");
+                    let parsed_target: Result<(i64, Option<String>, String), String> =
+                        if first.starts_with('@') {
+                            let username = first.trim_start_matches('@');
+                            let valid_username = (5..=32).contains(&username.len())
+                                && username
+                                    .chars()
+                                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_');
 
-                    if parts.next().is_some() || target_id.is_none() || !valid_role {
-                        if can_assign_senior {
-                            "Формат: /role TELEGRAM_ID senior_moderator|moderator|helper|member"
-                                .into()
-                        } else {
-                            "Администратор Telegram может назначать только moderator, helper или member. Старшего модератора назначает создатель чата.".into()
-                        }
-                    } else {
-                        let target_id = target_id.unwrap();
-                        let target_role = crate::services::chat_roles::sync_member(
-                            &bot,
-                            db,
-                            message.chat.id,
-                            target_id,
-                        )
-                        .await
-                        .ok()
-                        .flatten();
-
-                        match target_role {
-                            None => "Не удалось проверить участника. Укажи Telegram ID участника, который состоит в этом чате.".into(),
-                            Some(ref role) if role == "owner" || role == "admin" => {
-                                "Роль владельца и Telegram-администратора нельзя изменить командой бота.".into()
-                            }
-                            Some(_) => {
-                                let result = sqlx::query(
-                                    r#"
-                                    UPDATE bot_chat_members
-                                    SET role = $3, assigned_by = $4, updated_at = now()
-                                    WHERE chat_id = $1 AND telegram_id = $2
-                                    "#
+                            if !valid_username || second.is_none() || has_extra {
+                                Err("Формат: /role @username moderator".into())
+                            } else {
+                                match crate::services::chat_roles::find_member_by_username(
+                                    db,
+                                    message.chat.id,
+                                    username,
                                 )
-                                .bind(message.chat.id.0)
-                                .bind(target_id)
-                                .bind(requested_role)
-                                .bind(telegram_id)
-                                .execute(db)
-                                .await;
+                                .await
+                                {
+                                    Ok(Some(target_id)) => Ok((
+                                        target_id,
+                                        Some(username.to_owned()),
+                                        second.unwrap().to_owned(),
+                                    )),
+                                    Ok(None) => Err(format!(
+                                        "Не нашёл @{} среди известных участников этого чата. Попроси человека написать сообщение в чат или используй ответ на его сообщение: /role moderator.",
+                                        username
+                                    )),
+                                    Err(error) => {
+                                        tracing::warn!("Could not resolve chat username: {}", error);
+                                        Err("Не удалось найти участника по username.".into())
+                                    }
+                                }
+                            }
+                        } else if let Ok(target_id) = first.parse::<i64>() {
+                            if target_id <= 0 || second.is_none() || has_extra {
+                                Err("Формат: /role TELEGRAM_ID moderator".into())
+                            } else {
+                                Ok((target_id, None, second.unwrap().to_owned()))
+                            }
+                        } else if let Some(target_user) = reply_user {
+                            let target_id = i64::try_from(target_user.id.0)
+                                .map_err(|_| "Некорректный Telegram ID участника".to_owned());
+                            if second.is_some() || has_extra {
+                                Err("При ответе на сообщение используй только: /role moderator".into())
+                            } else {
+                                target_id.map(|id| (id, None, first.to_owned()))
+                            }
+                        } else {
+                            Err("Укажи @username и роль либо ответь на сообщение участника: /role @username moderator или /role moderator".into())
+                        };
 
-                                if result.is_ok() {
-                                    let _ = sqlx::query(
-                                        r#"
-                                        INSERT INTO bot_chat_audit_logs
-                                            (chat_id, actor_telegram_id, target_telegram_id, action, details)
-                                        VALUES ($1, $2, $3, 'role_changed', jsonb_build_object('role', $4))
-                                        "#
-                                    )
-                                    .bind(message.chat.id.0)
-                                    .bind(telegram_id)
-                                    .bind(target_id)
-                                    .bind(requested_role)
-                                    .execute(db)
-                                    .await;
-                                    format!("✅ Участнику {} назначена роль: {}", target_id, requested_role)
+                    match parsed_target {
+                        Err(error) => error,
+                        Ok((target_id, expected_username, requested_role)) => {
+                            let can_assign_senior = actor_role.as_deref() == Some("owner");
+                            let valid_role = matches!(
+                                requested_role.as_str(),
+                                "moderator" | "helper" | "member"
+                            ) || (can_assign_senior && requested_role == "senior_moderator");
+
+                            if !valid_role {
+                                if can_assign_senior {
+                                    "Допустимые роли: senior_moderator, moderator, helper, member.".into()
                                 } else {
-                                    "Не удалось сохранить роль участника.".into()
+                                    "Администратор Telegram может назначать только moderator, helper или member. Старшего модератора назначает создатель чата.".into()
+                                }
+                            } else {
+                                match crate::services::chat_roles::sync_member(
+                                    &bot,
+                                    db,
+                                    message.chat.id,
+                                    target_id,
+                                    expected_username.as_deref(),
+                                )
+                                .await
+                                {
+                                    Err(error) => {
+                                        tracing::warn!("Could not verify role target: {}", error);
+                                        "Не удалось проверить участника в этом чате. Попробуй ответить на его сообщение.".into()
+                                    }
+                                    Ok(None) => {
+                                        "Не удалось проверить участника. Он должен состоять в этом чате.".into()
+                                    }
+                                    Ok(Some(ref role)) if role == "owner" || role == "admin" => {
+                                        "Роль владельца и Telegram-администратора нельзя изменить командой бота.".into()
+                                    }
+                                    Ok(Some(_)) => {
+                                        let result = sqlx::query(
+                                            r#"
+                                            UPDATE bot_chat_members
+                                            SET role = $3, assigned_by = $4, updated_at = now()
+                                            WHERE chat_id = $1 AND telegram_id = $2
+                                            "#,
+                                        )
+                                        .bind(message.chat.id.0)
+                                        .bind(target_id)
+                                        .bind(&requested_role)
+                                        .bind(telegram_id)
+                                        .execute(db)
+                                        .await;
+
+                                        if result.is_ok() {
+                                            let _ = sqlx::query(
+                                                r#"
+                                                INSERT INTO bot_chat_audit_logs
+                                                    (chat_id, actor_telegram_id, target_telegram_id, action, details)
+                                                VALUES ($1, $2, $3, 'role_changed', jsonb_build_object('role', $4))
+                                                "#,
+                                            )
+                                            .bind(message.chat.id.0)
+                                            .bind(telegram_id)
+                                            .bind(target_id)
+                                            .bind(&requested_role)
+                                            .execute(db)
+                                            .await;
+
+                                            format!(
+                                                "✅ Участнику {} назначена роль: {}",
+                                                target_id, requested_role
+                                            )
+                                        } else {
+                                            "Не удалось сохранить роль участника.".into()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -748,6 +835,66 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     Ok(())
 }
 
+async fn register_bot_commands(bot: &Bot) {
+    let private_commands = vec![
+        BotCommand::new("start", "Открыть меню"),
+        BotCommand::new("help", "Список команд"),
+        BotCommand::new("today", "Расписание на сегодня"),
+        BotCommand::new("tomorrow", "Расписание на завтра"),
+        BotCommand::new("week", "Расписание на 7 дней"),
+        BotCommand::new("next", "Следующая пара"),
+        BotCommand::new("group", "Выбрать личную учебную группу"),
+        BotCommand::new("homework", "Домашние задания"),
+        BotCommand::new("remind_on", "Включить напоминания"),
+        BotCommand::new("remind_off", "Выключить напоминания"),
+        BotCommand::new("reminders", "Статус напоминаний"),
+        BotCommand::new("settings", "Мои настройки"),
+        BotCommand::new("clear", "Удалить последние сообщения бота"),
+    ];
+
+    if let Err(error) = bot
+        .set_my_commands(private_commands)
+        .scope(BotCommandScope::AllPrivateChats)
+        .language_code("ru")
+        .await
+    {
+        tracing::warn!("Could not register private Telegram commands: {}", error);
+    }
+
+    let group_commands = vec![
+        BotCommand::new("start", "Открыть меню"),
+        BotCommand::new("help", "Список команд"),
+        BotCommand::new("today", "Расписание на сегодня"),
+        BotCommand::new("tomorrow", "Расписание на завтра"),
+        BotCommand::new("week", "Расписание на 7 дней"),
+        BotCommand::new("next", "Следующая пара"),
+        BotCommand::new("homework", "Домашние задания"),
+        BotCommand::new("settings", "Настройки учебного чата"),
+    ];
+
+    if let Err(error) = bot
+        .set_my_commands(group_commands.clone())
+        .scope(BotCommandScope::AllGroupChats)
+        .language_code("ru")
+        .await
+    {
+        tracing::warn!("Could not register group Telegram commands: {}", error);
+    }
+
+    let mut admin_commands = group_commands;
+    admin_commands.push(BotCommand::new("setgroup", "Привязать учебную группу к чату"));
+    admin_commands.push(BotCommand::new("role", "Назначить роль по @username или ответом"));
+
+    if let Err(error) = bot
+        .set_my_commands(admin_commands)
+        .scope(BotCommandScope::AllChatAdministrators)
+        .language_code("ru")
+        .await
+    {
+        tracing::warn!("Could not register administrator Telegram commands: {}", error);
+    }
+}
+
 pub async fn run(state: Arc<AppState>) {
     let Some(token) = state.config.teloxide_token.clone() else {
         tracing::warn!("TELOXIDE_TOKEN is not configured; bot is disabled");
@@ -755,6 +902,8 @@ pub async fn run(state: Arc<AppState>) {
     };
 
     let bot = Bot::new(token);
+    register_bot_commands(&bot).await;
+
     let reminder_bot = bot.clone();
     let reminder_state = state.clone();
 
