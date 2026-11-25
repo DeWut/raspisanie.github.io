@@ -97,6 +97,10 @@ pub async fn sync_member(
                 (chat_id, telegram_id, role, telegram_status, updated_at)
             VALUES ($1, $2, 'member', $3, now())
             ON CONFLICT (chat_id, telegram_id) DO UPDATE SET
+                role = CASE
+                    WHEN bot_chat_members.role IN ('owner', 'admin') THEN 'member'
+                    ELSE bot_chat_members.role
+                END,
                 telegram_status = EXCLUDED.telegram_status,
                 updated_at = now()
             "#
