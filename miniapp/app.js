@@ -17,7 +17,21 @@
   const state = { groups: [], schedule: null, selectedDate: startOfDay(new Date()), view: 'today', searchQuery: '', filter: 'all', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
-  const DATA_ROOT = location.pathname.includes('/miniapp/') ? '../data/' : './data/';
+  // Resolve data relative to the app script, not the page URL.
+  const DATA_ROOT = new URL('../data/', document.currentScript?.src || new URL('miniapp/app.js', location.href)).href;
+  const DATA_FALLBACK = 'https://raw.githubusercontent.com/DeWut/raspisanie.github.io/main/data/';
+  async function fetchDataFile(path) {
+    const candidates = [new URL(path, DATA_ROOT).href, new URL(path, DATA_FALLBACK).href];
+    let lastError;
+    for (const url of candidates) {
+      try {
+        const response = await fetch(url, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response;
+      } catch (error) { lastError = error; }
+    }
+    throw lastError || new Error('data-unavailable');
+  }
   const teachersDB = {
         "Васильев Н.П.":     { name: "Васильев Николай Павлович",       url: "https://spbftu.ru/allchairs/chairs-informatsionnykh-sistem-i-tekhnologiy/vasilev-nikolay-pavlovich" },
         "Мельников Н.Н.":    { name: "Мельников Николай Николаевич",    url: "https://spbftu.ru/allchairs/chairs-filosofii-i-sotsialnykh-distsiplin/melnikov-nikolay-nikolaevich" },
@@ -233,8 +247,7 @@
     if (!group) return;
     $('#group-results').innerHTML = '<p class="loading">Загружаем расписание…</p>';
     try {
-      const response = await fetch(`${DATA_ROOT}${encodeURIComponent(group.id)}.json`, { cache: 'no-cache' });
-      if (!response.ok) throw new Error('schedule-not-found');
+      const response = await fetchDataFile(`${encodeURIComponent(group.id)}.json`);
       const schedule = await response.json();
       state.schedule = schedule;
       safeStorageSet(GROUP_KEY, String(group.id));
@@ -248,8 +261,7 @@
   }
   async function loadData() {
     try {
-      const response = await fetch(`${DATA_ROOT}groups.json`, { cache: 'no-cache' });
-      if (!response.ok) throw new Error('groups-not-found');
+      const response = await fetchDataFile('groups.json');
       state.groups = await response.json();
       const saved = safeStorageGet(GROUP_KEY) || safeStorageGet('groupId');
       const match = state.groups.find((group) => String(group.id) === String(saved));
@@ -259,8 +271,9 @@
     } catch {
       $('#hero-title').textContent = 'Расписание пока недоступно';
       $('#hero-subtitle').textContent = 'Проверь подключение и обнови экран';
-      $('#hero-footer-text').textContent = 'Не удалось загрузить список групп';
-      $('#schedule-list').innerHTML = '<div class="empty-card"><span class="empty-illustration">↻</span><strong>Не удалось загрузить данные</strong><p>Открой экран ещё раз, когда появится подключение к интернету.</p></div>';
+      $('#hero-footer-text').textContent = 'Не удалось подключиться к источнику расписания';
+      $('#schedule-list').innerHTML = '<div class="empty-card"><span class="empty-illustration">↻</span><strong>Не удалось загрузить данные</strong><p>Проверь подключение и нажми кнопку обновления. Если проблема повторится, попробуй позже.</p><button class="text-button" id="retry-load" type="button">Повторить загрузку</button></div>';
+      $('#retry-load')?.addEventListener('click', () => loadData());
     }
   }
   function switchView(view) {
