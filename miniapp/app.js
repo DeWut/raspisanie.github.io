@@ -193,7 +193,8 @@
       const lessons = getLessons(date);
       const today = startOfDay(new Date());
       const showDay = state.filter !== 'current' || dateKey(date) >= dateKey(today);
-      const visibleLessons = showDay ? lessons : [];
+      if (!showDay) return '';
+      const visibleLessons = lessons;
       const content = visibleLessons.length ? visibleLessons.map((lesson, lessonIndex) => `<button type="button" class="week-lesson" data-week-day="${day.id}" data-week-index="${lessonIndex}"><div class="week-lesson-time">${escapeHtml(lesson.start)}<br>${escapeHtml(lesson.end)}</div><div><p class="week-lesson-title">${escapeHtml(lesson.name)}</p><span class="week-lesson-meta">${[lesson.room, lesson.teacher].filter(Boolean).map(escapeHtml).join(' · ')}</span></div></button>`).join('') : '<p class="week-empty">Занятий нет</p>';
       const selected = dateKey(date) === dateKey(state.selectedDate);
       return `<article class="week-day"${selected ? ' style="border-color:#bfd493"' : ''}><div class="week-day-head"><span class="week-day-title">${day.full}<small>${formatDate(date, { day: 'numeric', month: 'short' })}</small></span><span class="week-day-count">${lessons.length ? `${lessons.length} ${plural(lessons.length, 'пара', 'пары', 'пар')}` : 'выходной'}</span></div>${content}</article>`;
