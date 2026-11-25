@@ -1,1 +1,23 @@
 dump/
+
+# Rust
+/target/
+**/target/
+
+# JavaScript / frontend
+node_modules/
+dist/
+
+# Environment and secrets
+.env
+.env.*.local
+!.env.example
+
+# SQLx offline metadata (generated deliberately when configured)
+.sqlx/
+
+# WASM build output
+wasm-nav/pkg/
+
+# Local installers and generated artifacts
+installers/
