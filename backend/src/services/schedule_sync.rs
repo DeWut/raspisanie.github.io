@@ -228,24 +228,9 @@ async fn import_group_schedule(
 
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-    // Удаляем только будущие занятия, импортированные именно из ЭИОС.
-    // Ручные записи и прошедшие занятия не затрагиваются.
-    sqlx::query(
-        r#"
-        DELETE FROM lessons
-        WHERE group_id = $1
-          AND starts_at >= $2
-          AND starts_at < $3
-          AND source_data->>'source' = 'eios'
-        "#,
-    )
-    .bind(group_id)
-    .bind(start_bound)
-    .bind(end_bound)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| e.to_string())?;
-
+    // Сначала обновляем существующие занятия по стабильному external_id.
+    // Это сохраняет UUID и историю уже отправленных напоминаний.
+    let mut seen_external_ids = Vec::<String>::new();
     let mut teacher_cache = HashMap::<String, Uuid>::new();
     let mut room_cache = HashMap::<String, Uuid>::new();
     let mut imported = 0usize;
@@ -322,6 +307,7 @@ async fn import_group_schedule(
                     ],
                 );
 
+                seen_external_ids.push(external_lesson_id.clone());
                 let lesson_type = detect_lesson_type(&lesson.name);
 
                 let source_data = json!({
@@ -388,6 +374,28 @@ async fn import_group_schedule(
         date = date
             .succ_opt()
             .ok_or_else(|| "Could not advance schedule date".to_owned())?;
+    }
+
+    // Удаляем устаревшие занятия только после успешного импорта новых данных.
+    // При пустом результате старое расписание остаётся нетронутым.
+    if !seen_external_ids.is_empty() {
+        sqlx::query(
+            r#"
+            DELETE FROM lessons
+            WHERE group_id = $1
+              AND starts_at >= $2
+              AND starts_at < $3
+              AND source_data->>'source' = 'eios'
+              AND NOT (external_id = ANY($4))
+            "#,
+        )
+        .bind(group_id)
+        .bind(start_bound)
+        .bind(end_bound)
+        .bind(&seen_external_ids)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
     }
 
     tx.commit().await.map_err(|e| e.to_string())?;
