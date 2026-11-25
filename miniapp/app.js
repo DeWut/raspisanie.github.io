@@ -131,7 +131,7 @@
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   }
   function minutes(value) { const [hour, minute] = String(value || '0:0').split(':').map(Number); return hour * 60 + minute; }
-  function getLessons(date, filter = state.filter) {
+  function getLessons(date, filter = (state.view === 'week' ? state.filter : 'current')) {
     const lessons = state.schedule?.lessons?.[String(dayNumber(date))] || [];
     const parity = isOddWeek(date) ? 'нечёт' : 'чёт';
     return lessons.filter((lesson) => {
@@ -169,18 +169,27 @@
     $('#sync-bot-group').hidden = !tg?.sendData || !state.schedule?.id;
   }
   function getStatus(date, lessons) {
-    if (dateKey(date) !== dateKey(startOfDay(new Date()))) return { title: `${lessons.length} ${plural(lessons.length, 'пара', 'пары', 'пар')}`, subtitle: formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }) };
-    const currentParts = moscowDateParts();
-    const current = Number(currentParts.hour) * 60 + Number(currentParts.minute);
-    const active = lessons.find((lesson) => current >= minutes(lesson.start) && current < minutes(lesson.end));
-    if (active) return { title: 'Сейчас пара', subtitle: active.name };
-    const next = lessons.find((lesson) => current < minutes(lesson.start));
-    if (next) {
-      const until = minutes(next.start) - current;
-      const hint = until < 60 ? `через ${until} мин` : `в ${next.start}`;
-      return { title: 'Следующая пара', subtitle: `${next.name} · ${hint}` };
+    if (dateKey(date) !== dateKey(startOfDay(new Date()))) {
+      return { title: `${lessons.length} ${plural(lessons.length, 'пара', 'пары', 'пар')}`, subtitle: formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }), next: 'Открой сегодняшний день, чтобы увидеть текущий статус' };
     }
-    return lessons.length ? { title: 'На сегодня всё', subtitle: 'Можно выдохнуть и отдохнуть 🌿' } : { title: 'Сегодня без пар', subtitle: 'Пусть день будет лёгким 🌿' };
+    const parts = moscowDateParts();
+    const current = Number(parts.hour) * 60 + Number(parts.minute);
+    const activeIndex = lessons.findIndex((lesson) => current >= minutes(lesson.start) && current < minutes(lesson.end));
+    const nextIndex = lessons.findIndex((lesson) => current < minutes(lesson.start));
+    const active = activeIndex >= 0 ? lessons[activeIndex] : null;
+    const next = nextIndex >= 0 ? lessons[nextIndex] : null;
+    const describe = (lesson) => [lesson.name, lesson.start ? `в ${lesson.start}` : '', lesson.room ? parseRoom(lesson.room) : ''].filter(Boolean).join(' · ');
+    if (active) return { title: 'Идёт пара', subtitle: `${active.name} · до ${active.end}`, next: next ? `Следующее: ${describe(next)}` : 'Следующее: после этой пары занятий больше нет' };
+    if (next) {
+      const previous = lessons.slice(0, nextIndex).at(-1);
+      const gap = previous ? minutes(next.start) - minutes(previous.end) : minutes(next.start) - current;
+      const stateLabel = previous ? (gap >= 60 ? 'Обед' : 'Перемена') : 'До первой пары';
+      const stateDetail = previous ? (gap >= 60 ? 'Время на обед и отдых' : 'Можно немного передохнуть') : 'Пока можно спокойно подготовиться';
+      const until = minutes(next.start) - current;
+      const timeHint = until < 60 ? `через ${until} мин` : `в ${next.start}`;
+      return { title: stateLabel, subtitle: stateDetail, next: `Следующее: ${describe(next)} · ${timeHint}` };
+    }
+    return { title: lessons.length ? 'Занятия закончились' : 'Сегодня без пар', subtitle: 'Сейчас время отдохнуть 🌿', next: 'Следующее: на сегодня занятий больше нет' };
   }
   function plural(value, one, few, many) {
     const abs = Math.abs(value) % 100;
@@ -197,6 +206,7 @@
     $('#hero-label').textContent = today ? 'СЕГОДНЯ' : formatDate(state.selectedDate, { weekday: 'long' }).toUpperCase();
     $('#hero-title').textContent = status.title;
     $('#hero-subtitle').textContent = status.subtitle;
+    $('#hero-next').textContent = status.next;
     $('#hero-footer-text').textContent = state.schedule?.updated ? `Обновлено ${state.schedule.updated}` : 'Расписание загружено';
     $('#week-label').textContent = `${isOddWeek(state.selectedDate) ? 'нечётная' : 'чётная'} неделя`;
     $('#welcome-date').textContent = today ? 'ТВОЙ УЧЕБНЫЙ ДЕНЬ' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' }).toUpperCase();
@@ -253,6 +263,10 @@
     const monday = weekStart(state.selectedDate);
     const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
     $('#week-range').textContent = `${formatDate(monday)} — ${formatDate(sunday)}`;
+    document.querySelectorAll('[data-filter]').forEach((button) => {
+      const parity = isOddWeek(state.selectedDate) ? 'odd' : 'even';
+      button.classList.toggle('active', button.dataset.filter === (state.filter === 'current' ? parity : state.filter));
+    });
     $('#week-list').innerHTML = DAYS.map((day, index) => {
       const date = new Date(monday); date.setUTCDate(monday.getUTCDate() + index);
       const lessons = getLessons(date);
@@ -332,7 +346,11 @@
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
-    if (state.view === 'week') renderWeek();
+    if (state.view === 'week') {
+      if (state.filter === 'odd' && !isOddWeek(state.selectedDate)) state.selectedDate = new Date(weekStart(state.selectedDate).getTime() + 7 * 86_400_000);
+      if (state.filter === 'even' && isOddWeek(state.selectedDate)) state.selectedDate = new Date(weekStart(state.selectedDate).getTime() + 7 * 86_400_000);
+      renderAll();
+    }
   }
 
   function closeQuickMenu() {
@@ -412,7 +430,8 @@
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
     document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
       state.filter = button.dataset.filter;
-      document.querySelectorAll('[data-filter]').forEach((item) => item.classList.toggle('active', item.dataset.filter === state.filter));
+      const targetParity = state.filter === 'odd';
+      if (isOddWeek(state.selectedDate) !== targetParity) state.selectedDate = new Date(weekStart(state.selectedDate).getTime() + 7 * 86_400_000);
       renderAll();
     }));
     $('#quick-main').addEventListener('click', () => {
@@ -427,8 +446,12 @@
     $('#calendar-next').addEventListener('click', () => changeCalendarMonth(1));
     $('#group-search').addEventListener('input', (event) => renderGroupOptions(event.target.value));
     $('#today-button').addEventListener('click', () => { state.selectedDate = startOfDay(new Date()); renderAll(); });
-    $('#prev-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
-    $('#next-week').addEventListener('click', () => { state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() + 7); renderAll(); });
+    $('#day-strip').addEventListener('wheel', (event) => {
+      if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+        event.preventDefault();
+        $('#day-strip').scrollBy({ left: event.deltaY, behavior: 'smooth' });
+      }
+    }, { passive: false });
     $('#refresh-button').addEventListener('click', () => loadData().then(() => showToast('Расписание обновлено')));
     $('#sync-bot-group').addEventListener('click', () => {
       if (!tg?.sendData || !state.schedule?.id) return;
