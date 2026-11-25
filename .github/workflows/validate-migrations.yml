@@ -6,33 +6,41 @@ on:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: smart_campus
+          POSTGRES_PASSWORD: test_only_password
+          POSTGRES_DB: smart_campus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smart_campus -d smart_campus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://smart_campus:test_only_password@localhost:5432/smart_campus
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check configured database
-        env:
-          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
-        run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::error::Set MIGRATION_DATABASE_URL to a disposable PostgreSQL 16 database with pgvector installed."
-            exit 1
-          fi
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install sqlx-cli
-        run: cargo install sqlx-cli --no-default-features --features rustls,postgres
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
-      - name: Apply migrations
-        env:
-          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.8.6 --locked --no-default-features --features rustls,postgres
+
+      - name: Apply migrations to an empty database
         run: cargo sqlx migrate run --source backend/migrations
 
-      - name: Verify all 16 tables and HNSW index
-        env:
-          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+      - name: Verify all 16 tables, vector extension and indexes
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
@@ -51,11 +59,20 @@ jobs:
             IF missing IS NOT NULL THEN
               RAISE EXCEPTION 'Missing tables: %', missing;
             END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+              RAISE EXCEPTION 'pgvector extension missing';
+            END IF;
             IF NOT EXISTS (
               SELECT 1 FROM pg_indexes
               WHERE schemaname='public' AND indexname='idx_rag_chunks_embedding_hnsw'
             ) THEN
               RAISE EXCEPTION 'HNSW index missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname='public' AND indexname='idx_groups_name_trgm'
+            ) THEN
+              RAISE EXCEPTION 'GIN trigram index missing';
             END IF;
           END $$;
           SQL
