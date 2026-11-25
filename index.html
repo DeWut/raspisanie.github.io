@@ -7,9 +7,9 @@
     <meta name="description" content="Полное расписание университета SPBFTUIT." />
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="./favicon.png" />
-    <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-7" />
+    <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-9" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="./app.js?v=20261126-7"></script>
+    <script defer src="./app.js?v=20261126-9"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -45,6 +45,7 @@
             <span class="hero-label" id="hero-label">СЕГОДНЯ</span>
             <h2 id="hero-title">Загрузка расписания…</h2>
             <p id="hero-subtitle">Собираем твой учебный день</p>
+          <p class="hero-next" id="hero-next">Следующее занятие появится здесь</p>
           </div>
           <div class="hero-icon" aria-hidden="true">
             <svg viewBox="0 0 64 64" fill="none"><rect x="9" y="13" width="46" height="42" rx="12" stroke="currentColor" stroke-width="2.5"/><path d="M20 8v11M44 8v11M9 25h46M20 35h8M36 35h8M20 44h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="48" cy="47" r="10" fill="#D8F27A" stroke="#173d2e" stroke-width="2"/><path d="m44 47 3 3 5-6" stroke="#173d2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -52,7 +53,7 @@
           <div class="hero-footer"><span class="live-dot"></span><span id="hero-footer-text">Загрузка данных</span><span class="hero-week" id="week-label"></span></div>
         </section>
 
-        <div class="schedule-toolbar"><div class="schedule-mode" role="group" aria-label="Период расписания"><button class="mode-button active" type="button" data-view-toggle="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M8 13h3M8 17h3"/></svg>День</button><button class="mode-button" type="button" data-view-toggle="week"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M7 13h3M14 13h3M7 17h3M14 17h3"/></svg>Неделя</button></div><div class="filter-bar" aria-label="Фильтр по неделям"><button class="filter-chip active" data-filter="current" type="button">Текущая</button><button class="filter-chip" data-filter="odd" type="button">Нечётная</button><button class="filter-chip" data-filter="even" type="button">Чётная</button></div></div>
+        <div class="schedule-toolbar"><div class="schedule-mode" role="group" aria-label="Период расписания"><button class="mode-button active" type="button" data-view-toggle="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M8 13h3M8 17h3"/></svg>День</button><button class="mode-button" type="button" data-view-toggle="week"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M7 13h3M14 13h3M7 17h3M14 17h3"/></svg>Неделя</button></div></div>
         <section class="schedule-section" id="today-view">
           <div class="section-heading">
             <div><p class="eyebrow">ПО ПОРЯДКУ</p><h2 id="schedule-heading">Пары на сегодня</h2></div>
@@ -66,9 +67,10 @@
         <section class="schedule-section week-section hidden" id="week-view">
           <div class="section-heading">
             <div><p class="eyebrow">ПЛАНИРУЙ ЗАРАНЕЕ</p><h2>Неделя</h2></div>
-            <div class="week-controls"><button class="icon-button small" id="prev-week" aria-label="Предыдущая неделя"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><button class="icon-button small" id="next-week" aria-label="Следующая неделя"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
           </div>
           <p class="week-range" id="week-range"></p>
+          <div class="filter-bar" aria-label="Чётность учебной недели"><button class="filter-chip" data-filter="odd" type="button">Нечётная неделя</button><button class="filter-chip" data-filter="even" type="button">Чётная неделя</button></div>
           <div class="week-list" id="week-list"></div>
         </section>
 
