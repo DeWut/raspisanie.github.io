@@ -27,7 +27,7 @@ jobs:
       - name: Create a clean test database
         run: |
           sudo pg_ctlcluster 16 main start
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE USER smart_campus WITH PASSWORD 'ci_test_password' CREATEDB;"
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE USER smart_campus WITH PASSWORD 'ci_test_password' CREATEDB SUPERUSER;"
           sudo -u postgres createdb --owner=smart_campus smart_campus
           pg_isready -h localhost -p 5432
 
