@@ -174,9 +174,13 @@
     $('#group-name').textContent = selected?.name || state.schedule?.name || 'Выбрать группу';
     $('#sync-bot-group').hidden = !tg?.sendData || !state.schedule?.id;
   }
+  function countPairs(lessons) {
+    return new Set(lessons.map((lesson) => lesson.pair ?? lesson.start)).size;
+  }
   function getStatus(date, lessons) {
     if (dateKey(date) !== dateKey(startOfDay(new Date()))) {
-      return { title: `${lessons.length} ${plural(lessons.length, 'пара', 'пары', 'пар')}`, subtitle: formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }), next: 'Открой сегодняшний день, чтобы увидеть текущий статус' };
+      const count = countPairs(lessons);
+      return { title: `${count} ${plural(count, 'пара', 'пары', 'пар')}`, subtitle: formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' }), next: 'Открой сегодняшний день, чтобы увидеть текущий статус' };
     }
     const parts = moscowDateParts();
     const current = Number(parts.hour) * 60 + Number(parts.minute);
@@ -184,8 +188,8 @@
     const nextIndex = lessons.findIndex((lesson) => current < minutes(lesson.start));
     const active = activeIndex >= 0 ? lessons[activeIndex] : null;
     const next = nextIndex >= 0 ? lessons[nextIndex] : null;
-    const describe = (lesson) => [lesson.name, lesson.start ? `в ${lesson.start}` : '', lesson.room ? parseRoom(lesson.room) : ''].filter(Boolean).join(' · ');
-    if (active) return { title: 'Идёт пара', subtitle: `${active.name} · до ${active.end}`, next: next ? `Следующее: ${describe(next)}` : 'Следующее: после этой пары занятий больше нет' };
+    const describe = (lesson) => [lesson.name, lesson.room ? parseRoom(lesson.room) : ''].filter(Boolean).join(' · ');
+    if (active) return { title: 'Идёт пара', subtitle: `${active.name} · до ${active.end}`, next: next ? `Следующее: ${describe(next)} · в ${next.start}` : 'Следующее: после этой пары занятий больше нет' };
     // Обеденное время фиксировано университетским расписанием: 12:45–13:30.
     if (current >= 12 * 60 + 45 && current < 13 * 60 + 30) {
       const until = next ? minutes(next.start) - current : 0;
@@ -279,8 +283,9 @@
         firstPairLabel = ` · ${pairNumber === 2 ? 'со' : 'с'} ${pairNumber}-й`;
       }
     }
-    $('#schedule-count').textContent = remaining.length
-      ? `${remaining.length} ${plural(remaining.length, 'пара', 'пары', 'пар')}${firstPairLabel}`
+    const remainingPairCount = countPairs(remaining);
+    $('#schedule-count').textContent = remainingPairCount
+      ? `${remainingPairCount} ${plural(remainingPairCount, 'пара', 'пары', 'пар')}${firstPairLabel}
       : (isToday ? 'На сегодня всё' : 'Пар нет');
     list.querySelectorAll('[data-lesson-index]').forEach((card) => {
       const open = () => openLessonDetails(lessons[Number(card.dataset.lessonIndex)], state.selectedDate);
