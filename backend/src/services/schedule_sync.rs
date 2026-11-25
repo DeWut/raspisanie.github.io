@@ -25,9 +25,7 @@ const SOURCE: &str = "eios";
 
 /// Запускает синхронизацию сразу, а затем повторяет её каждые 24 часа.
 pub async fn run_daily_sync(pool: sqlx::PgPool, eios: EiosSync) {
-    tracing::info!("Daily EIOS sync scheduled; first run in 24 hours");
-
-    tokio::time::sleep(SYNC_INTERVAL).await;
+    tracing::info!("Daily EIOS sync worker started; running initial sync now");
 
     loop {
         tracing::info!("Starting daily EIOS schedule synchronization");
