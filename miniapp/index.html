@@ -7,9 +7,9 @@
     <meta name="description" content="Полное расписание университета SPBFTUIT." />
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
-    <link rel="stylesheet" href="./styles.css?v=20261126-9" />
+    <link rel="stylesheet" href="./styles.css?v=20261126-10" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="./app.js?v=20261126-9"></script>
+    <script defer src="./app.js?v=20261126-10"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -56,7 +56,7 @@
         <div class="schedule-toolbar"><div class="schedule-mode" role="group" aria-label="Период расписания"><button class="mode-button active" type="button" data-view-toggle="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M8 13h3M8 17h3"/></svg>День</button><button class="mode-button" type="button" data-view-toggle="week"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 9h18M7 13h3M14 13h3M7 17h3M14 17h3"/></svg>Неделя</button></div></div>
         <section class="schedule-section" id="today-view">
           <div class="section-heading">
-            <div><p class="eyebrow">ПО ПОРЯДКУ</p><h2 id="schedule-heading">Пары на сегодня</h2></div>
+            <div><p class="eyebrow">ПО ПОРЯДКУ</p><h2 id="schedule-heading">Пары на сегодня</h2><p class="schedule-count" id="schedule-count" aria-live="polite"></p></div>
             <button class="text-button" id="today-button">Сегодня</button>
           </div>
           <div class="day-strip" id="day-strip" role="tablist" aria-label="Дни недели"></div>
@@ -66,7 +66,7 @@
 
         <section class="schedule-section week-section hidden" id="week-view">
           <div class="section-heading">
-            <div><p class="eyebrow">ПЛАНИРУЙ ЗАРАНЕЕ</p><h2>Неделя</h2></div>
+            <div><p class="eyebrow">ПЛАНИРУЙ ЗАРАНЕЕ</p><h2>Неделя</h2></div><button class="text-button week-current-button" id="week-current-button" type="button">Текущая</button>
 
           </div>
           <p class="week-range" id="week-range"></p>
