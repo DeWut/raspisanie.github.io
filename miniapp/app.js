@@ -462,9 +462,9 @@
     setGreeting();
     $('#welcome-date').textContent = formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
     bindEvents();
-    await loadData();
     updatePresence();
     window.setInterval(updatePresence, 45_000);
+    await loadData();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
   }
   init();
