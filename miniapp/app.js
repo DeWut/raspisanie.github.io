@@ -667,10 +667,10 @@
       campusOnlineMap = new maplibregl.Map({
         container: 'campus-online-map',
         style: 'https://tiles.openfreemap.org/styles/liberty',
-        center: [30.3437, 59.9927],
-        zoom: 16.8,
-        pitch: 62,
-        bearing: -24,
+        center: state.campus?.map?.center || [30.3399, 59.99455],
+        zoom: state.campus?.map?.zoom || 15.1,
+        pitch: 58,
+        bearing: -18,
         maxPitch: 80,
         antialias: true,
         attributionControl: true
@@ -698,11 +698,27 @@
             }
           }, labelLayer?.id);
         }
-        new maplibregl.Marker({ color: '#23734e' })
-          .setLngLat([30.3437, 59.9927])
-          .setPopup(new maplibregl.Popup({ offset: 24 }).setHTML('<strong>СПбГЛТУ им. С. М. Кирова</strong><br>Институтский переулок, 5'))
-          .addTo(campusOnlineMap);
-        status.textContent = 'Реальная карта OpenStreetMap. Поверни двумя пальцами или кнопками справа. Для 3D-зданий требуется интернет.';
+        const bounds = new maplibregl.LngLatBounds();
+        const buildings = state.campus?.buildings || [];
+        buildings.forEach((building) => {
+          if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
+          const marker = document.createElement('div');
+          marker.className = 'campus-map-marker';
+          marker.textContent = String(building.number);
+          const popup = document.createElement('div');
+          const title = document.createElement('strong');
+          title.textContent = building.name;
+          const address = document.createElement('div');
+          address.textContent = building.address || '';
+          popup.append(title, address);
+          new maplibregl.Marker({ element: marker, anchor: 'bottom' })
+            .setLngLat([building.longitude, building.latitude])
+            .setPopup(new maplibregl.Popup({ offset: 22 }).setDOMContent(popup))
+            .addTo(campusOnlineMap);
+          bounds.extend([building.longitude, building.latitude]);
+        });
+        if (!bounds.isEmpty()) campusOnlineMap.fitBounds(bounds, { padding: { top: 45, right: 45, bottom: 45, left: 45 }, maxZoom: 16, duration: 700 });
+        status.textContent = 'Реальная карта OpenStreetMap. На карте отмечены все четыре учебных корпуса по адресам университета. Для 3D-зданий требуется интернет.';
       });
       campusOnlineMap.on('error', (event) => {
         if (event?.error) console.warn('Campus map tile error:', event.error);
