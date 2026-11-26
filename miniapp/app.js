@@ -992,14 +992,14 @@ function setCampusSatelliteVisible(visible) {
     try {
       const mapgl = await loadCampus2GisApi();
       if (!$('#map-dialog')?.open) return;
-      campusDgisMap = new mapgl.Map('campus-2gis-map', { key: key, center: [30.34235, 59.99375], zoom: 16, pitch: 55, rotation: -18, lang: 'ru' });
+      campusDgisMap = new mapgl.Map('campus-2gis-map', { key: key, center: [30.34235, 59.99375], zoom: 16, pitch: 62, rotation: -18, lang: 'ru' });
       let count = 0;
       (state.campus?.buildings || []).forEach((building) => {
         if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
         new mapgl.Marker(campusDgisMap, { coordinates: [building.longitude, building.latitude] });
         count += 1;
       });
-      status.textContent = '3D-карта 2ГИС загружена. Добавлено маркеров корпусов: ' + count + '.';
+      status.textContent = 'Детальная 3D-карта 2ГИС загружена. Отмечено корпусов: ' + count + '. Наклон и вращение доступны жестами. Доступность и детализация слоёв зависят от покрытия 2ГИС в этой точке.';
     } catch (error) {
       console.warn('2GIS MapGL failed:', error);
       status.textContent = 'Не удалось открыть 2ГИС: ' + error.message + '. Проверь доступность Map Tiles API для демо-ключа.';
