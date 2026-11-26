@@ -343,8 +343,15 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
                 Some(value)=>value,
             };
             let notice=format!("✏️ Мероприятие #{id} обновлено: {}\n🕒 {} МСК\n📍 {}{}",p[1],at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),location,if description.is_empty(){"".into()}else{format!("\nℹ️ {description}")});
-            for user in recipients { if let Err(error)=bot.send_message(ChatId(user),notice.clone()).await { tracing::debug!("Could not notify event participant {}: {}",user,error); } }
-            Some(format!("✏️ Мероприятие #{id} обновлено. Участники уведомлены в личных сообщениях."))
+            let mut notified=0usize;
+            let mut failed=0usize;
+            for user in recipients {
+                match bot.send_message(ChatId(user),notice.clone()).await {
+                    Ok(_)=>notified+=1,
+                    Err(error)=>{failed+=1;tracing::debug!("Could not notify event participant {}: {}",user,error);}
+                }
+            }
+            Some(format!("✏️ Мероприятие #{id} обновлено. Личные уведомления: доставлено {notified}, не доставлено {failed}."))
         }
         "/cancel_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /cancel_event ID".into()); };
@@ -380,12 +387,15 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             if tx.commit().await.is_err() {
                 return Some("Не удалось сохранить отмену мероприятия.".into());
             }
+            let mut notified=0usize;
+            let mut failed=0usize;
             for user in recipients {
-                if let Err(error)=bot.send_message(ChatId(user),format!("❌ Мероприятие #{id} отменено организатором.")).await {
-                    tracing::debug!("Could not send event cancellation to {}: {}",user,error);
+                match bot.send_message(ChatId(user),format!("❌ Мероприятие #{id} отменено организатором.")).await {
+                    Ok(_)=>notified+=1,
+                    Err(error)=>{failed+=1;tracing::debug!("Could not send event cancellation to {}: {}",user,error);}
                 }
             }
-            Some(format!("❌ Мероприятие #{id} отменено. Участники уведомлены в личных сообщениях."))
+            Some(format!("❌ Мероприятие #{id} отменено. Личные уведомления: доставлено {notified}, не доставлено {failed}."))
         }
         "/event_attendees" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /event_attendees ID".into()); };
