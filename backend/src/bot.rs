@@ -703,7 +703,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     }
 
     if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity") {
-        if matches!(command, "/add_exam" | "/edit_exam" | "/delete_exam" | "/add_event" | "/edit_event" | "/cancel_event") {
+        if matches!(command, "/add_exam" | "/edit_exam" | "/delete_exam" | "/add_event" | "/edit_event" | "/cancel_event" | "/event_capacity") {
             let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
         }
         if let Some(answer) = crate::services::group_content::handle_exams_events(
