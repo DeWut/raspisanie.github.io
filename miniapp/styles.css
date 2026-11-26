@@ -531,3 +531,26 @@ button { font-family: inherit; }
 .cesium-viewer-bottom { bottom:4px !important; left:8px !important; }
 .cesium-widget-credits { font-size:9px !important; }
 @media(max-width:520px) { .campus-cesium-map { height:clamp(260px, 44dvh, 420px); min-height:240px; } }
+
+.campus-online-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.campus-cesium-expand, #campus-cesium-expand { border:1px solid var(--line); border-radius:8px; padding:6px 9px; background:var(--surface,#fff); color:var(--ink); font-size:10px; font-weight:750; }
+#campus-cesium-expand[hidden] { display:none; }
+.map-dialog.campus-map-expanded {
+  position:fixed;
+  inset:0;
+  margin:0;
+  width:100vw;
+  height:100dvh;
+  max-width:none;
+  max-height:100dvh;
+  border-radius:0;
+  padding:10px;
+}
+.map-dialog.campus-map-expanded .campus-cesium-map {
+  height:calc(100dvh - 245px);
+  min-height:320px;
+}
+@media(max-width:520px) {
+  .map-dialog.campus-map-expanded { padding:8px; }
+  .map-dialog.campus-map-expanded .campus-cesium-map { height:calc(100dvh - 230px); min-height:260px; }
+}
