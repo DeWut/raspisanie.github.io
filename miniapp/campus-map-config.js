@@ -1,15 +1,6 @@
 /**
  * Campus map runtime configuration.
- *
- * Keep this file free of secrets in Git. It is intentionally a no-key default
- * so the local map continues to work until an owner supplies an authorised,
- * HTTP-referrer-restricted Google Maps Platform key.
- *
- * Optional runtime value:
- * window.CAMPUS_MAP_CONFIG = {
- *   googlePhotorealistic3dTilesKey: "YOUR_RESTRICTED_BROWSER_KEY"
- * };
+ * No third-party map keys are required for the autonomous OSM/Overture scene.
+ * Keep any optional provider credentials out of the public repository.
  */
-window.CAMPUS_MAP_CONFIG = window.CAMPUS_MAP_CONFIG || {
-  googlePhotorealistic3dTilesKey: ""
-};
+window.CAMPUS_MAP_CONFIG = window.CAMPUS_MAP_CONFIG || {};
