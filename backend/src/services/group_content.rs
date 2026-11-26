@@ -708,6 +708,23 @@ pub async fn handle_group_tools(
                 Ok(rows)=>rows,
                 Err(error)=>{tracing::warn!("Group homework search failed: {}",error);return Some("Не удалось выполнить поиск по домашним заданиям.".into());}
             };
+            let lessons = match sqlx::query_as::<_, (String,DateTime<Utc>,Option<String>,Option<String>,Option<String>)>(
+                r#"SELECT l.subject,l.starts_at,l.lesson_type,t.full_name,r.name
+                   FROM bot_chat_settings c
+                   JOIN lessons l ON l.group_id=c.group_id
+                   LEFT JOIN teachers t ON t.id=l.teacher_id
+                   LEFT JOIN rooms r ON r.id=l.room_id
+                   WHERE c.chat_id=$1 AND c.is_active=TRUE
+                     AND l.starts_at>now()-interval '1 day'
+                     AND (l.subject ILIKE $2 ESCAPE '\'
+                          OR COALESCE(t.full_name,'') ILIKE $2 ESCAPE '\'
+                          OR COALESCE(r.name,'') ILIKE $2 ESCAPE '\')
+                   ORDER BY l.starts_at LIMIT 5"#
+            )
+            .bind(chat_id).bind(&pattern).fetch_all(db).await {
+                Ok(rows)=>rows,
+                Err(error)=>{tracing::warn!("Group lesson search failed: {}",error);return Some("Не удалось выполнить поиск по расписанию.".into());}
+            };
             let exams = match sqlx::query_as::<_, (i64,String,DateTime<Utc>,Option<String>,Option<String>)>(
                 r#"SELECT id,subject,exam_at,format,topics
                    FROM bot_exams
@@ -731,7 +748,7 @@ pub async fn handle_group_tools(
                 Ok(rows)=>rows,
                 Err(error)=>{tracing::warn!("Group event search failed: {}",error);return Some("Не удалось выполнить поиск по мероприятиям.".into());}
             };
-            if homework.is_empty() && exams.is_empty() && events.is_empty() {
+            if homework.is_empty() && lessons.is_empty() && exams.is_empty() && events.is_empty() {
                 return Some(format!("По запросу «{query}» ничего не найдено."));
             }
             let mut out=format!("🔎 РЕЗУЛЬТАТЫ ПОИСКА: {query}\n\n");
@@ -740,6 +757,19 @@ pub async fn handle_group_tools(
                 for (id,subject,description,due) in homework {
                     let due=due.map(|v|v.with_timezone(&moscow()).format("%d.%m.%Y %H:%M").to_string()).unwrap_or_else(||"без срока".into());
                     out.push_str(&format!("#{id} · {subject}\n{description}\nСрок: {due}\n\n"));
+                }
+            }
+            if !lessons.is_empty() {
+                out.push_str("📅 РАСПИСАНИЕ\n");
+                for (subject,at,lesson_type,teacher,room) in lessons {
+                    let metadata=vec![
+                        lesson_type.map(|v|v.trim().to_owned()).filter(|v|!v.is_empty()),
+                        teacher.map(|v|format!("преп. {v}")),
+                        room.map(|v|format!("ауд. {v}")),
+                    ].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+                    out.push_str(&format!("{} · {subject}{}\n\n",
+                        at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),
+                        if metadata.is_empty(){String::new()}else{format!("\n{metadata}")}));
                 }
             }
             if !exams.is_empty() {
