@@ -635,6 +635,7 @@
   let campusMapMode = 'offline';
   let campusCesiumViewer = null;
   let campusCesiumTileset = null;
+  let campusCesiumDataSource = null;
   let campusCesiumLibraryPromise = null;
   let campusCesiumOpenAttempted = false;
   let campusYandexApiPromise = null;
@@ -650,12 +651,12 @@
       if (!document.querySelector('link[data-campus-cesium]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css';
+        link.href = 'https://cesium.com/downloads/cesiumjs/releases/1.138/Build/Cesium/Widgets/widgets.css';
         link.dataset.campusCesium = '1';
         document.head.appendChild(link);
       }
       const script = document.createElement('script');
-      script.src = 'https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js';
+      script.src = 'https://cesium.com/downloads/cesiumjs/releases/1.138/Build/Cesium/Cesium.js';
       script.async = true;
       script.onload = () => window.Cesium ? resolve(window.Cesium) : reject(new Error('CesiumJS не инициализировался'));
       script.onerror = () => reject(new Error('Не удалось загрузить CesiumJS'));
@@ -673,19 +674,140 @@
     if (campusCesiumViewer && !campusCesiumViewer.isDestroyed()) campusCesiumViewer.destroy();
     campusCesiumViewer = null;
     campusCesiumTileset = null;
+    campusCesiumDataSource = null;
+  }
+  function getCampusCesiumProperty(entity, key, Cesium) {
+    const property = entity.properties?.[key];
+    return property?.getValue ? property.getValue(Cesium.JulianDate.now()) : property;
+  }
+  async function addCampusCesiumLocalScene(Cesium, viewer, photorealistic = false) {
+    const dataUrl = new URL('../data/campus-park-scene.json', APP_SCRIPT_URL).href;
+    const response = await fetch(dataUrl, { cache: 'force-cache' });
+    if (!response.ok) throw new Error(`Геометрия кампуса: HTTP ${response.status}`);
+    const scene = await response.json();
+    const dataSource = await Cesium.GeoJsonDataSource.load(scene, {
+      clampToGround: true,
+      stroke: Cesium.Color.fromCssColorString('#e8e2d2'),
+      strokeWidth: 2,
+      fill: Cesium.Color.fromCssColorString('#9bbd82').withAlpha(0.38)
+    });
+    viewer.dataSources.add(dataSource);
+    campusCesiumDataSource = dataSource;
+    const color = (value, fallback, alpha = 1) => {
+      try { return Cesium.Color.fromCssColorString(value || fallback).withAlpha(alpha); }
+      catch { return Cesium.Color.fromCssColorString(fallback).withAlpha(alpha); }
+    };
+    for (const entity of dataSource.entities.values) {
+      const kind = getCampusCesiumProperty(entity, 'kind', Cesium) || '';
+      const props = entity.properties;
+      if (entity.polygon) {
+        entity.polygon.height = 0;
+        entity.polygon.heightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+        entity.polygon.outline = true;
+        entity.polygon.outlineColor = color('#7b806e', '#7b806e', 0.85);
+        if (kind === 'building') {
+          const heightKnown = getCampusCesiumProperty(entity, 'heightKnown', Cesium) === true;
+          const height = Number(getCampusCesiumProperty(entity, 'heightMeters', Cesium)) || 0;
+          const base = color(getCampusCesiumProperty(entity, 'styleColor', Cesium), '#bcb8ad', photorealistic ? 0.12 : 0.98);
+          entity.polygon.material = base;
+          entity.polygon.outlineColor = color(photorealistic ? '#fff1c8' : '#706d65', '#706d65', 0.95);
+          if (!photorealistic && heightKnown && height > 0) {
+            entity.polygon.extrudedHeight = height;
+            entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+          } else if (!photorealistic) {
+            entity.polygon.extrudedHeight = 0.35;
+            entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+          }
+          entity.polygon.outline = true;
+        } else if (kind === 'tree-trunk') {
+          const height = Number(getCampusCesiumProperty(entity, 'heightMeters', Cesium)) || 2;
+          entity.polygon.material = color('#79563a', '#79563a', 1);
+          entity.polygon.extrudedHeight = height;
+          entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+        } else if (kind === 'tree-canopy') {
+          const height = Number(getCampusCesiumProperty(entity, 'heightMeters', Cesium)) || 6;
+          const baseHeight = Number(getCampusCesiumProperty(entity, 'canopyBaseMeters', Cesium)) || 2;
+          entity.polygon.material = color(getCampusCesiumProperty(entity, 'foliageColor', Cesium), '#477749', 0.94);
+          entity.polygon.height = baseHeight;
+          entity.polygon.extrudedHeight = height;
+          entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+          entity.polygon.outline = false;
+        } else if (kind === 'green-area') {
+          entity.polygon.material = color('#7da76d', '#7da76d', photorealistic ? 0.12 : 0.42);
+          entity.polygon.outline = false;
+        } else if (kind === 'water') {
+          entity.polygon.material = color('#4f9fc2', '#4f9fc2', 0.68);
+          entity.polygon.outlineColor = color('#b6e4ed', '#b6e4ed', 0.8);
+        } else if (kind === 'park-boundary') {
+          entity.polygon.material = color('#9dbb80', '#9dbb80', 0.035);
+          entity.polygon.outlineColor = color('#e3e7c7', '#e3e7c7', 0.92);
+          entity.polygon.outline = true;
+        } else if (kind === 'amenity') {
+          entity.polygon.material = color('#f2d18b', '#f2d18b', 0.85);
+        } else {
+          entity.polygon.material = color('#b8c5ae', '#b8c5ae', 0.32);
+        }
+      }
+      if (entity.polyline) {
+        entity.polyline.clampToGround = true;
+        entity.polyline.width = kind === 'path' ? 3.2 : 2;
+        entity.polyline.material = color('#e7d9b6', '#e7d9b6', 0.9);
+      }
+      if (entity.position && !entity.polygon && !entity.polyline) {
+        entity.point = new Cesium.PointGraphics({
+          pixelSize: 5,
+          color: color('#e6d7a5', '#e6d7a5', 0.9),
+          outlineColor: Cesium.Color.fromCssColorString('#42533f'),
+          outlineWidth: 1
+        });
+      }
+    }
+    if (!state.campus) await loadCampusDirectory();
+    const markerEntities = new Map();
+    (state.campus?.buildings || []).forEach((building) => {
+      if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
+      const marker = viewer.entities.add({
+        id: `campus-directory-${building.number}`,
+        position: Cesium.Cartesian3.fromDegrees(building.longitude, building.latitude, 14),
+        point: {
+          pixelSize: 12,
+          color: Cesium.Color.fromCssColorString('#e4bd62'),
+          outlineColor: Cesium.Color.fromCssColorString('#233a2d'),
+          outlineWidth: 2,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        label: {
+          text: `Корпус ${building.number}`,
+          font: '600 13px sans-serif',
+          fillColor: Cesium.Color.WHITE,
+          outlineColor: Cesium.Color.fromCssColorString('#26372b'),
+          outlineWidth: 3,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          pixelOffset: new Cesium.Cartesian2(0, -20),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 7000)
+        },
+        properties: { campusBuildingNumber: String(building.number) }
+      });
+      markerEntities.set(String(building.number), marker);
+    });
+    viewer.screenSpaceEventHandler.setInputAction((movement) => {
+      const picked = viewer.scene.pick(movement.position);
+      const pickedEntity = picked?.id;
+      const number = getCampusCesiumProperty(pickedEntity, 'campusBuildingNumber', Cesium);
+      if (number != null) selectCampusBuilding(String(number), { openPopup: false });
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    return { count: scene.features.length, buildings: scene.metadata?.counts?.building || 0, markers: markerEntities.size };
   }
   async function openCampusPhotorealisticMap() {
     const status = $('#campus-online-status');
     const panel = $('#campus-online-panel');
     const mapHost = $('#campus-cesium-map');
+    const sourceLabel = $('#campus-map-source-label');
     if (!panel || !mapHost) return;
     setCampusMapMode('cesium');
     const apiKey = getCampusPhotorealisticApiKey();
-    if (!apiKey) {
-      status.textContent = 'Фотореалистичный режим Cesium подготовлен, но ключ ещё не подключён. Для точной 3D-сцены требуется Google Maps Platform API key с разрешением Map Tiles API и HTTP-referrer ограничением. Локальная 3D-карта остаётся доступна.';
-      return false;
-    }
-    status.textContent = 'Загружаем CesiumJS и проверяем доступность фотограмметрической 3D-сцены…';
+    status.textContent = 'Загружаем CesiumJS и геометрию кампуса…';
     let viewer = null;
     try {
       const Cesium = await loadCampusCesiumLibrary();
@@ -714,36 +836,55 @@
       viewer.scene.globe.show = false;
       viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#dce6dc');
       viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
+      viewer.scene.screenSpaceCameraController.minimumZoomDistance = 25;
       viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 900),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-38), roll: 0 }
+        destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 1450),
+        orientation: { heading: Cesium.Math.toRadians(-15), pitch: Cesium.Math.toRadians(-43), roll: 0 }
       });
-      const rootUrl = `https://tile.googleapis.com/v1/3dtiles/root.json?key=${encodeURIComponent(apiKey)}`;
-      const tileset = await Cesium.Cesium3DTileset.fromUrl(rootUrl, {
-        showCreditsOnScreen: true,
-        maximumScreenSpaceError: 2
-      });
-      viewer.scene.primitives.add(tileset);
       campusCesiumViewer = viewer;
-      campusCesiumTileset = tileset;
+      const local = await addCampusCesiumLocalScene(Cesium, viewer, Boolean(apiKey));
+      if (apiKey) {
+        status.textContent = 'Геометрия кампуса загружена. Запрашиваем фотограмметрическую подложку Google…';
+        try {
+          const rootUrl = `https://tile.googleapis.com/v1/3dtiles/root.json?key=${encodeURIComponent(apiKey)}`;
+          const tileset = await Cesium.Cesium3DTileset.fromUrl(rootUrl, {
+            showCreditsOnScreen: true,
+            maximumScreenSpaceError: 2,
+            dynamicScreenSpaceError: true,
+            dynamicScreenSpaceErrorFactor: 4
+          });
+          viewer.scene.primitives.add(tileset);
+          campusCesiumTileset = tileset;
+          tileset.tileFailed.addEventListener((error) => {
+            console.warn('Photorealistic tile failed:', error);
+            status.textContent = 'Часть фотограмметрических тайлов не загрузилась. Проверь покрытие, billing и разрешения Map Tiles API.';
+          });
+          status.textContent = `Cesium: фотограмметрическая подложка подключена; поверх неё нанесены ${local.buildings} контуров зданий и ${local.markers} маркеров справочника. Покрытие кампуса зависит от доступности Google 3D Tiles.`;
+          if (sourceLabel) sourceLabel.textContent = 'CESIUM · GOOGLE PHOTOREALISTIC 3D + OSM OVERLAY';
+        } catch (tileError) {
+          console.warn('Google Photorealistic 3D Tiles unavailable:', tileError);
+          status.textContent = `Google 3D Tiles недоступны: ${tileError.message}. Показывается локальная 3D-геометрия кампуса из OpenStreetMap.`;
+          if (sourceLabel) sourceLabel.textContent = 'CESIUM · ЛОКАЛЬНАЯ 3D-ГЕОМЕТРИЯ OSM';
+        }
+      } else {
+        status.textContent = `Локальная 3D-сцена загружена: ${local.buildings} зданий, дорожки, зелёные зоны, водоёмы и ${local.markers} маркера корпусов. Фотореалистичная подложка Google не подключена: требуется API key.`;
+        if (sourceLabel) sourceLabel.textContent = 'CESIUM · ЛОКАЛЬНАЯ 3D-ГЕОМЕТРИЯ OSM';
+      }
       viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 720),
-        orientation: { heading: Cesium.Math.toRadians(-15), pitch: Cesium.Math.toRadians(-42), roll: 0 },
-        duration: 1.1
+        destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 1050),
+        orientation: { heading: Cesium.Math.toRadians(-15), pitch: Cesium.Math.toRadians(-48), roll: 0 },
+        duration: 0.9
       });
-      const requestStatus = tileset.initialTilesLoaded ? 'первый набор тайлов загружен' : 'ожидается загрузка 3D-тайлов';
-      status.textContent = `CesiumJS запущен: ${requestStatus}. Наличие зданий именно в этом районе зависит от покрытия Google Photorealistic 3D Tiles.`;
-      tileset.tileFailed.addEventListener((error) => {
-        console.warn('Photorealistic tile failed:', error);
-        status.textContent = 'Некоторые 3D-тайлы не загрузились. Проверь покрытие, billing, разрешения Map Tiles API и ограничения ключа.';
-      });
+      viewer.scene.requestRender();
       return true;
     } catch (error) {
-      console.warn('Campus photorealistic 3D failed:', error);
+      console.warn('Campus Cesium scene failed:', error);
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
       campusCesiumViewer = null;
       campusCesiumTileset = null;
-      status.textContent = `Не удалось открыть фотореалистичные 3D Tiles: ${error.message}. Проверь API key, billing, включённый Map Tiles API и покрытие кампуса. Автономная 3D-карта остаётся доступна.`;
+      campusCesiumDataSource = null;
+      status.textContent = `Не удалось загрузить 3D-сцену кампуса: ${error.message}. Переключись на автономную 3D-карту или проверь подключение.`;
+      if (sourceLabel) sourceLabel.textContent = '3D-СЦЕНА НЕДОСТУПНА · ДОСТУПНА ОФЛАЙН-КАРТА';
       return false;
     }
   }
@@ -1382,6 +1523,12 @@ function setCampusSatelliteVisible(visible) {
     const mapMarker = campusMapMarkers.get(selected);
     if (building && campusMapMode === 'yandex' && campusYandexMap) {
       campusYandexMap.setCenter([building.latitude, building.longitude], Math.max(campusYandexMap.getZoom(), 17), { duration: 350 });
+    } else if (building && campusCesiumViewer && !campusCesiumViewer.isDestroyed()) {
+      campusCesiumViewer.camera.flyTo({
+        destination: window.Cesium.Cartesian3.fromDegrees(building.longitude, building.latitude, 260),
+        orientation: { heading: window.Cesium.Math.toRadians(-12), pitch: window.Cesium.Math.toRadians(-42), roll: 0 },
+        duration: 0.7
+      });
     } else if (building && campusOnlineMap && mapMarker) {
       campusOnlineMap.flyTo({ center: [building.longitude, building.latitude], zoom: Math.max(campusOnlineMap.getZoom(), 16), duration: 450 });
       if (building.osm?.id != null) {
