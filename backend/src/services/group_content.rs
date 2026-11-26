@@ -266,39 +266,66 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("🗄 Экзамен #{id} архивирован."),Ok(_)=>"Экзамен не найден.".into(),Err(_)=>"Ошибка удаления экзамена.".into() })
         }
         "/events" => {
-            let rows=sqlx::query_as::<_,(i64,String,DateTime<Utc>,Option<String>,i64)>(
-                "SELECT e.id,e.title,e.starts_at,e.location,(SELECT count(*) FROM bot_event_participants p WHERE p.chat_id=e.chat_id AND p.event_id=e.id AND p.response='going') FROM bot_events e WHERE e.chat_id=$1 AND e.status='active' AND e.starts_at>now()-interval '1 day' ORDER BY e.starts_at LIMIT 30"
+            let rows=sqlx::query_as::<_,(i64,String,DateTime<Utc>,Option<String>,Option<String>,Option<i32>,bool,i64,i64)>(
+                "SELECT e.id,e.title,e.starts_at,e.location,e.description,e.capacity,e.waitlist_enabled,(SELECT count(*) FROM bot_event_participants p WHERE p.chat_id=e.chat_id AND p.event_id=e.id AND p.response='going'),(SELECT count(*) FROM bot_event_participants p WHERE p.chat_id=e.chat_id AND p.event_id=e.id AND p.response='waitlist') FROM bot_events e WHERE e.chat_id=$1 AND e.status='active' AND e.starts_at>now()-interval '1 day' ORDER BY e.starts_at LIMIT 30"
             ).bind(chat_id).fetch_all(db).await.unwrap_or_default();
-            if rows.is_empty() { return Some("🎉 Мероприятий пока нет. Добавить: /add_event Название | ДД.ММ.ГГГГ ЧЧ:ММ | место".into()); }
+            if rows.is_empty() { return Some("🎉 Мероприятий пока нет. Добавить: /add_event Название | ДД.ММ.ГГГГ ЧЧ:ММ | место | описание".into()); }
             let mut out=String::from("🎉 МЕРОПРИЯТИЯ\n\n");
-            for (id,title,at,location,count) in rows { out.push_str(&format!("#{id} · {title}\n🕒 {} МСК\n📍 {}\n👥 {count} записались\n/join_event {id} · /leave_event {id}\n\n",at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),location.unwrap_or_else(||"Место уточняется".into()))); }
+            for (id,title,at,location,description,capacity,waitlist_enabled,going,waiting) in rows {
+                let capacity_text=capacity.map(|limit|format!("{going}/{limit} мест занято")).unwrap_or_else(||format!("{going} записались"));
+                let queue_text=if waitlist_enabled {format!(" · очередь: {waiting}")} else {" · очередь отключена".into()};
+                let mut item=format!("#{id} · {title}\n🕒 {} МСК\n📍 {}\n👥 {capacity_text}{queue_text}\n",at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),location.unwrap_or_else(||"Место уточняется".into()));
+                if let Some(description)=description.filter(|v|!v.trim().is_empty()) {
+                    let short:String=description.trim().chars().take(220).collect();
+                    item.push_str(&format!("ℹ️ {short}\n"));
+                }
+                item.push_str(&format!("/join_event {id} · /leave_event {id}\n\n"));
+                let remaining=3800usize.saturating_sub(out.chars().count());
+                if remaining==0 { break; }
+                out.extend(item.chars().take(remaining));
+                if out.chars().count()>=3800 { break; }
+            }
             Some(out)
         }
         "/add_event" => {
-            let p:Vec<_>=argument.splitn(3,'|').map(str::trim).collect();
-            if p.len()<2 || p[0].is_empty() { return Some("Формат: /add_event Название | ДД.ММ.ГГГГ ЧЧ:ММ | место".into()); }
+            let p:Vec<_>=argument.splitn(4,'|').map(str::trim).collect();
+            if p.len()<2 || p[0].is_empty() { return Some("Формат: /add_event Название | ДД.ММ.ГГГГ ЧЧ:ММ | место | описание".into()); }
             let Some(at)=parse_moscow_datetime(p[1]) else { return Some("Дата: завтра 18:00 или 20.12.2026 18:00".into()); };
-            let id:Option<i64>=sqlx::query_scalar("WITH n AS (UPDATE bot_chat_settings SET event_next_id=event_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING event_next_id-1) INSERT INTO bot_events(chat_id,id,title,starts_at,location,created_by) SELECT $1,n.event_next_id-1,$2,$3,$4,$5 FROM n RETURNING id")
-                .bind(chat_id).bind(p[0]).bind(at).bind(p.get(2).copied()).bind(actor).fetch_optional(db).await.ok().flatten();
+            let field=|index:usize|p.get(index).copied().filter(|v|!v.is_empty()&&*v!="-");
+            let id:Option<i64>=sqlx::query_scalar("WITH n AS (UPDATE bot_chat_settings SET event_next_id=event_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING event_next_id-1) INSERT INTO bot_events(chat_id,id,title,starts_at,location,description,created_by) SELECT $1,n.event_next_id-1,$2,$3,$4,$5,$6 FROM n RETURNING id")
+                .bind(chat_id).bind(p[0]).bind(at).bind(field(2)).bind(field(3)).bind(actor).fetch_optional(db).await.ok().flatten();
             Some(id.map(|v|format!("✅ Мероприятие #{v} создано. Запись: /join_event {v}")).unwrap_or_else(||"Не удалось создать мероприятие.".into()))
         }
         "/edit_event" => {
-            let p:Vec<_>=argument.splitn(4,'|').map(str::trim).collect();
-            if p.len()<3 { return Some("Формат: /edit_event ID | название | дата время | место".into()); }
+            let p:Vec<_>=argument.splitn(5,'|').map(str::trim).collect();
+            if p.len()<3 || p[1].is_empty() { return Some("Формат: /edit_event ID | название | дата время | место | описание".into()); }
             let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
+            if id<=0 { return Some("Некорректный ID.".into()); }
             let Some(at)=parse_moscow_datetime(p[2]) else { return Some("Дата: 20.12.2026 18:00".into()); };
-            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist')")
-                .bind(chat_id).bind(id).fetch_all(db).await.unwrap_or_default();
-            let result=sqlx::query("UPDATE bot_events SET title=$3,starts_at=$4,location=$5,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).bind(p[1]).bind(at).bind(p.get(3).copied()).execute(db).await;
-            match result {
-                Ok(r) if r.rows_affected()==1 => {
-                    let notice=format!("✏️ Мероприятие #{id} обновлено: {}\n🕒 {} МСК\n📍 {}",p[1],at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),p.get(3).copied().unwrap_or("место уточняется"));
-                    for user in recipients { if let Err(error)=bot.send_message(ChatId(user),notice.clone()).await { tracing::debug!("Could not notify event participant {}: {}",user,error); } }
-                    Some(format!("✏️ Мероприятие #{id} обновлено. Участники уведомлены в личных сообщениях."))
-                },
-                Ok(_) => Some("Мероприятие не найдено.".into()),
-                Err(_) => Some("Ошибка обновления мероприятия.".into())
+            let mut tx=match db.begin().await {
+                Ok(tx)=>tx,
+                Err(_)=>return Some("Не удалось начать изменение мероприятия.".into()),
+            };
+            let recipients=match sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist') FOR UPDATE")
+                .bind(chat_id).bind(id).fetch_all(&mut *tx).await {
+                Ok(users)=>users,
+                Err(_)=>{let _=tx.rollback().await;return Some("Не удалось получить участников мероприятия.".into());}
+            };
+            let field=|index:usize|p.get(index).copied();
+            let updated=sqlx::query("UPDATE bot_events SET title=$3,starts_at=$4,location=CASE WHEN $5::text IS NULL THEN location WHEN $5='-' THEN NULL ELSE NULLIF($5,'') END,description=CASE WHEN $6::text IS NULL THEN description WHEN $6='-' THEN NULL ELSE NULLIF($6,'') END,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
+                .bind(chat_id).bind(id).bind(p[1]).bind(at).bind(field(3)).bind(field(4)).execute(&mut *tx).await;
+            if !matches!(updated,Ok(ref result) if result.rows_affected()==1) {
+                let _=tx.rollback().await;
+                return Some("Мероприятие не найдено или не удалось его обновить.".into());
             }
+            if tx.commit().await.is_err() {
+                return Some("Не удалось сохранить изменение мероприятия.".into());
+            }
+            let location=p.get(3).copied().filter(|v|*v!="-").unwrap_or("место уточняется");
+            let description=p.get(4).copied().filter(|v|*v!="-").unwrap_or("");
+            let notice=format!("✏️ Мероприятие #{id} обновлено: {}\n🕒 {} МСК\n📍 {}{}",p[1],at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),location,if description.is_empty(){"".into()}else{format!("\nℹ️ {description}")});
+            for user in recipients { if let Err(error)=bot.send_message(ChatId(user),notice.clone()).await { tracing::debug!("Could not notify event participant {}: {}",user,error); } }
+            Some(format!("✏️ Мероприятие #{id} обновлено. Участники уведомлены в личных сообщениях."))
         }
         "/cancel_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /cancel_event ID".into()); };
