@@ -8,10 +8,10 @@
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="./favicon.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./miniapp/styles.css?v=20261127-13" />
+    <link rel="stylesheet" href="./miniapp/styles.css?v=20261127-14" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="./miniapp/campus-map-config.js?v=20261127-13"></script>
-    <script defer src="./miniapp/app.js?v=20261127-13"></script>
+    <script defer src="./miniapp/campus-map-config.js?v=20261127-14"></script>
+    <script defer src="./miniapp/app.js?v=20261127-14"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -118,13 +118,23 @@
           <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта университета ↗</a>
         </div>
         <div id="campus-online-panel" class="campus-online-panel" hidden>
-          <div class="campus-online-head"><span>ТЕРРИТОРИЯ ПАРКА · ЛОКАЛЬНЫЕ ДАННЫЕ OSM</span></div>
+          <div class="campus-online-head"><span id="campus-map-source-label">ТЕРРИТОРИЯ ПАРКА · ЛОКАЛЬНЫЕ ДАННЫЕ OSM</span><button type="button" id="campus-cesium-expand" hidden aria-pressed="false">На весь экран</button></div>
           <div class="campus-map-switch" role="group" aria-label="Источник карты">
-            <button type="button" id="campus-mode-osm" aria-pressed="true">Автономный 3D-парк</button>
+            <button type="button" id="campus-mode-osm" aria-pressed="true">3D-парк</button>
             <button type="button" id="campus-mode-yandex" aria-pressed="false">Спутник Яндекса</button>
+            <button type="button" id="campus-mode-photorealistic" aria-pressed="false">3D-парк + кроны</button>
+            <button type="button" id="campus-mode-2gis" aria-pressed="false">3D 2ГИС</button>
+          </div>
+          <div class="campus-map-switch campus-basemap-switch" role="group" aria-label="Подложка 3D-карты">
+            <button type="button" id="campus-basemap-osm" aria-pressed="true">Схема</button>
+            <button type="button" id="campus-basemap-satellite" aria-pressed="false">Спутник</button>
           </div>
           <div id="campus-online-map" class="campus-online-map"></div>
           <div id="campus-yandex-map" class="campus-online-map campus-yandex-map" hidden></div>
+          <div id="campus-cesium-map" class="campus-online-map campus-cesium-map" hidden aria-label="Автономная трёхмерная карта кампуса"></div>
+          <div id="campus-2gis-map" class="campus-online-map campus-2gis-map" hidden aria-label="Трёхмерная карта 2ГИС"></div>
+          <div id="campus-cesium-credits" class="campus-cesium-credits" aria-live="polite"></div>
+          <div class="campus-cesium-attribution">Геометрия кампуса: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · ODbL 1.0</div>
           <div class="campus-map-footer">
             <p id="campus-online-status" class="campus-online-status" role="status" aria-live="polite">Загрузка карты и зданий…</p>
             <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта ↗</a>
@@ -132,7 +142,7 @@
           </div>
         </div>
       </section>
-      <p class="campus-plan-note">Карта ограничена контуром парка Лесотехнической академии и построена на сохранённых данных <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap · ODbL</a>: граница, лесные массивы, дорожки, водоёмы и здания. Лесная текстура иллюстративная, не спутниковый снимок; кроны и высоты зданий без данных в OSM показаны условно.</p>
+      <p class="campus-plan-note">Контуры, дорожки и атрибуты взяты из <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap · ODbL</a>. Объём показывается только при наличии высоты или оценке по этажности; здания без сведений о высоте остаются контурами. Спутниковая подложка показывает поверхность и крыши, но не восстанавливает фасады. Нажми на здание, чтобы открыть доступные сведения и источники; у главного корпуса есть фото, историческая справка и ссылка на панораму Яндекса. Фото в карточке не используется как текстура фасада.</p>
       <label class="search-box campus-search-box"><span>⌕</span><input id="campus-search" type="search" placeholder="Найти корпус, кафедру или кабинет…" autocomplete="off" /></label>
       <div class="campus-buildings" id="campus-buildings"><p class="campus-empty">Справочник корпусов будет загружен…</p></div>
     </dialog>
