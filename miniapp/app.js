@@ -859,7 +859,10 @@
       });
       campusCesiumViewer = viewer;
       const local = await addCampusCesiumLocalScene(Cesium, viewer, false);
-      status.textContent = `Автономная 3D-сцена загружена: ${local.buildings} зданий, ${local.supplemental} дополнительных OSM-объектов, дорожки, зелёные зоны, водоёмы и ${local.markers} маркера корпусов. Внешние картографические ключи не используются.`;
+      const sceneResponse = await fetch(new URL('../data/campus-park-scene.json', APP_SCRIPT_URL).href, { cache: 'force-cache' });
+      const sceneForTrees = sceneResponse.ok ? await sceneResponse.json() : { features: [] };
+      const treeCount = addCampusTreeEntities(Cesium, viewer, sceneForTrees);
+      status.textContent = `3D-сцена загружена: ${local.buildings} зданий (объём по доступным данным), ${treeCount} отдельных деревьев с кронами, дорожки, зелёные зоны и водоёмы. Фасадная фотограмметрия для территории пока не подключена.`;
       if (sourceLabel) sourceLabel.textContent = 'CESIUM · OPEN DATA · LOCAL 3D CAMPUS';
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 1050),
