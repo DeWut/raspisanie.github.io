@@ -639,6 +639,8 @@
   let campusCesiumLibraryPromise = null;
   let campusCesiumOpenAttempted = false;
   let campusYandexApiPromise = null;
+  let campusDgisMap = null;
+  let campusDgisApiPromise = null;
   const YANDEX_MAPS_API_KEY = typeof window.CAMPUS_MAP_CONFIG?.yandexMapsApiKey === 'string' ? window.CAMPUS_MAP_CONFIG.yandexMapsApiKey.trim() : '';
   const CAMPUS_PARK_BOUNDS = [[30.3304887, 59.9899431], [30.3542134, 59.9975551]];
   const campusMapMarkers = new Map();
@@ -900,7 +902,7 @@
     function setCampusMapMode(mode) {
     campusMapMode = mode;
     if (mode !== 'online') setCampusSatelliteVisible(false);
-    const online = ['online', 'yandex', 'cesium'].includes(mode);
+    const online = ['online', 'yandex', 'cesium', 'dgis'].includes(mode);
     const panel = $('#campus-online-panel');
     const offlinePanel = $('#campus-offline-panel');
     if (!panel || !offlinePanel) return;
@@ -909,9 +911,11 @@
     $('#campus-mode-osm')?.setAttribute('aria-pressed', String(mode === 'online'));
     $('#campus-mode-yandex')?.setAttribute('aria-pressed', String(mode === 'yandex'));
     $('#campus-mode-photorealistic')?.setAttribute('aria-pressed', String(mode === 'cesium'));
+    $('#campus-mode-2gis')?.setAttribute('aria-pressed', String(mode === 'dgis'));
     const mapLibreHost = $('#campus-online-map');
     const yandexHost = $('#campus-yandex-map');
     const cesiumHost = $('#campus-cesium-map');
+    const dgisHost = $('#campus-2gis-map');
     const expandButton = $('#campus-cesium-expand');
     if (expandButton) expandButton.hidden = mode !== 'cesium';
     if (mode !== 'cesium') {
@@ -924,7 +928,9 @@
     if (mapLibreHost) mapLibreHost.hidden = mode !== 'online';
     if (yandexHost) yandexHost.hidden = mode !== 'yandex';
     if (cesiumHost) cesiumHost.hidden = mode !== 'cesium';
+    if (dgisHost) dgisHost.hidden = mode !== 'dgis';
     if (mode === 'yandex') campusYandexMap?.container.fitToViewport();
+    if (mode === 'dgis' && campusDgisMap) requestAnimationFrame(() => campusDgisMap.invalidateSize?.());
     if (mode === 'online' && campusOnlineMap) {
       requestAnimationFrame(() => {
         campusOnlineMap?.resize();
@@ -958,6 +964,44 @@ function setCampusSatelliteVisible(visible) {
     $('#campus-basemap-osm')?.setAttribute('aria-pressed', String(!satellite));
     $('#campus-basemap-satellite')?.setAttribute('aria-pressed', String(satellite));
     setCampusSatelliteVisible(satellite);
+  }
+  function loadCampus2GisApi() {
+    if (window.mapgl?.Map) return Promise.resolve(window.mapgl);
+    if (campusDgisApiPromise) return campusDgisApiPromise;
+    campusDgisApiPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://mapgl.2gis.com/api/js/v1';
+      script.async = true;
+      script.onload = () => window.mapgl?.Map ? resolve(window.mapgl) : reject(new Error('2ГИС MapGL не инициализировался'));
+      script.onerror = () => reject(new Error('Не удалось загрузить 2ГИС MapGL'));
+      document.head.appendChild(script);
+    }).catch((error) => { campusDgisApiPromise = null; throw error; });
+    return campusDgisApiPromise;
+  }
+  async function openCampus2GisMap() {
+    const status = $('#campus-online-status');
+    const key = String(window.CAMPUS_MAP_CONFIG?.dgisMapGlApiKey || '').trim();
+    if (!key) { status.textContent = 'Не задан ключ 2ГИС MapGL.'; return; }
+    if (!state.campus) await loadCampusDirectory();
+    setCampusMapMode('dgis');
+    if (campusDgisMap) return;
+    status.textContent = 'Загружаем 3D-карту 2ГИС…';
+    try {
+      const mapgl = await loadCampus2GisApi();
+      if (!$('#map-dialog')?.open) return;
+      campusDgisMap = new mapgl.Map('campus-2gis-map', { key: key, center: [30.34235, 59.99375], zoom: 16, pitch: 55, rotation: -18, lang: 'ru' });
+      let count = 0;
+      (state.campus?.buildings || []).forEach((building) => {
+        if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
+        new mapgl.Marker(campusDgisMap, { coordinates: [building.longitude, building.latitude] });
+        count += 1;
+      });
+      status.textContent = '3D-карта 2ГИС загружена. Добавлено маркеров корпусов: ' + count + '.';
+    } catch (error) {
+      console.warn('2GIS MapGL failed:', error);
+      status.textContent = 'Не удалось открыть 2ГИС: ' + error.message + '. Проверь доступность Map Tiles API для демо-ключа.';
+      setCampusMapMode('offline');
+    }
   }
   function loadCampusYandexApi() {
     if (!YANDEX_MAPS_API_KEY) return Promise.reject(new Error('Для спутникового режима Яндекса нужен отдельный ключ JavaScript API в miniapp/campus-map-config.js'));
@@ -1746,6 +1790,7 @@ function setCampusSatelliteVisible(visible) {
     $('#campus-basemap-osm')?.addEventListener('click', () => setCampusBasemap('osm'));
     $('#campus-basemap-satellite')?.addEventListener('click', () => setCampusBasemap('satellite'));
     $('#campus-mode-yandex')?.addEventListener('click', openCampusYandexMap);
+    $('#campus-mode-2gis')?.addEventListener('click', openCampus2GisMap);
     $('#campus-fit-buildings')?.addEventListener('click', () => campusMapMode === 'yandex' ? fitCampusYandexMap() : fitCampusMapToBuildings());
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
