@@ -370,3 +370,258 @@ button { font-family: inherit; }
 @media (prefers-reduced-motion:no-preference) {
   .utility-dialog { scroll-behavior:smooth; }
 }
+
+/* Campus directory stays available from the local data cache. */
+.campus-plan-note { margin:8px 3px 12px; color:var(--muted); font-size:10px; line-height:1.55; }
+.campus-plan-note a { color:var(--forest); font-weight:800; }
+.campus-search-box { margin-bottom:10px; }
+.campus-buildings { display:grid; gap:9px; }
+.campus-building-card { padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--surface,#fff); cursor:pointer; transition:border-color .2s,transform .2s; }
+.campus-building-card.selected { border-color:var(--forest); box-shadow:0 0 0 2px color-mix(in srgb,var(--forest) 16%,transparent); transform:translateY(-1px); }
+.campus-building-head { display:grid; grid-template-columns:36px 1fr; gap:9px; align-items:start; margin-bottom:8px; }
+.campus-building-number { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:var(--lime-soft); color:var(--forest); font-size:15px; font-weight:900; }
+.campus-building-head h3 { margin:0; color:var(--ink); font-size:12px; line-height:1.35; }
+.campus-building-head p { margin:4px 0 0; color:var(--muted); font-size:9px; line-height:1.4; }
+.campus-building-card ul { display:grid; gap:0; padding:0; margin:0; list-style:none; }
+.campus-building-card li { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-top:1px solid var(--line); color:var(--ink); font-size:9px; line-height:1.35; }
+.campus-building-card li strong { flex:0 0 auto; color:var(--forest); text-align:right; }
+.campus-building-card li.campus-no-match,.campus-empty { color:var(--muted); }
+.campus-empty { padding:12px; font-size:10px; line-height:1.5; }
+/* Connection state remains visible without obscuring the timetable. */
+.connectivity-note {
+  margin: 0 18px 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+.connectivity-note[hidden] { display: none !important; }
+
+/* Campus map with an honest offline directory fallback. */
+.map-dialog { width:min(760px,calc(100vw - 22px)); max-height:calc(100dvh - 28px); padding:16px; }
+.campus-explorer { margin:0 0 12px; }
+.campus-offline-panel { display:grid; gap:9px; padding:18px; border:1px solid var(--line); border-radius:18px; background:var(--surface,#fff); }
+.campus-offline-panel[hidden] { display:none !important; }
+.campus-offline-kicker { color:var(--forest); font-size:9px; font-weight:850; letter-spacing:.12em; }
+.campus-offline-panel h3 { margin:0; color:var(--ink); font-size:18px; }
+.campus-offline-panel p { margin:0; color:var(--muted); font-size:11px; line-height:1.55; }
+.campus-offline-panel button,.campus-map-footer button { justify-self:start; min-height:38px; border:0; border-radius:11px; padding:0 14px; background:var(--forest); color:#fff; font-size:11px; font-weight:800; }
+.campus-offline-panel button:disabled,.campus-map-footer button:disabled { opacity:.55; cursor:wait; }
+.campus-official-link { color:var(--forest); font-size:10px; font-weight:800; text-decoration:none; }
+.campus-official-link:hover { text-decoration:underline; }
+.campus-online-panel { overflow:hidden; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); }
+.campus-online-panel[hidden] { display:none !important; }
+.campus-online-head { padding:11px 13px; color:var(--muted); font-size:9px; font-weight:850; letter-spacing:.08em; }
+.campus-map-switch { display:flex; gap:7px; padding:0 12px 9px; }
+.campus-map-switch button { min-height:34px; border:1px solid var(--line); border-radius:10px; padding:0 12px; background:var(--surface,#fff); color:var(--ink); font-size:10px; font-weight:800; cursor:pointer; }
+.campus-map-switch button[aria-pressed="true"] { border-color:var(--forest); background:var(--forest); color:#fff; }
+.campus-map-switch button:focus-visible { outline:3px solid #b8d77f; outline-offset:2px; }
+.campus-online-map { height:clamp(360px,56vh,580px); background:#dbe5d9; }
+.campus-online-map[hidden] { display:none !important; }
+.campus-yandex-map { background:#e8e8e4; }
+.campus-map-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 12px; }
+.campus-online-status { margin:0; color:var(--muted); font-size:10px; line-height:1.45; }
+.campus-map-footer button { flex:0 0 auto; }
+.campus-map-marker { display:grid; place-items:center; width:34px; height:34px; padding:0; appearance:none; border:2px solid #f2f7ed; border-radius:50% 50% 50% 4px; transform:rotate(-45deg); background:#246a48; color:#fff; box-shadow:0 2px 9px rgba(0,0,0,.35); font:800 12px/1 system-ui,sans-serif; cursor:pointer; }
+.campus-map-marker span { transform:rotate(45deg); }
+.campus-map-marker:focus-visible { outline:3px solid #d9f5a3; outline-offset:3px; }
+.campus-map-area-label { max-width:130px; color:#3e6950; font:italic 700 10px/1.25 system-ui,sans-serif; text-align:center; text-shadow:0 1px 0 #f4f0dc,1px 0 0 #f4f0dc,-1px 0 0 #f4f0dc,0 -1px 0 #f4f0dc; pointer-events:none; }
+.campus-map-popup-facts { margin-top:4px; color:#5b665d; font-size:12px; line-height:1.4; }
+.maplibregl-popup-content { color:#183b29; font:12px/1.45 system-ui,sans-serif; }
+.campus-map-building-popup { display:grid; gap:7px; width:min(285px,65vw); color:#183b29; }
+.campus-map-building-photo { display:grid; gap:5px; margin:0; }
+.campus-map-building-photo img { display:block; width:100%; max-height:155px; border-radius:9px; object-fit:cover; }
+.campus-map-building-photo figcaption { color:#66736a; font-size:9px; line-height:1.35; }
+.campus-map-building-photo figcaption a,.campus-map-building-links a { color:#246a48; font-weight:750; text-decoration:none; }
+.campus-map-building-photo figcaption a:hover,.campus-map-building-links a:hover { text-decoration:underline; }
+.campus-map-building-title { color:#173d2e; font-size:14px; line-height:1.25; }
+.campus-map-building-address { color:#58675c; font-size:10px; }
+.campus-map-building-description { margin:0; color:#3e5044; font-size:10px; line-height:1.4; }
+.campus-map-building-facts { margin:0; color:#59685c; font-size:10px; line-height:1.45; }
+.campus-map-building-history { display:grid; gap:4px; padding:8px; border-radius:9px; background:#f0f5e8; color:#314c37; font-size:10px; line-height:1.4; }
+.campus-map-building-history > strong { font-size:10px; }
+.campus-map-building-history p { margin:0; }
+.campus-map-building-links { display:flex; flex-wrap:wrap; gap:5px 11px; font-size:10px; }
+@media(max-width:520px) {
+ .map-dialog { padding:12px; }
+ .campus-online-map { height:clamp(340px,56vh,520px); }
+ .campus-map-footer { align-items:stretch; flex-direction:column; }
+ .campus-map-footer button { justify-self:stretch; width:100%; }
+ .campus-map-switch button { flex:1; padding:0 7px; }
+}
+@media(prefers-reduced-motion:reduce) { .campus-building-card { transition:none; } }
+
+
+/* Campus map: keep map gestures and information scrolling in separate surfaces. */
+.map-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, calc(100vw - 16px));
+  height: min(94dvh, 900px);
+  max-height: calc(100dvh - 12px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.map-dialog > .dialog-head { flex: 0 0 auto; }
+.map-dialog > .campus-explorer {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+.map-dialog > .campus-plan-note {
+  flex: 0 0 auto;
+  max-height: 9dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.map-dialog > .campus-search-box { flex: 0 0 auto; }
+.map-dialog > .campus-buildings {
+  flex: 1 1 0;
+  min-height: 90px;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+}
+.campus-explorer { min-height: 0; }
+.campus-online-panel { overflow: hidden; }
+.campus-online-map {
+  height: clamp(270px, 42dvh, 450px);
+  min-height: 250px;
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.campus-map-switch + .campus-basemap-switch { padding-top: 0; }
+.campus-basemap-switch button { min-height: 30px; font-size: 9px; }
+.campus-map-footer { flex-wrap: wrap; }
+.maplibregl-popup-content {
+  max-height: min(42dvh, 340px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.campus-map-building-popup { max-height: inherit; }
+@media(max-width:520px) {
+  .map-dialog {
+    width: calc(100vw - 12px);
+    height: min(96dvh, 900px);
+    max-height: calc(100dvh - 12px);
+    padding: 10px;
+  }
+  .map-dialog > .campus-plan-note { max-height: 8dvh; margin-bottom: 7px; }
+  .map-dialog > .campus-buildings { min-height: 72px; }
+  .campus-online-map { height: clamp(220px, 35dvh, 360px); min-height: 210px; }
+  /* Keep a selected-building card inside the map viewport on phones. */
+  .maplibregl-popup-content { max-height: min(34dvh, 260px); }
+  .campus-map-building-photo img { max-height: 112px; }
+}
+
+.campus-cesium-map { height: clamp(300px, 48dvh, 520px); min-height: 260px; background:#dce6dc; touch-action:none; }
+.campus-cesium-map[hidden] { display:none !important; }
+.campus-cesium-credits { min-height:0; max-height:52px; overflow:auto; padding:0 10px 5px; font-size:9px; color:var(--muted); }
+.campus-cesium-credits:empty { display:none; }
+.cesium-viewer-bottom { bottom:4px !important; left:8px !important; }
+.cesium-widget-credits { font-size:9px !important; }
+@media(max-width:520px) { .campus-cesium-map { height:clamp(260px, 44dvh, 420px); min-height:240px; } }
+
+.campus-online-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.campus-cesium-expand, #campus-cesium-expand { border:1px solid var(--line); border-radius:8px; padding:6px 9px; background:var(--surface,#fff); color:var(--ink); font-size:10px; font-weight:750; }
+#campus-cesium-expand[hidden] { display:none; }
+.map-dialog.campus-map-expanded {
+  position:fixed;
+  inset:0;
+  margin:0;
+  width:100vw;
+  height:100dvh;
+  max-width:none;
+  max-height:100dvh;
+  border-radius:0;
+  padding:10px;
+}
+.map-dialog.campus-map-expanded .campus-cesium-map {
+  height:calc(100dvh - 245px);
+  min-height:320px;
+}
+@media(max-width:520px) {
+  .map-dialog.campus-map-expanded { padding:8px; }
+  .map-dialog.campus-map-expanded .campus-cesium-map { height:calc(100dvh - 230px); min-height:260px; }
+}
+
+.campus-cesium-attribution { padding:0 10px 7px; color:var(--muted); font-size:9px; line-height:1.35; }
+.campus-cesium-attribution a { color:var(--forest); font-weight:750; text-decoration:underline; }
+
+.campus-2gis-map { width: 100%; height: 100%; min-height: 440px; overflow: hidden; }
+
+
+/* Campus photorealism pass: tree canopies in the Cesium scene */
+.campus-cesium-map .cesium-widget,
+.campus-cesium-map .cesium-widget canvas { width:100%; height:100%; }
+.campus-cesium-map .cesium-viewer { overflow:hidden; }
+.campus-cesium-map .cesium-viewer-toolbar { top:8px; right:8px; }
+.campus-cesium-map .cesium-viewer-bottom { bottom:4px !important; left:8px !important; }
+.campus-cesium-map .cesium-widget-credits { font-size:8px !important; }
+.campus-map-switch { flex-wrap:wrap; }
+.campus-map-switch button { min-height:36px; }
+@media(max-width:520px) {
+  .campus-map-switch { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .campus-map-switch button { min-width:0; padding:0 6px; font-size:9px; }
+}
+
+
+/* Wikimedia / heritage popup: keep the full summary reachable on touch screens. */
+.maplibregl-popup {
+  max-width: min(340px, calc(100vw - 24px)) !important;
+}
+.maplibregl-popup-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: min(62dvh, 540px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 12px;
+}
+.campus-map-building-popup {
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 56px));
+  min-width: 0;
+  max-height: none;
+  overflow: visible;
+}
+.campus-map-building-photo img {
+  width: 100%;
+  max-height: min(24dvh, 190px);
+  object-fit: cover;
+}
+.campus-map-building-photo figcaption,
+.campus-map-building-history,
+.campus-map-building-links {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+@media (max-width: 520px) {
+  .maplibregl-popup {
+    max-width: calc(100vw - 20px) !important;
+  }
+  .maplibregl-popup-content {
+    max-height: min(56dvh, 480px);
+    padding: 10px;
+    touch-action: pan-y;
+  }
+  .campus-map-building-popup {
+    width: min(300px, calc(100vw - 48px));
+  }
+  .campus-map-building-photo img {
+    max-height: min(20dvh, 150px);
+  }
+}
