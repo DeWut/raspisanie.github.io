@@ -363,17 +363,39 @@ async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> Stri
     .unwrap_or_default();
 
     if rows.is_empty() {
-        return "📭 На этот период занятий не найдено.\nВозможно, расписание ещё загружается."
-            .into();
+        let message = match command {
+            "/today" | "📅 Сегодня" => {
+                "📭 *РАСПИСАНИЕ НА СЕГОДНЯ*\n\nНа сегодня занятий не найдено."
+            }
+            "/tomorrow" | "📅 Завтра" => {
+                "📭 *РАСПИСАНИЕ НА ЗАВТРА*\n\nНа завтра занятий не найдено."
+            }
+            "/next" | "⏭ Следующая пара" => {
+                "⏭ *СЛЕДУЮЩАЯ ПАРА*\n\nНа ближайшие 14 дней занятий не найдено."
+            }
+            "/week" | "🗓 Неделя" => {
+                "📭 *РАСПИСАНИЕ НА 7 ДНЕЙ*\n\nНа ближайшие семь дней занятий не найдено."
+            }
+            _ => "📭 *РАСПИСАНИЕ*\n\nНа выбранный период занятий не найдено.",
+        };
+        return format!("{}\nВозможно, расписание ещё не обновилось.", message);
     }
 
-    let selected = if command == "/next" || command == "⏭ Следующая пара" {
+    let is_next = command == "/next" || command == "⏭ Следующая пара";
+    let selected = if is_next {
         rows.into_iter().take(1).collect::<Vec<_>>()
     } else {
         rows
     };
 
-    let mut output = String::from("🎓 *РАСПИСАНИЕ*\n\n");
+    let heading = match command {
+        "/today" | "📅 Сегодня" => "📅 *РАСПИСАНИЕ НА СЕГОДНЯ*",
+        "/tomorrow" | "📅 Завтра" => "📅 *РАСПИСАНИЕ НА ЗАВТРА*",
+        "/next" | "⏭ Следующая пара" => "⏭ *СЛЕДУЮЩАЯ ПАРА*",
+        "/week" | "🗓 Неделя" => "🗓 *РАСПИСАНИЕ НА 7 ДНЕЙ*",
+        _ => "🎓 *РАСПИСАНИЕ*",
+    };
+    let mut output = format!("{}\n\n", heading);
 
     for (subject, start, end, room, teacher) in selected {
         output.push_str(&format!(
@@ -402,25 +424,25 @@ const INLINE_SCHEDULE_ACTIONS: [InlineScheduleAction; 4] = [
         id: "inline_today",
         command: Some("/today"),
         title: "📅 Расписание на сегодня",
-        description: "Показать занятия на сегодня",
+        description: "Все пары сегодня: время, аудитории и преподаватели",
     },
     InlineScheduleAction {
         id: "inline_tomorrow",
         command: Some("/tomorrow"),
         title: "📅 Расписание на завтра",
-        description: "Показать занятия на завтра",
+        description: "Все пары завтра: время, аудитории и преподаватели",
     },
     InlineScheduleAction {
         id: "inline_next",
         command: Some("/next"),
-        title: "⏭ Следующая пара",
-        description: "Найти ближайшее занятие",
+        title: "⏭ Следующая пара — ближайшее занятие",
+        description: "Ближайшая предстоящая пара: предмет, дата, время и аудитория",
     },
     InlineScheduleAction {
         id: "inline_week",
         command: Some("/week"),
         title: "🗓 Расписание на неделю",
-        description: "Показать занятия на ближайшие 7 дней",
+        description: "Все занятия с сегодняшнего дня на следующие 7 дней",
     },
 ];
 
@@ -436,8 +458,9 @@ fn inline_actions(query: &str) -> Vec<InlineScheduleAction> {
         "" => INLINE_SCHEDULE_ACTIONS.to_vec(),
         "today" | "сегодня" | "/today" => vec![INLINE_SCHEDULE_ACTIONS[0]],
         "tomorrow" | "завтра" | "/tomorrow" => vec![INLINE_SCHEDULE_ACTIONS[1]],
-        "next" | "пара" | "следующая" | "/next" => vec![INLINE_SCHEDULE_ACTIONS[2]],
-        "week" | "неделя" | "/week" => vec![INLINE_SCHEDULE_ACTIONS[3]],
+        "next" | "пара" | "следующая" | "следующая пара" | "ближайшая пара"
+        | "следующую" | "/next" => vec![INLINE_SCHEDULE_ACTIONS[2]],
+        "week" | "неделя" | "7 дней" | "/week" => vec![INLINE_SCHEDULE_ACTIONS[3]],
         "help" | "помощь" | "команды" | "?" => vec![INLINE_HELP_ACTION],
         _ => vec![INLINE_HELP_ACTION],
     }
@@ -1892,6 +1915,14 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn inline_search_understands_russian_schedule_queries() {
+        assert_eq!(inline_actions("следующая пара")[0].id, "inline_next");
+        assert_eq!(inline_actions("ближайшая пара")[0].id, "inline_next");
+        assert_eq!(inline_actions("7 дней")[0].id, "inline_week");
+        assert_eq!(inline_actions("завтра")[0].id, "inline_tomorrow");
+    }
+
     use super::*;
 
     #[test]
