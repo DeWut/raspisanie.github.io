@@ -635,7 +635,9 @@
   let campusMapMode = 'offline';
   let campusYandexApiPromise = null;
   const YANDEX_MAPS_API_KEY = '46171b6e-a2f6-4d81-8e7b-978252150eb7';
+  const CAMPUS_PARK_BOUNDS = [[30.3304887, 59.9899431], [30.3542134, 59.9975551]];
   const campusMapMarkers = new Map();
+  const campusSceneLabelMarkers = [];
   let campusMapLibraryPromise = null;
   function loadCampusMapLibrary() {
     if (window.maplibregl) return Promise.resolve(window.maplibregl);
@@ -644,12 +646,12 @@
       if (!document.querySelector('link[data-campus-maplibre]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css';
+        link.href = new URL('./vendor/maplibre-gl.css', APP_SCRIPT_URL).href;
         link.dataset.campusMaplibre = '1';
         document.head.appendChild(link);
       }
       const script = document.createElement('script');
-      script.src = 'https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js';
+      script.src = new URL('./vendor/maplibre-gl.js', APP_SCRIPT_URL).href;
       script.async = true;
       script.onload = () => window.maplibregl ? resolve(window.maplibregl) : reject(new Error('MapLibre не инициализировался'));
       script.onerror = () => reject(new Error('Не удалось загрузить библиотеку 3D-карты'));
@@ -696,13 +698,10 @@
     return campusYandexApiPromise;
   }
   function fitCampusYandexMap() {
-    if (!campusYandexMap || !state.campus?.buildings?.length) return;
-    const buildings = state.campus.buildings.filter((building) =>
-      Number.isFinite(building.longitude) && Number.isFinite(building.latitude));
-    if (!buildings.length) return;
+    if (!campusYandexMap) return;
     const bounds = [
-      [Math.min(...buildings.map((building) => building.latitude)), Math.min(...buildings.map((building) => building.longitude))],
-      [Math.max(...buildings.map((building) => building.latitude)), Math.max(...buildings.map((building) => building.longitude))]
+      [CAMPUS_PARK_BOUNDS[0][1], CAMPUS_PARK_BOUNDS[0][0]],
+      [CAMPUS_PARK_BOUNDS[1][1], CAMPUS_PARK_BOUNDS[1][0]]
     ];
     campusYandexMap.setBounds(bounds, { checkZoomRange: true, zoomMargin: 42 });
   }
@@ -780,51 +779,114 @@
       if (!duration) requestAnimationFrame(() => requestAnimationFrame(keepAllMarkersVisible));
     });
   }
-  function loadCampusTextureImage(map) {
-    const imageUrl = new URL('./assets/campus-main-facade-512.jpg', APP_SCRIPT_URL).href;
-    return fetch(imageUrl, { cache: 'force-cache' }).then(async (response) => {
-      if (!response.ok) throw new Error(`Текстура фасада: HTTP ${response.status}`);
-      const blob = await response.blob();
-      if (typeof createImageBitmap === 'function') return createImageBitmap(blob);
-      return new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject(new Error('Браузер не смог декодировать текстуру фасада'));
-        image.src = URL.createObjectURL(blob);
+  function fitCampusMapToPark(duration = 450) {
+    if (!campusOnlineMap || !window.maplibregl) return;
+    requestAnimationFrame(() => {
+      if (!campusOnlineMap || !$('#campus-online-map')?.clientWidth) return;
+      campusOnlineMap.resize();
+      campusOnlineMap.fitBounds(CAMPUS_PARK_BOUNDS, {
+        padding: { top: 22, right: 22, bottom: 22, left: 22 },
+        maxZoom: 14.2,
+        pitch: 58,
+        bearing: -18,
+        duration
       });
     });
   }
-  async function addCampusMainBuildingModel(maplibregl, beforeLayerId) {
-    const map = campusOnlineMap;
-    if (!map) return false;
-    const dataUrl = new URL('../data/campus-main-building.json', APP_SCRIPT_URL).href;
-    const [response, image] = await Promise.all([
-      fetch(dataUrl),
-      loadCampusTextureImage(map)
-    ]);
-    if (!response.ok) throw new Error(`Контур главного корпуса недоступен: HTTP ${response.status}`);
-    const geometry = await response.json();
-    if (campusOnlineMap !== map) return false;
-    if (!map.hasImage('campus-main-facade')) map.addImage('campus-main-facade', image, { pixelRatio: 1 });
-    if (!map.getSource('campus-main-building-source')) {
-      map.addSource('campus-main-building-source', { type: 'geojson', data: geometry });
-    }
-    if (!map.getLayer('campus-main-building-textured')) {
-      map.addLayer({
-        id: 'campus-main-building-textured',
-        type: 'fill-extrusion',
-        source: 'campus-main-building-source',
-        minzoom: 14,
-        paint: {
-          'fill-extrusion-height': ['get', 'heightMeters'],
-          'fill-extrusion-base': 0,
-          'fill-extrusion-pattern': 'campus-main-facade',
-          'fill-extrusion-opacity': 1,
-          'fill-extrusion-vertical-gradient': true
-        }
-      }, beforeLayerId);
-    }
-    return true;
+  async function addCampusParkLayers(map) {
+    const dataUrl = new URL('../data/campus-park-scene.json', APP_SCRIPT_URL).href;
+    const response = await fetch(dataUrl, { cache: 'force-cache' });
+    if (!response.ok) throw new Error(`Геометрия парка: HTTP ${response.status}`);
+    const scene = await response.json();
+    if (campusOnlineMap !== map) return null;
+    map.addSource('campus-park-scene', { type: 'geojson', data: scene });
+    scene.features.filter((feature) => feature.properties?.kind === 'water' && feature.properties?.name).forEach((feature) => {
+      const coordinates = feature.geometry.type === 'Polygon'
+        ? feature.geometry.coordinates[0]
+        : feature.geometry.coordinates[0]?.[0];
+      if (!coordinates?.length) return;
+      const center = coordinates.reduce((sum, point) => [sum[0] + point[0] / coordinates.length, sum[1] + point[1] / coordinates.length], [0, 0]);
+      const label = document.createElement('span');
+      label.className = 'campus-map-area-label';
+      label.textContent = feature.properties.name;
+      campusSceneLabelMarkers.push(new window.maplibregl.Marker({ element: label, anchor: 'center' }).setLngLat(center).addTo(map));
+    });
+    map.addLayer({
+      id: 'campus-park-ground', type: 'fill', source: 'campus-park-scene',
+      filter: ['==', ['get', 'kind'], 'park-boundary'],
+      paint: { 'fill-color': '#b8d49b', 'fill-opacity': 1 }
+    });
+    map.addLayer({
+      id: 'campus-park-green-areas', type: 'fill', source: 'campus-park-scene',
+      filter: ['==', ['get', 'kind'], 'green-area'],
+      paint: {
+        'fill-color': ['match', ['get', 'areaType'], 'wood', '#57905d', '#8fbf78'],
+        'fill-opacity': 1,
+        'fill-outline-color': ['match', ['get', 'areaType'], 'wood', '#3e714d', '#77a968']
+      }
+    });
+    map.addLayer({
+      id: 'campus-park-canopy-relief', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
+      filter: ['all', ['==', ['get', 'kind'], 'green-area'], ['==', ['get', 'areaType'], 'wood']],
+      paint: {
+        'fill-extrusion-color': '#477c4d', 'fill-extrusion-height': 2.2,
+        'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.96,
+        'fill-extrusion-vertical-gradient': true
+      }
+    });
+    map.addLayer({
+      id: 'campus-park-water', type: 'fill', source: 'campus-park-scene',
+      filter: ['==', ['get', 'kind'], 'water'],
+      paint: { 'fill-color': '#73b9d4', 'fill-opacity': 0.96, 'fill-outline-color': '#4a96b0' }
+    });
+    map.addLayer({
+      id: 'campus-park-boundary', type: 'line', source: 'campus-park-scene',
+      filter: ['==', ['get', 'kind'], 'park-boundary'],
+      paint: { 'line-color': '#54754c', 'line-width': 2.5, 'line-opacity': 0.9 }
+    });
+    map.addLayer({
+      id: 'campus-park-path-casing', type: 'line', source: 'campus-park-scene',
+      filter: ['==', ['get', 'kind'], 'path'],
+      paint: { 'line-color': '#aaad89', 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 1.2, 16, 4.5], 'line-opacity': 0.72 }
+    });
+    map.addLayer({
+      id: 'campus-park-paths', type: 'line', source: 'campus-park-scene',
+      filter: ['==', ['get', 'kind'], 'path'],
+      paint: { 'line-color': '#f5edcf', 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.65, 16, 2.5], 'line-opacity': 0.98 }
+    });
+    map.addLayer({
+      id: 'campus-park-buildings', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 12,
+      filter: ['==', ['get', 'kind'], 'building'],
+      paint: {
+        'fill-extrusion-color': ['coalesce', ['get', 'styleColor'], '#dfcba8'],
+        'fill-extrusion-height': ['get', 'heightMeters'],
+        'fill-extrusion-base': 0,
+        'fill-extrusion-opacity': 1,
+        'fill-extrusion-vertical-gradient': true
+      }
+    });
+    map.addLayer({
+      id: 'campus-park-tree-trunks', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
+      filter: ['==', ['get', 'kind'], 'tree-trunk'],
+      paint: { 'fill-extrusion-color': '#79563a', 'fill-extrusion-height': ['get', 'heightMeters'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 1 }
+    });
+    map.addLayer({
+      id: 'campus-park-tree-crowns', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
+      filter: ['==', ['get', 'kind'], 'tree-canopy'],
+      paint: {
+        'fill-extrusion-color': ['get', 'foliageColor'],
+        'fill-extrusion-height': ['get', 'heightMeters'],
+        'fill-extrusion-base': ['get', 'canopyBaseMeters'],
+        'fill-extrusion-opacity': 1,
+        'fill-extrusion-vertical-gradient': true
+      }
+    });
+    map.addLayer({
+      id: 'campus-park-amenities', type: 'circle', source: 'campus-park-scene',
+      filter: ['==', ['get', 'kind'], 'amenity'],
+      paint: { 'circle-radius': 3, 'circle-color': '#fff7df', 'circle-stroke-color': '#6d8160', 'circle-stroke-width': 1 }
+    });
+    return scene.metadata;
   }
   async function openCampusOnlineMap() {
     const panel = $('#campus-online-panel');
@@ -832,69 +894,30 @@
     if (!panel) return;
     if (!state.campus) await loadCampusDirectory();
     setCampusMapMode('online');
-    if (campusOnlineMap) { fitCampusMapToBuildings(); return; }
-    status.textContent = 'Загружаем реальную карту и 3D-здания…';
+    if (campusOnlineMap) { fitCampusMapToPark(); return; }
+    status.textContent = 'Загружаем автономную 3D-карту парка…';
     try {
       const maplibregl = await loadCampusMapLibrary();
       campusOnlineMap = new maplibregl.Map({
         container: 'campus-online-map',
-        style: 'https://tiles.openfreemap.org/styles/liberty',
-        center: state.campus?.map?.center || [30.3399, 59.99455],
-        zoom: state.campus?.map?.zoom || 15.1,
-        pitch: 50,
-        bearing: -12,
-        maxPitch: 60,
+        style: {
+          version: 8,
+          sources: {},
+          layers: [{ id: 'campus-background', type: 'background', paint: { 'background-color': '#d9d5bf' } }]
+        },
+        center: [30.34235, 59.99375],
+        zoom: 13.8,
+        maxBounds: CAMPUS_PARK_BOUNDS,
+        pitch: 58,
+        bearing: -18,
+        maxPitch: 68,
         antialias: true,
         attributionControl: true
       });
       campusOnlineMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
       let styleLoaded = false;
-      campusOnlineMap.on('load', () => {
+      campusOnlineMap.on('load', async () => {
         styleLoaded = true;
-        const styleLayers = campusOnlineMap.getStyle().layers || [];
-        const labelLayer = styleLayers.find((layer) => layer.type === 'symbol' && layer.layout?.['text-field']);
-        const texturedModel = addCampusMainBuildingModel(maplibregl, labelLayer?.id).then(() => true).catch((error) => {
-          console.warn('Campus textured 3D model failed:', error);
-          return error instanceof Error ? error.message : 'ошибка загрузки';
-        });
-        const extrusionLayer = styleLayers.find((layer) => layer.type === 'fill-extrusion' && layer['source-layer'] === 'building');
-        const sourceName = extrusionLayer?.source || Object.keys(campusOnlineMap.getStyle().sources || {}).find((name) => {
-          const source = campusOnlineMap.getStyle().sources[name];
-          return source.type === 'vector';
-        });
-        if (sourceName) {
-          try {
-            const layerId = extrusionLayer?.id || 'campus-3d-buildings';
-            if (!extrusionLayer && !campusOnlineMap.getLayer(layerId)) {
-              campusOnlineMap.addLayer({
-                id: layerId,
-                source: sourceName,
-                'source-layer': 'building',
-                type: 'fill-extrusion',
-                minzoom: 14,
-                filter: ['!', ['has', 'hide_3d']],
-                paint: {
-                  'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
-                  'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-                  'fill-extrusion-opacity': 1,
-                  'fill-extrusion-vertical-gradient': true
-                }
-              }, labelLayer?.id);
-            }
-            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-color', [
-              'case',
-              ['all', ['has', 'colour'], ['!=', ['to-string', ['get', 'colour']], '']],
-              ['to-color', ['get', 'colour']],
-              '#c9bea9'
-            ]);
-            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-height', ['coalesce', ['get', 'render_height'], ['get', 'height'], 8]);
-            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-base', ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]);
-            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-opacity', 1);
-            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-vertical-gradient', true);
-          } catch (error) {
-            console.warn('Campus facade styling failed:', error);
-          }
-        }
         campusMapMarkers.clear();
         const buildings = state.campus?.buildings || [];
         let markerCount = 0;
@@ -951,19 +974,18 @@
           marker.addEventListener('click', () => selectCampusBuilding(building.number, { openPopup: false }));
           markerCount += 1;
         });
-        status.textContent = markerCount === 4
-          ? 'На карте отмечены все четыре корпуса. Загружаем текстурный слой главного корпуса…'
-          : `На карте отмечено корпусов: ${markerCount} из 4. Справочник ниже остаётся доступен.`;
-        texturedModel.then((result) => {
-          if (campusOnlineMap && $('#map-dialog')?.open && result === true) {
-            status.textContent = 'Главный корпус № 1 показан текстурной 3D-моделью по контуру и высоте OpenStreetMap.';
-          } else if (campusOnlineMap && $('#map-dialog')?.open) {
-            status.textContent = `Текстурный слой корпуса № 1 не загрузился (${result}); объём карты OpenStreetMap остаётся доступен.`;
+        try {
+          const metadata = await addCampusParkLayers(campusOnlineMap);
+          if (metadata && campusOnlineMap && $('#map-dialog')?.open) {
+            status.textContent = `Автономная 3D-карта парка загружена: ${metadata.counts.building || 0} зданий, ${metadata.counts.path || 0} дорожек, водоёмы и зелёные зоны. Геометрия сохранена на устройстве.`;
           }
-        });
+        } catch (error) {
+          console.warn('Campus park scene failed:', error);
+          status.textContent = `${error.message}. Справочник корпусов остаётся доступен.`;
+        }
         const fitButton = $('#campus-fit-buildings');
         if (fitButton) fitButton.disabled = markerCount === 0;
-        fitCampusMapToBuildings(0);
+        fitCampusMapToPark(0);
       });
       campusOnlineMap.on('error', (event) => {
         if (!styleLoaded && campusOnlineMap && event?.error) {
@@ -1163,7 +1185,7 @@
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
     $('#campus-mode-osm')?.addEventListener('click', () => {
       setCampusMapMode('online');
-      if (campusOnlineMap) fitCampusMapToBuildings();
+      if (campusOnlineMap) fitCampusMapToPark();
       else openCampusOnlineMap();
     });
     $('#campus-mode-yandex')?.addEventListener('click', openCampusYandexMap);
