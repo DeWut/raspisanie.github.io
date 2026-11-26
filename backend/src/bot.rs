@@ -684,6 +684,20 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
+    if is_group_chat && matches!(command, "/dz" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done") {
+        if matches!(command, "/add_dz" | "/edit_dz" | "/delete_dz") {
+            let _ = crate::services::chat_roles::sync_member(
+                &bot, db, message.chat.id, telegram_id, None
+            ).await;
+        }
+        if let Some(answer) = crate::services::group_content::handle_homework(
+            db, message.chat.id.0, telegram_id, command, argument
+        ).await {
+            reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
+            return Ok(());
+        }
+    }
+
     let answer = match command {
         "/start" | "/help" | "/menu" => {
             let mut help = "🎓 *SPBFTUIT*\n\n\
