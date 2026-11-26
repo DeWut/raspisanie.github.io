@@ -1,0 +1,2 @@
+# SQLx hashes migration contents verbatim; keep checksums stable across OSes.
+backend/migrations/*.sql text eol=lf
