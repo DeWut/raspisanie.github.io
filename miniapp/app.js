@@ -763,7 +763,7 @@
   function setCampusMapMode(mode) {
     campusMapMode = mode;
     if (mode !== 'online') setCampusSatelliteVisible(false);
-    const online = mode === 'online' || mode === 'yandex' || mode === 'cesium';
+    const online = ['online', 'yandex', 'cesium'].includes(mode);
     const panel = $('#campus-online-panel');
     const offlinePanel = $('#campus-offline-panel');
     if (!panel || !offlinePanel) return;
@@ -1238,7 +1238,6 @@
     });
   }
   async function openCampusOnlineMap() {
-    if (campusMapMode === 'cesium') setCampusMapMode('online');
     const panel = $('#campus-online-panel');
     const status = $('#campus-online-status');
     if (!panel) return;
@@ -1533,6 +1532,12 @@
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
     $('#campus-mode-photorealistic')?.addEventListener('click', openCampusPhotorealisticMap);
+    $('#campus-mode-osm')?.addEventListener('click', () => {
+      destroyCampusCesiumViewer();
+      setCampusMapMode('online');
+      if (campusOnlineMap) fitCampusMapToPark();
+      else openCampusOnlineMap();
+    });
     $('#campus-mode-osm')?.addEventListener('click', () => {
       setCampusMapMode('online');
       openCampusOnlineMap();
