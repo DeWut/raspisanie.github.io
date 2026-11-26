@@ -641,7 +641,7 @@
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       paint(ctx, size);
-      return canvas;
+      return ctx.getImageData(0, 0, size, size);
     };
     const patterns = {
       'campus-facade-default': makePattern((ctx, s) => {
@@ -826,29 +826,33 @@
           return source.type === 'vector';
         });
         if (sourceName) {
-          addCampusFacadePatterns(campusOnlineMap);
-          const layerId = extrusionLayer?.id || 'campus-3d-buildings';
-          if (!extrusionLayer && !campusOnlineMap.getLayer(layerId)) {
-            campusOnlineMap.addLayer({
-              id: layerId,
-              source: sourceName,
-              'source-layer': 'building',
-              type: 'fill-extrusion',
-              minzoom: 14,
-              filter: ['!', ['has', 'hide_3d']],
-              paint: {
-                'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
-                'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-                'fill-extrusion-opacity': 1,
-                'fill-extrusion-vertical-gradient': true
-              }
-            }, labelLayer?.id);
+          try {
+            addCampusFacadePatterns(campusOnlineMap);
+            const layerId = extrusionLayer?.id || 'campus-3d-buildings';
+            if (!extrusionLayer && !campusOnlineMap.getLayer(layerId)) {
+              campusOnlineMap.addLayer({
+                id: layerId,
+                source: sourceName,
+                'source-layer': 'building',
+                type: 'fill-extrusion',
+                minzoom: 14,
+                filter: ['!', ['has', 'hide_3d']],
+                paint: {
+                  'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
+                  'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+                  'fill-extrusion-opacity': 1,
+                  'fill-extrusion-vertical-gradient': true
+                }
+              }, labelLayer?.id);
+            }
+            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-pattern', campusFacadePatternExpression());
+            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-height', ['coalesce', ['get', 'render_height'], ['get', 'height'], 8]);
+            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-base', ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]);
+            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-opacity', 1);
+            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-vertical-gradient', true);
+          } catch (error) {
+            console.warn('Campus facade styling failed:', error);
           }
-          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-pattern', campusFacadePatternExpression());
-          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-height', ['coalesce', ['get', 'render_height'], ['get', 'height'], 8]);
-          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-base', ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]);
-          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-opacity', 1);
-          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-vertical-gradient', true);
         }
         campusMapMarkers.clear();
         const buildings = state.campus?.buildings || [];
