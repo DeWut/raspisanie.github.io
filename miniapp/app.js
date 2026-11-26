@@ -660,7 +660,8 @@
     return campusMapLibraryPromise;
   }
   function setCampusMapMode(mode) {
-    campusMapMode = mode;\n    if (mode !== 'online') setCampusSatelliteVisible(false);
+    campusMapMode = mode;
+    if (mode !== 'online') setCampusSatelliteVisible(false);
     const online = mode === 'online' || mode === 'yandex';
     const panel = $('#campus-online-panel');
     const offlinePanel = $('#campus-offline-panel');
