@@ -24,25 +24,48 @@
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
-  const DATA_ROOT = new URL('../data/', document.currentScript?.src || new URL('miniapp/app.js', location.href)).href;
+  const APP_SCRIPT_URL = document.currentScript?.src || new URL('miniapp/app.js', location.href).href;
+  const DATA_ROOT = new URL('../data/', APP_SCRIPT_URL).href;
+  const DATA_CACHE_NAME = 'spbftuit-data-v1';
   const DATA_FALLBACKS = [
     'https://cdn.jsdelivr.net/gh/DeWut/raspisanie.github.io@main/data/',
     'https://raw.githubusercontent.com/DeWut/raspisanie.github.io/main/data/',
   ];
+  async function cacheDataResponse(url, response) {
+    if (!('caches' in window)) return;
+    try { const cache = await caches.open(DATA_CACHE_NAME); await cache.put(url, response.clone()); }
+    catch (error) { console.debug('Offline data cache is unavailable:', error); }
+  }
+  async function readCachedData(url) {
+    if (!('caches' in window)) return null;
+    try { const cache = await caches.open(DATA_CACHE_NAME); return await cache.match(url); }
+    catch { return null; }
+  }
   async function fetchDataFile(path) {
-    const candidates = [...new Set([
-      new URL(path, DATA_ROOT).href,
-      ...DATA_FALLBACKS.map((root) => new URL(path, root).href),
-    ])];
+    const localUrl = new URL(path, DATA_ROOT).href;
+    const candidates = [...new Set([localUrl, ...DATA_FALLBACKS.map((root) => new URL(path, root).href)])];
     let lastError;
     for (const url of candidates) {
       try {
         const response = await fetch(url, { cache: 'no-cache' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        await cacheDataResponse(localUrl, response);
         return response;
       } catch (error) { lastError = error; }
     }
+    const cached = await readCachedData(localUrl);
+    if (cached) return cached;
     throw lastError || new Error('data-unavailable');
+  }
+  function registerOfflineSupport() {
+    if (!('serviceWorker' in navigator) || !/^(https?:|capacitor:)/.test(location.protocol)) return;
+    navigator.serviceWorker.register(new URL('../service-worker.js', APP_SCRIPT_URL), { updateViaCache: 'none' })
+      .catch((error) => console.warn('Offline shell registration failed:', error));
+  }
+  function updateConnectivityState() {
+    const note = $('#connectivity-note');
+    if (note) note.hidden = navigator.onLine;
+    if (state.schedule) renderHero();
   }
   const PRESENCE_API = (window.SMART_CAMPUS_API_URL || document.querySelector('meta[name="smart-campus-api"]')?.content || '').replace(new RegExp('/+$'), '');
   function presenceSessionId() {
@@ -436,7 +459,7 @@
     $('#hero-next').textContent = status.next;
     $('#hero-next').hidden = !today || !status.next;
     $('.hero-card').classList.toggle('summary-only', !today);
-    $('#hero-footer-text').textContent = state.schedule?.updated ? `Обновлено ${state.schedule.updated}` : 'Расписание загружено';
+    $('#hero-footer-text').textContent = !navigator.onLine ? 'Оффлайн · сохранённое расписание' : (state.schedule?.updated ? `Обновлено ${state.schedule.updated}` : 'Расписание загружено');
     $('#week-label').textContent = `${isOddWeek(state.selectedDate) ? 'нечётная' : 'чётная'} неделя`;
     $('#welcome-date').textContent = today ? 'ТВОЙ УЧЕБНЫЙ ДЕНЬ' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' }).toUpperCase();
     $('#schedule-heading').textContent = formatDate(state.selectedDate, { day: 'numeric', month: 'long' });
@@ -724,6 +747,10 @@
     tg?.onEvent?.('themeChanged', () => document.documentElement.style.colorScheme = tg.colorScheme || 'light');
   }
   async function init() {
+    registerOfflineSupport();
+    window.addEventListener('offline', () => { updateConnectivityState(); showToast('Нет интернета. Используются сохранённые данные.'); });
+    window.addEventListener('online', () => { updateConnectivityState(); showToast('Соединение восстановлено. Обновляем данные…'); loadData(); });
+    updateConnectivityState();
     if (tg) {
       tg.ready();
       tg.expand();
