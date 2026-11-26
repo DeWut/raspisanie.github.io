@@ -149,3 +149,14 @@ The data source/engine research is complete enough to choose CesiumJS, but actua
 - Updated CesiumJS distribution reference to 1.138, the HTML asset query version and the Service Worker shell cache.
 - Data limitations: the Cesium local overlay uses the 35 building geometries already committed in the campus scene. The separate TerraLab extraction found 291 building footprints, but the full extracted GeoJSON is not yet committed into this repository. It remains a later data integration task. The 291 footprints are not photogrammetric models.
 - Added a persistent OpenStreetMap attribution line next to the Cesium credit container. Google/Cesium tile credits remain in the separate renderer-managed on-screen credit area.
+
+
+## Autonomous map decision and implementation (2026-11-27)
+
+- Google Photorealistic 3D Tiles was removed from the Cesium viewer runtime path. The 3D mode now renders only the local campus scene and does not request Google tile endpoints or require a Google API key.
+- The mode label now says “3D-сцена кампуса”, not “Фотореалистичный 3D”, to avoid claiming photogrammetry where only vector geometry and schematic extrusion exist.
+- Yandex Maps official documentation was checked. Tiles API supplies roadmap tiles only; satellite/hybrid tiles are unavailable. Panorama Player is restricted to use within the Yandex Maps JavaScript API/MapKit service and cannot be embedded as imagery or textures in Cesium/third-party map materials. Do not scrape, stitch, cache or bake Yandex satellite/panorama content.
+- The existing Yandex key literal was removed from the source. Configure a valid owner-managed key only through an approved runtime mechanism if the standalone Yandex mode is intentionally enabled; do not commit credentials.
+- Research references: https://yandex.com/maps-api/docs/tiles-api/index.html ; https://yandex.ru/legal/maps_api/ru/ ; https://cesium.com/platform/cesiumjs/ .
+- Next data task: import and validate the broader Overture/OSM extraction (256 building footprints, 715 road/path lines, 32 waterways, 10 water areas, 89 land-use polygons in the current extract). Keep the source and licence metadata with the data. The extract has not yet been committed in this change.
+- Current Cesium scene still uses the existing 294-feature local snapshot (35 buildings). This commit changes provider behaviour and truthful UI wording; it does not claim the larger extraction has been integrated.
