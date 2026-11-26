@@ -684,7 +684,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
-    if is_group_chat && matches!(command, "/dz" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done") {
+    if is_group_chat && matches!(command, "/dz" | "/homework" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done") {
         if matches!(command, "/add_dz" | "/edit_dz" | "/delete_dz") {
             let _ = crate::services::chat_roles::sync_member(
                 &bot, db, message.chat.id, telegram_id, None
