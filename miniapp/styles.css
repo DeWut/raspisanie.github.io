@@ -456,10 +456,13 @@ button { font-family: inherit; }
 @media(prefers-reduced-motion:reduce) { .campus-building-card { transition:none; } }
 
 
-/* Campus map: isolate map gestures from the scrollable information panel. */
+/* Campus map: keep map gestures and information scrolling in separate surfaces. */
 .map-dialog {
   display: flex;
   flex-direction: column;
+  width: min(900px, calc(100vw - 16px));
+  height: min(94dvh, 900px);
+  max-height: calc(100dvh - 12px);
   overflow: hidden;
   overscroll-behavior: contain;
 }
@@ -468,14 +471,17 @@ button { font-family: inherit; }
   flex: 0 0 auto;
   min-height: 0;
 }
-.map-dialog > .campus-plan-note,
-.map-dialog > .campus-search-box,
-.map-dialog > .campus-buildings {
+.map-dialog > .campus-plan-note {
   flex: 0 0 auto;
+  max-height: 9dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
+.map-dialog > .campus-search-box { flex: 0 0 auto; }
 .map-dialog > .campus-buildings {
-  min-height: 0;
-  max-height: min(32dvh, 300px);
+  flex: 1 1 0;
+  min-height: 90px;
+  max-height: none;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -485,9 +491,9 @@ button { font-family: inherit; }
 .campus-explorer { min-height: 0; }
 .campus-online-panel { overflow: hidden; }
 .campus-online-map {
-  height: clamp(300px, 48dvh, 560px);
-  min-height: 280px;
-  touch-action: pan-x pan-y pinch-zoom;
+  height: clamp(270px, 42dvh, 450px);
+  min-height: 250px;
+  touch-action: none;
   overscroll-behavior: contain;
   -webkit-user-select: none;
   user-select: none;
@@ -506,9 +512,11 @@ button { font-family: inherit; }
 @media(max-width:520px) {
   .map-dialog {
     width: calc(100vw - 12px);
+    height: min(96dvh, 900px);
     max-height: calc(100dvh - 12px);
     padding: 10px;
   }
-  .map-dialog > .campus-buildings { max-height: min(29dvh, 230px); }
-  .campus-online-map { height: clamp(290px, 43dvh, 460px); min-height: 260px; }
+  .map-dialog > .campus-plan-note { max-height: 8dvh; margin-bottom: 7px; }
+  .map-dialog > .campus-buildings { min-height: 72px; }
+  .campus-online-map { height: clamp(220px, 35dvh, 360px); min-height: 210px; }
 }
