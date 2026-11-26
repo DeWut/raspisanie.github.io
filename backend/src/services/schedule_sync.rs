@@ -96,15 +96,10 @@ async fn next_sync_delay(pool: &sqlx::PgPool) -> Result<Option<Duration>, String
     .map_err(|error| error.to_string())?
     .flatten();
 
-    Ok(last_synced_at.map(|last_synced_at| {
-        remaining_sync_delay(last_synced_at, Utc::now())
-    }))
+    Ok(last_synced_at.map(|last_synced_at| remaining_sync_delay(last_synced_at, Utc::now())))
 }
 
-pub async fn sync_all_groups(
-    pool: &sqlx::PgPool,
-    eios: &EiosSync,
-) -> Result<SyncReport, String> {
+pub async fn sync_all_groups(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<SyncReport, String> {
     let _guard = SYNC_LOCK
         .try_lock()
         .map_err(|_| "Синхронизация уже выполняется".to_owned())?;
@@ -112,10 +107,7 @@ pub async fn sync_all_groups(
     sync_all_groups_inner(pool, eios).await
 }
 
-async fn sync_all_groups_inner(
-    pool: &sqlx::PgPool,
-    eios: &EiosSync,
-) -> Result<SyncReport, String> {
+async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<SyncReport, String> {
     sqlx::query(
         r#"
         INSERT INTO sync_metadata (
@@ -598,7 +590,6 @@ fn stable_id(prefix: &str, parts: &[&str]) -> String {
 
     format!("eios:{prefix}:{hex}")
 }
-
 
 #[cfg(test)]
 mod sync_worker_tests {
