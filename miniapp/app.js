@@ -371,8 +371,6 @@
     const currentMinutes = Number(nowParts.hour) * 60 + Number(nowParts.minute);
     const today = dateKey(date) === dateKey(startOfDay(new Date()));
     const current = today && currentMinutes >= minutes(slot.start) && currentMinutes < minutes(slot.end);
-    const weekValues = [...new Set(slot.entries.map((entry) => entry.week).filter((week) => week && week !== '*'))];
-    const week = weekValues.length === 1 ? `<span class="week-badge">${escapeHtml(weekValues[0])} нед.</span>` : '';
     const commonTitle = slotTitle(slot);
     const hasCommonTitle = slot.entries.length > 1 && slot.entries.every((entry) => lessonBaseName(entry.name) === lessonBaseName(slot.entries[0].name));
     const entries = slot.entries.map((entry) => {
@@ -383,7 +381,7 @@
       const label = hasCommonTitle ? type : (slot.entries.length > 1 ? compactLessonTitle(entry.name) : '');
       return `<div class="lesson-variant">${label ? `<span class="lesson-variant-type">${escapeHtml(label)}</span>` : ''}<div class="lesson-meta">${teacher}${room}</div></div>`;
     }).join('');
-    return `<article class="lesson-card${current ? ' is-current' : ''}${slot.entries.length > 1 ? ' has-variants' : ''}" data-slot-index="${index}" style="animation-delay:${Math.min(index * 35, 175)}ms">${week}<div class="lesson-time">${escapeHtml(slot.start)}<small>— ${escapeHtml(slot.end)}</small><small>${slot.pair ? `${escapeHtml(slot.pair)} пара` : ''}</small></div><div class="lesson-main">${current ? '<span class="current-tag">● Идёт сейчас</span>' : ''}<h3 class="lesson-title">${escapeHtml(commonTitle)}</h3><div class="lesson-variants">${entries}</div></div></article>`;
+    return `<article class="lesson-card${current ? ' is-current' : ''}${slot.entries.length > 1 ? ' has-variants' : ''}" data-slot-index="${index}" style="animation-delay:${Math.min(index * 35, 175)}ms"><div class="lesson-time">${escapeHtml(slot.start)}<small>— ${escapeHtml(slot.end)}</small><small>${slot.pair ? `${escapeHtml(slot.pair)} пара` : ''}</small></div><div class="lesson-main">${current ? '<span class="current-tag">● Идёт сейчас</span>' : ''}<h3 class="lesson-title">${escapeHtml(commonTitle)}</h3><div class="lesson-variants">${entries}</div></div></article>`;
   }
   function renderSchedule() {
     const lessons = getLessons(state.selectedDate);
