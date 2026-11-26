@@ -702,6 +702,16 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
+    if is_group_chat && matches!(command, "/owner" | "/transfer_owner") {
+        let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
+        if let Some(answer) = crate::services::chat_roles::handle_ownership(
+            &bot, db, message.chat.id, telegram_id, command, argument
+        ).await {
+            reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
+            return Ok(());
+        }
+    }
+
     if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off") {
         if matches!(command, "/add_exam" | "/edit_exam" | "/delete_exam" | "/add_event" | "/edit_event" | "/cancel_event" | "/event_capacity") {
             let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
@@ -1975,6 +1985,8 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("event_no", "Отметить, что не иду на мероприятие"),
         BotCommand::new("event_reminders_on", "Включить личные напоминания о мероприятии"),
         BotCommand::new("event_reminders_off", "Выключить личные напоминания о мероприятии"),
+        BotCommand::new("owner", "Посмотреть владельца SMART CAMPUS"),
+        BotCommand::new("transfer_owner", "Передать владение SMART CAMPUS участнику"),
         BotCommand::new("settings", "Настройки учебного чата"),
         BotCommand::new("chat_settings", "Настройки расписания учебного чата"),
         BotCommand::new("roles", "Список ролей и прав модерации"),
