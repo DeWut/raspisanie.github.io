@@ -879,7 +879,8 @@ mod group_content_date_tests {
         assert!(parse_moscow_datetime("32.13.2026 09:30").is_none());
         assert!(parse_moscow_datetime("завтра 25:00").is_none());
         assert!(parse_moscow_datetime("завтра").is_none());
-        assert!(parse_moscow_datetime("завтра 9:30").is_none());
+        let single_digit_hour = parse_moscow_datetime("завтра 9:30").expect("single-digit hour is accepted");
+        assert_eq!(single_digit_hour.with_timezone(&moscow()).time(), NaiveTime::from_hms_opt(9, 30, 0).unwrap());
     }
 
     #[test]
