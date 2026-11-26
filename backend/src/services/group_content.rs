@@ -380,20 +380,27 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             let removed=sqlx::query("DELETE FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3 AND response='going'")
                 .bind(chat_id).bind(id).bind(actor).execute(&mut *tx).await;
             let changed=match removed { Ok(r)=>r.rows_affected()==1,Err(_)=>{let _=tx.rollback().await;return Some("Ошибка отмены записи.".into());} };
+            let mut promoted_user=None;
             if changed {
                 let next=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY joined_at,telegram_id LIMIT 1 FOR UPDATE")
                     .bind(chat_id).bind(id).fetch_optional(&mut *tx).await.ok().flatten();
                 if let Some(next_id)=next {
-                    let _=sqlx::query("UPDATE bot_event_participants SET response='going',updated_at=now() WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3")
+                    let promoted=sqlx::query("UPDATE bot_event_participants SET response='going',updated_at=now() WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3")
                         .bind(chat_id).bind(id).bind(next_id).execute(&mut *tx).await;
+                    if matches!(promoted,Ok(r) if r.rows_affected()==1) { promoted_user=Some(next_id); }
                 }
             } else {
                 let _=sqlx::query("DELETE FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3 AND response IN ('waitlist','maybe')")
                     .bind(chat_id).bind(id).bind(actor).execute(&mut *tx).await;
             }
             if tx.commit().await.is_err(){return Some("Не удалось завершить отмену записи.".into());}
+            if let Some(user)=promoted_user {
+                if let Err(error)=bot.send_message(ChatId(user),format!("🎉 Освободилось место! Ты записан на мероприятие #{id}.")).await {
+                    tracing::debug!("Could not notify promoted event participant {}: {}",user,error);
+                }
+            }
             Some(if changed {
-                format!("Запись на мероприятие #{id} отменена. Первый участник из листа ожидания автоматически повышен, если он был.")
+                format!("Запись на мероприятие #{id} отменена. Следующий участник листа ожидания повышен и уведомлён.")
             } else {"Твоя запись или заявка на лист ожидания отменена.".into()})
         }
         _ => None
