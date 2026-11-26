@@ -88,8 +88,14 @@ pub async fn sync_member(
         .map_err(|e| e.to_string())?;
     }
 
-    let smart_role: String = sqlx::query_scalar(
-        "SELECT role FROM bot_chat_members WHERE chat_id = $1 AND telegram_id = $2",
+    let (smart_role, is_smart_owner): (String, bool) = sqlx::query_as(
+        r#"
+        SELECT m.role, COALESCE(s.owner_telegram_id = m.telegram_id, FALSE)
+        FROM bot_chat_members m
+        LEFT JOIN bot_chat_settings s
+          ON s.chat_id = m.chat_id AND s.is_active = TRUE
+        WHERE m.chat_id = $1 AND m.telegram_id = $2
+        "#,
     )
     .bind(chat_id.0)
     .bind(telegram_id)
@@ -107,6 +113,7 @@ pub async fn sync_member(
     Ok(Some(match telegram_role {
         Some("owner") => "owner".to_owned(),
         Some("admin") => "admin".to_owned(),
+        _ if is_smart_owner => "owner".to_owned(),
         _ => smart_role,
     }))
 }
