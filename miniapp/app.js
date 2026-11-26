@@ -954,6 +954,11 @@
       }
     });
     map.addLayer({
+      id: 'campus-selected-building-footprint-highlight', type: 'fill', source: 'campus-park-scene', minzoom: 13,
+      filter: ['all', ['==', ['get', 'kind'], 'building'], ['==', ['get', 'heightKnown'], false], ['==', ['get', 'osmId'], '']],
+      paint: { 'fill-color': '#d8f08d', 'fill-opacity': 0.95, 'fill-outline-color': '#496f40' }
+    });
+    map.addLayer({
       id: 'campus-selected-building-highlight', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
       filter: ['==', ['get', 'osmId'], ''],
       paint: {
@@ -1094,24 +1099,31 @@
     return root;
   }
   function installCampusBuildingInteractions(map, maplibregl) {
-    const layerId = 'campus-park-buildings';
-    if (!map.getLayer(layerId)) return;
-    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
-    map.on('click', layerId, (event) => {
-      const feature = event.features?.[0];
-      const properties = feature?.properties;
-      if (!properties) return;
-      const building = state.campus?.buildings?.find((item) => String(item.osm?.id) === String(properties.osmId));
-      document.querySelectorAll('.campus-building-card.selected').forEach((card) => card.classList.remove('selected'));
-      if (building) selectCampusBuilding(building.number, { openPopup: false });
-      else if (map.getLayer('campus-selected-building-highlight')) {
-        map.setFilter('campus-selected-building-highlight', ['==', ['get', 'osmId'], String(properties.osmId)]);
-      }
-      new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: '320px' })
-        .setLngLat(event.lngLat)
-        .setDOMContent(createCampusBuildingPopup(properties, building))
-        .addTo(map);
+    const layerIds = ['campus-park-buildings', 'campus-park-building-footprints'].filter((id) => map.getLayer(id));
+    if (!layerIds.length) return;
+    const showPointer = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const clearPointer = () => { map.getCanvas().style.cursor = ''; };
+    layerIds.forEach((layerId) => {
+      map.on('mouseenter', layerId, showPointer);
+      map.on('mouseleave', layerId, clearPointer);
+      map.on('click', layerId, (event) => {
+        const properties = event.features?.[0]?.properties;
+        if (!properties) return;
+        const building = state.campus?.buildings?.find((item) => String(item.osm?.id) === String(properties.osmId));
+        document.querySelectorAll('.campus-building-card.selected').forEach((card) => card.classList.remove('selected'));
+        const osmId = String(properties.osmId);
+        if (building) selectCampusBuilding(building.number, { openPopup: false });
+        if (map.getLayer('campus-selected-building-highlight')) {
+          map.setFilter('campus-selected-building-highlight', ['==', ['get', 'osmId'], osmId]);
+        }
+        if (map.getLayer('campus-selected-building-footprint-highlight')) {
+          map.setFilter('campus-selected-building-footprint-highlight', ['==', ['get', 'osmId'], osmId]);
+        }
+        new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: '320px' })
+          .setLngLat(event.lngLat)
+          .setDOMContent(createCampusBuildingPopup(properties, building))
+          .addTo(map);
+      });
     });
   }
   async function openCampusOnlineMap() {
@@ -1234,8 +1246,14 @@
       campusYandexMap.setCenter([building.latitude, building.longitude], Math.max(campusYandexMap.getZoom(), 17), { duration: 350 });
     } else if (building && campusOnlineMap && mapMarker) {
       campusOnlineMap.flyTo({ center: [building.longitude, building.latitude], zoom: Math.max(campusOnlineMap.getZoom(), 16), duration: 450 });
-      if (campusOnlineMap.getLayer('campus-selected-building-highlight') && building.osm?.id != null) {
-        campusOnlineMap.setFilter('campus-selected-building-highlight', ['==', ['get', 'osmId'], String(building.osm.id)]);
+      if (building.osm?.id != null) {
+        const osmId = String(building.osm.id);
+        if (campusOnlineMap.getLayer('campus-selected-building-highlight')) {
+          campusOnlineMap.setFilter('campus-selected-building-highlight', ['==', ['get', 'osmId'], osmId]);
+        }
+        if (campusOnlineMap.getLayer('campus-selected-building-footprint-highlight')) {
+          campusOnlineMap.setFilter('campus-selected-building-footprint-highlight', ['==', ['get', 'osmId'], osmId]);
+        }
       }
       if (openPopup) mapMarker.togglePopup();
     }
