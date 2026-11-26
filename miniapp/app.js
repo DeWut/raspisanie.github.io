@@ -146,7 +146,7 @@
     return new Date(Date.UTC(year, month - 1, day, hour, minute) - 3 * 60 * 60 * 1000);
   }
   function reminderId(date, index) {
-    return Number(dateKey(date).replaceAll('-', '')) * 10 + (index % 10);
+    return Number(dateKey(date).replaceAll('-', '')) * 100 + index;
   }
   function buildLessonReminders() {
     if (!state.schedule?.id) return [];
