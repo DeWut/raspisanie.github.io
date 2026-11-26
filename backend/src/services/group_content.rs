@@ -314,7 +314,7 @@ pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command:
                 .bind(chat_id).bind(id).bind(actor).execute(&mut *tx).await;
             let changed=match removed { Ok(r)=>r.rows_affected()==1,Err(_)=>{let _=tx.rollback().await;return Some("Ошибка отмены записи.".into());} };
             if changed {
-                let next=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY created_at,telegram_id LIMIT 1 FOR UPDATE")
+                let next=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY joined_at,telegram_id LIMIT 1 FOR UPDATE")
                     .bind(chat_id).bind(id).fetch_optional(&mut *tx).await.ok().flatten();
                 if let Some(next_id)=next {
                     let _=sqlx::query("UPDATE bot_event_participants SET response='going',updated_at=now() WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3")
