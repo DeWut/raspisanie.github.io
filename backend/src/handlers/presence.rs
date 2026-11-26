@@ -36,14 +36,15 @@ pub async fn ping(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn count(
-    State(state): State<SharedState>,
-) -> Result<Json<PresenceCount>, AppError> {
+pub async fn count(State(state): State<SharedState>) -> Result<Json<PresenceCount>, AppError> {
     let online = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM online_presence WHERE last_seen_at >= now() - interval '2 minutes'",
     )
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(PresenceCount { online, window_seconds: 120 }))
+    Ok(Json(PresenceCount {
+        online,
+        window_seconds: 120,
+    }))
 }
