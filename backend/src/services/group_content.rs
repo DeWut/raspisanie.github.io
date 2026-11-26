@@ -578,11 +578,11 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
 }
 
 
-pub async fn handle_content_admin(db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
+pub async fn handle_content_admin(bot: &Bot, db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
     if chat_id >= 0 || !matches!(command, "/content_rights" | "/content_editor") { return None; }
     let admin: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status IN ('creator','administrator')) OR EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND owner_telegram_id=$2 AND is_active=TRUE)")
         .bind(chat_id).bind(actor).fetch_one(db).await.unwrap_or(false);
-    if !admin { return Some("⛔ Эти настройки доступны только создателю или администраторам Telegram.".into()); }
+    if !admin { return Some("⛔ Эти настройки доступны только владельцу SMART CAMPUS, создателю или администраторам Telegram.".into()); }
     match command {
         "/content_rights" => {
             let p:Vec<_>=argument.split_whitespace().collect();
@@ -599,6 +599,13 @@ pub async fn handle_content_admin(db: &PgPool, chat_id: i64, actor: i64, command
                 return Some("Формат: /content_editor homework|exams|events add|remove TELEGRAM_ID".into());
             }
             let Ok(target)=p[2].parse::<i64>() else { return Some("Укажи числовой Telegram ID участника.".into()); };
+            if target<=0 { return Some("Telegram ID должен быть положительным числом.".into()); }
+            if p[1]=="add" {
+                match crate::services::chat_roles::sync_member(bot, db, ChatId(chat_id), target, None).await {
+                    Ok(Some(_)) => {},
+                    Ok(None) | Err(_) => return Some("Не удалось подтвердить, что пользователь состоит в этом чате. Попроси участника написать боту в группе и повтори команду.".into()),
+                }
+            }
             let result=if p[1]=="add" {
                 sqlx::query("INSERT INTO bot_chat_content_editors(chat_id,section,telegram_id,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING")
                     .bind(chat_id).bind(p[0]).bind(target).bind(actor).execute(db).await
