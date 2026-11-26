@@ -10,7 +10,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-38" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="./miniapp/app.js?v=20261126-38"></script>
+    <script defer src="./miniapp/campus-map-config.js?v=20261127-15"></script>
+    <script defer src="./miniapp/app.js?v=20261127-15"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -117,7 +118,7 @@
           <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта университета ↗</a>
         </div>
         <div id="campus-online-panel" class="campus-online-panel" hidden>
-          <div class="campus-online-head"><span>ТЕРРИТОРИЯ ПАРКА · ЛОКАЛЬНЫЕ ДАННЫЕ OSM</span></div>
+          <div class="campus-online-head"><span id="campus-map-source-label">ТЕРРИТОРИЯ ПАРКА · ЛОКАЛЬНЫЕ ДАННЫЕ OSM</span><button type="button" id="campus-cesium-expand" hidden aria-pressed="false">На весь экран</button></div>
           <div class="campus-map-switch" role="group" aria-label="Источник карты">
             <button type="button" id="campus-mode-osm" aria-pressed="true">Автономный 3D-парк</button>
             <button type="button" id="campus-mode-yandex" aria-pressed="false">Спутник Яндекса</button>
