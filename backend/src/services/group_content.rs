@@ -728,7 +728,7 @@ pub async fn handle_group_tools(
             let exams = match sqlx::query_as::<_, (i64,String,DateTime<Utc>,Option<String>,Option<String>)>(
                 r#"SELECT id,subject,exam_at,format,topics
                    FROM bot_exams
-                   WHERE chat_id=$1 AND status='active'
+                   WHERE chat_id=$1 AND status='active' AND exam_at>now()-interval '1 day'
                      AND (subject ILIKE $2 ESCAPE '\' OR COALESCE(format,'') ILIKE $2 ESCAPE '\'
                           OR COALESCE(topics,'') ILIKE $2 ESCAPE '\' OR COALESCE(details,'') ILIKE $2 ESCAPE '\')
                    ORDER BY exam_at LIMIT 5"#
@@ -740,7 +740,7 @@ pub async fn handle_group_tools(
             let events = match sqlx::query_as::<_, (i64,String,DateTime<Utc>,Option<String>)>(
                 r#"SELECT id,title,starts_at,location
                    FROM bot_events
-                   WHERE chat_id=$1 AND status='active'
+                   WHERE chat_id=$1 AND status='active' AND starts_at>now()-interval '1 day'
                      AND (title ILIKE $2 ESCAPE '\' OR COALESCE(description,'') ILIKE $2 ESCAPE '\')
                    ORDER BY starts_at LIMIT 5"#
             )
