@@ -677,7 +677,7 @@
     campusCesiumDataSource = null;
   }
   function getCampusCesiumProperty(entity, key, Cesium) {
-    const property = entity.properties?.[key];
+    const property = entity?.properties?.[key];
     return property?.getValue ? property.getValue(Cesium.JulianDate.now()) : property;
   }
   async function addCampusCesiumLocalScene(Cesium, viewer, photorealistic = false) {
@@ -923,6 +923,15 @@
     const mapLibreHost = $('#campus-online-map');
     const yandexHost = $('#campus-yandex-map');
     const cesiumHost = $('#campus-cesium-map');
+    const expandButton = $('#campus-cesium-expand');
+    if (expandButton) expandButton.hidden = mode !== 'cesium';
+    if (mode !== 'cesium') {
+      $('#map-dialog')?.classList.remove('campus-map-expanded');
+      if (expandButton) {
+        expandButton.textContent = 'На весь экран';
+        expandButton.setAttribute('aria-pressed', 'false');
+      }
+    }
     if (mapLibreHost) mapLibreHost.hidden = mode !== 'online';
     if (yandexHost) yandexHost.hidden = mode !== 'yandex';
     if (cesiumHost) cesiumHost.hidden = mode !== 'cesium';
@@ -1706,6 +1715,20 @@ function setCampusSatelliteVisible(visible) {
       }
     });
     $('#campus-mode-photorealistic')?.addEventListener('click', openCampusPhotorealisticMap);
+    $('#campus-cesium-expand')?.addEventListener('click', () => {
+      const dialog = $('#map-dialog');
+      if (!dialog) return;
+      const expanded = dialog.classList.toggle('campus-map-expanded');
+      const button = $('#campus-cesium-expand');
+      if (button) {
+        button.textContent = expanded ? 'Свернуть карту' : 'На весь экран';
+        button.setAttribute('aria-pressed', String(expanded));
+      }
+      requestAnimationFrame(() => {
+        if (campusCesiumViewer && !campusCesiumViewer.isDestroyed()) campusCesiumViewer.resize();
+        campusOnlineMap?.resize();
+      });
+    });
     $('#campus-mode-osm')?.addEventListener('click', () => {
       destroyCampusCesiumViewer();
       setCampusMapMode('online');
@@ -1717,6 +1740,12 @@ function setCampusSatelliteVisible(visible) {
       }
     });
     $('#map-dialog')?.addEventListener('close', () => {
+      $('#map-dialog')?.classList.remove('campus-map-expanded');
+      const expandButton = $('#campus-cesium-expand');
+      if (expandButton) {
+        expandButton.textContent = 'На весь экран';
+        expandButton.setAttribute('aria-pressed', 'false');
+      }
       destroyCampusCesiumViewer();
       if (campusMapMode === 'cesium') setCampusMapMode('offline');
     });
