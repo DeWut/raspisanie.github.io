@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+      - feature/smart-campus-step-1
 
 permissions:
   contents: read
