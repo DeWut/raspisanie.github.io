@@ -302,17 +302,44 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
         }
         "/cancel_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /cancel_event ID".into()); };
-            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist')")
-                .bind(chat_id).bind(id).fetch_all(db).await.unwrap_or_default();
-            let result=sqlx::query("UPDATE bot_events SET status='cancelled',updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).execute(db).await;
-            match result {
-                Ok(r) if r.rows_affected()==1 => {
-                    for user in recipients { if let Err(error)=bot.send_message(ChatId(user),format!("❌ Мероприятие #{id} отменено организатором.")).await { tracing::debug!("Could not send event cancellation to {}: {}",user,error); } }
-                    Some(format!("❌ Мероприятие #{id} отменено. Участники уведомлены в личных сообщениях."))
-                },
-                Ok(_) => Some("Мероприятие не найдено.".into()),
-                Err(_) => Some("Ошибка отмены мероприятия.".into())
+            // Signup, leave and capacity changes lock the event row. Locking the
+            // same row here serializes cancellation with those operations.
+            let mut tx=match db.begin().await {
+                Ok(tx)=>tx,
+                Err(_)=>return Some("Не удалось начать отмену мероприятия.".into()),
+            };
+            let event=sqlx::query_scalar::<_,i64>(
+                "SELECT id FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE"
+            ).bind(chat_id).bind(id).fetch_optional(&mut *tx).await;
+            if !matches!(event,Ok(Some(_))) {
+                let _=tx.rollback().await;
+                return Some("Мероприятие не найдено или уже отменено.".into());
             }
+            let recipients=match sqlx::query_scalar::<_,i64>(
+                "SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist') FOR UPDATE"
+            ).bind(chat_id).bind(id).fetch_all(&mut *tx).await {
+                Ok(users)=>users,
+                Err(_)=>{
+                    let _=tx.rollback().await;
+                    return Some("Не удалось получить список участников мероприятия.".into());
+                }
+            };
+            let updated=sqlx::query(
+                "UPDATE bot_events SET status='cancelled',updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'"
+            ).bind(chat_id).bind(id).execute(&mut *tx).await;
+            if !matches!(updated,Ok(ref result) if result.rows_affected()==1) {
+                let _=tx.rollback().await;
+                return Some("Не удалось отменить мероприятие.".into());
+            }
+            if tx.commit().await.is_err() {
+                return Some("Не удалось сохранить отмену мероприятия.".into());
+            }
+            for user in recipients {
+                if let Err(error)=bot.send_message(ChatId(user),format!("❌ Мероприятие #{id} отменено организатором.")).await {
+                    tracing::debug!("Could not send event cancellation to {}: {}",user,error);
+                }
+            }
+            Some(format!("❌ Мероприятие #{id} отменено. Участники уведомлены в личных сообщениях."))
         }
         "/event_attendees" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /event_attendees ID".into()); };
