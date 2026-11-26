@@ -859,7 +859,10 @@
       });
       campusCesiumViewer = viewer;
       const local = await addCampusCesiumLocalScene(Cesium, viewer, false);
-      status.textContent = `Автономная 3D-сцена загружена: ${local.buildings} зданий, ${local.supplemental} дополнительных OSM-объектов, дорожки, зелёные зоны, водоёмы и ${local.markers} маркера корпусов. Внешние картографические ключи не используются.`;
+      const sceneResponse = await fetch(new URL('../data/campus-park-scene.json', APP_SCRIPT_URL).href, { cache: 'force-cache' });
+      const sceneForTrees = sceneResponse.ok ? await sceneResponse.json() : { features: [] };
+      const treeCount = addCampusTreeEntities(Cesium, viewer, sceneForTrees);
+      status.textContent = `3D-сцена загружена: ${local.buildings} зданий (объём по доступным данным), ${treeCount} отдельных деревьев с кронами, дорожки, зелёные зоны и водоёмы. Фасадная фотограмметрия для территории пока не подключена.`;
       if (sourceLabel) sourceLabel.textContent = 'CESIUM · OPEN DATA · LOCAL 3D CAMPUS';
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 1050),
@@ -989,14 +992,14 @@ function setCampusSatelliteVisible(visible) {
     try {
       const mapgl = await loadCampus2GisApi();
       if (!$('#map-dialog')?.open) return;
-      campusDgisMap = new mapgl.Map('campus-2gis-map', { key: key, center: [30.34235, 59.99375], zoom: 16, pitch: 55, rotation: -18, lang: 'ru' });
+      campusDgisMap = new mapgl.Map('campus-2gis-map', { key: key, center: [30.34235, 59.99375], zoom: 16, pitch: 62, rotation: -18, lang: 'ru' });
       let count = 0;
       (state.campus?.buildings || []).forEach((building) => {
         if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
         new mapgl.Marker(campusDgisMap, { coordinates: [building.longitude, building.latitude] });
         count += 1;
       });
-      status.textContent = '3D-карта 2ГИС загружена. Добавлено маркеров корпусов: ' + count + '.';
+      status.textContent = 'Детальная 3D-карта 2ГИС загружена. Отмечено корпусов: ' + count + '. Наклон и вращение доступны жестами. Доступность и детализация слоёв зависят от покрытия 2ГИС в этой точке.';
     } catch (error) {
       console.warn('2GIS MapGL failed:', error);
       status.textContent = 'Не удалось открыть 2ГИС: ' + error.message + '. Проверь доступность Map Tiles API для демо-ключа.';
@@ -1126,53 +1129,70 @@ function setCampusSatelliteVisible(visible) {
       });
     });
   }
-  function createCampusWoodlandTexture() {
-    const size = 96;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Не удалось создать текстуру леса');
-    let seed = 5622070;
-    const random = () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 4294967296;
-    };
-    const crowns = Array.from({ length: 112 }, () => ({
-      x: random() * size,
-      y: random() * size,
-      radius: 1.5 + random() * 2.4,
-      tone: random()
-    }));
-    for (const crown of crowns) {
-      for (const xOffset of [-size, 0, size]) {
-        for (const yOffset of [-size, 0, size]) {
-          const x = crown.x + xOffset;
-          const y = crown.y + yOffset;
-          const radius = crown.radius;
-          context.fillStyle = 'rgba(35, 66, 42, 0.24)';
-          context.beginPath();
-          context.ellipse(x + radius * 0.35, y + radius * 0.55, radius * 1.18, radius * 0.88, 0, 0, Math.PI * 2);
-          context.fill();
-          const gradient = context.createRadialGradient(x - radius * 0.28, y - radius * 0.36, radius * 0.12, x, y, radius * 1.3);
-          gradient.addColorStop(0, crown.tone > 0.74 ? '#a8c477' : '#86ad68');
-          gradient.addColorStop(0.34, crown.tone > 0.48 ? '#6f9b5d' : '#5c8c54');
-          gradient.addColorStop(0.78, '#477749');
-          gradient.addColorStop(1, 'rgba(48, 89, 54, 0.88)');
-          context.fillStyle = gradient;
-          context.beginPath();
-          context.ellipse(x, y, radius, radius * (0.76 + crown.tone * 0.22), crown.tone * 0.4, 0, Math.PI * 2);
-          context.fill();
-          context.fillStyle = 'rgba(192, 213, 139, 0.28)';
-          context.beginPath();
-          context.arc(x - radius * 0.32, y - radius * 0.3, Math.max(0.5, radius * 0.24), 0, Math.PI * 2);
-          context.fill();
-        }
-      }
+  
+function createCampusWoodlandTexture() {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Не удалось создать текстуру леса');
+  let seed = 5622070;
+  const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const crowns = Array.from({length: 150}, () => ({x:random()*size,y:random()*size,r:1.8+random()*3.2,t:random()}));
+  for (const crown of crowns) {
+    for (const ox of [-size,0,size]) for (const oy of [-size,0,size]) {
+      const x=crown.x+ox,y=crown.y+oy,r=crown.r;
+      ctx.fillStyle='rgba(24,45,30,.35)'; ctx.beginPath(); ctx.ellipse(x+r*.42,y+r*.62,r*1.4,r*.94,.2,0,Math.PI*2); ctx.fill();
+      const g=ctx.createRadialGradient(x-r*.35,y-r*.38,r*.08,x,y,r*1.45);
+      g.addColorStop(0,crown.t>.7?'#c5d98b':'#91b66b'); g.addColorStop(.3,crown.t>.5?'#769f59':'#628b50'); g.addColorStop(.72,'#426e43'); g.addColorStop(1,'#294b32');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(x,y,r,r*(.72+crown.t*.25),crown.t*.7,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(220,235,174,.32)'; ctx.beginPath(); ctx.arc(x-r*.3,y-r*.34,Math.max(.55,r*.22),0,Math.PI*2); ctx.fill();
     }
-    return context.getImageData(0, 0, size, size);
   }
-  async function addCampusParkLayers(map) {
+  return ctx.getImageData(0,0,size,size);
+}
+
+function getCampusTreeProperties(feature) {
+  const p = feature?.properties || {};
+  if (p.kind !== 'tree' && p.natural !== 'tree' && p.kind !== 'tree-trunk' && p.kind !== 'tree-canopy') return null;
+  const height = Number(p.heightMeters || p.height || p.est_height || 8);
+  const crown = Number(p.crownDiameter || p.circumference || 5);
+  return {height: Math.max(3, Math.min(height, 24)), crown: Math.max(2, Math.min(crown, 16))};
+}
+
+function addCampusTreeEntities(Cesium, viewer, scene) {
+  const trees = (scene.features || []).filter((f) => f.geometry?.type === 'Point' && getCampusTreeProperties(f));
+  const entities = new Cesium.EntityCollection();
+  for (const feature of trees) {
+    const [lon,lat] = feature.geometry.coordinates;
+    const dims = getCampusTreeProperties(feature);
+    const trunkHeight = dims.height * .58;
+    const crownRadius = dims.crown * .5;
+    const base = Cesium.Cartesian3.fromDegrees(lon,lat,0);
+    viewer.entities.add({
+      position: base,
+      cylinder: {
+        length: trunkHeight,
+        topRadius: .12, bottomRadius: .22,
+        material: Cesium.Color.fromCssColorString('#755238'),
+        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+      }
+    });
+    viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon,lat,trunkHeight + crownRadius*.48),
+      ellipsoid: {
+        radii: new Cesium.Cartesian3(crownRadius,crownRadius,dims.height*.42),
+        material: Cesium.Color.fromCssColorString('#47764a').withAlpha(.94),
+        outline: true, outlineColor: Cesium.Color.fromCssColorString('#315b39').withAlpha(.65),
+        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+      }
+    });
+  }
+  return trees.length;
+}
+
+async function addCampusParkLayers(map) {
     const dataUrl = new URL('../data/campus-park-scene.json', APP_SCRIPT_URL).href;
     const response = await fetch(dataUrl, { cache: 'force-cache' });
     if (!response.ok) throw new Error(`Геометрия парка: HTTP ${response.status}`);

@@ -559,3 +559,69 @@ button { font-family: inherit; }
 .campus-cesium-attribution a { color:var(--forest); font-weight:750; text-decoration:underline; }
 
 .campus-2gis-map { width: 100%; height: 100%; min-height: 440px; overflow: hidden; }
+
+
+/* Campus photorealism pass: tree canopies in the Cesium scene */
+.campus-cesium-map .cesium-widget,
+.campus-cesium-map .cesium-widget canvas { width:100%; height:100%; }
+.campus-cesium-map .cesium-viewer { overflow:hidden; }
+.campus-cesium-map .cesium-viewer-toolbar { top:8px; right:8px; }
+.campus-cesium-map .cesium-viewer-bottom { bottom:4px !important; left:8px !important; }
+.campus-cesium-map .cesium-widget-credits { font-size:8px !important; }
+.campus-map-switch { flex-wrap:wrap; }
+.campus-map-switch button { min-height:36px; }
+@media(max-width:520px) {
+  .campus-map-switch { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .campus-map-switch button { min-width:0; padding:0 6px; font-size:9px; }
+}
+
+
+/* Wikimedia / heritage popup: keep the full summary reachable on touch screens. */
+.maplibregl-popup {
+  max-width: min(340px, calc(100vw - 24px)) !important;
+}
+.maplibregl-popup-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: min(62dvh, 540px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 12px;
+}
+.campus-map-building-popup {
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 56px));
+  min-width: 0;
+  max-height: none;
+  overflow: visible;
+}
+.campus-map-building-photo img {
+  width: 100%;
+  max-height: min(24dvh, 190px);
+  object-fit: cover;
+}
+.campus-map-building-photo figcaption,
+.campus-map-building-history,
+.campus-map-building-links {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+@media (max-width: 520px) {
+  .maplibregl-popup {
+    max-width: calc(100vw - 20px) !important;
+  }
+  .maplibregl-popup-content {
+    max-height: min(56dvh, 480px);
+    padding: 10px;
+    touch-action: pan-y;
+  }
+  .campus-map-building-popup {
+    width: min(300px, calc(100vw - 48px));
+  }
+  .campus-map-building-photo img {
+    max-height: min(20dvh, 150px);
+  }
+}
