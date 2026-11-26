@@ -74,7 +74,8 @@ def height_for(tags: dict[str, str]) -> tuple[float | None, str]:
     return None, "unknown; height not mapped in OSM"
 
 
-def display_building_colour(tags: dict[str, str], object_id: str) -> str:
+def display_building_colour(tags: dict[str, str], object_id: str) -> str | None:
+    """Return a facade colour only when the source explicitly tags one."""
     explicit = tags.get("building:colour", tags.get("colour", "")).strip().lower()
     if re.fullmatch(r"#[0-9a-f]{6}", explicit):
         return explicit
@@ -84,20 +85,7 @@ def display_building_colour(tags: dict[str, str], object_id: str) -> str:
         "brown": "#89634c", "green": "#7d9978", "blue": "#758c98",
         "grey": "#aaa69d", "gray": "#aaa69d", "grayish": "#aaa69d",
     }
-    if explicit in named_colours:
-        return named_colours[explicit]
-
-    material = tags.get("building:material", tags.get("building:cladding", tags.get("cladding", ""))).split(";")[0].strip().lower()
-    material_colours = {
-        "brick": "#ae7159", "masonry": "#bca88e", "stone": "#c8b99f",
-        "plaster": "#ded2bf", "stucco": "#d9cdb8", "wood": "#927052",
-        "concrete": "#aaa89f", "glass": "#718b8c", "metal": "#92958e",
-    }
-    if material in material_colours:
-        return material_colours[material]
-
-    palette = ["#dfcba8", "#c98768", "#e5d9bf", "#b98568", "#d5bd96"]
-    return palette[sum(ord(char) for char in object_id) % len(palette)]
+    return named_colours.get(explicit)
 
 
 def make_multipolygon(outer_rings: list[list[list[float]]], inner_rings: list[list[list[float]]]) -> list[list[list[list[float]]]]:
