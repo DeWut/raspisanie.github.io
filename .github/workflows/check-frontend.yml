@@ -26,8 +26,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check Mini App JavaScript
-        run: node --check miniapp/app.js
+      - name: Check Mini App and offline scripts
+        run: |
+          node --check miniapp/app.js
+          node --check service-worker.js
+          node --check scripts/prepare-mobile.mjs
 
       - name: Check inline page scripts
         run: |

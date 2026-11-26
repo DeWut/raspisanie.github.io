@@ -4,7 +4,7 @@ const SHELL_FILES = [
   "./", "./index.html", "./miniapp/index.html", "./miniapp/week.html",
   "./miniapp/app.js", "./miniapp/styles.css", "./miniapp/native-bridge.js",
   "./week.html", "./manifest.webmanifest", "./offline.html", "./favicon.png",
-  "./data/groups.json", "./data/teachers.json"
+  "./data/groups.json", "./data/teachers.json", "./data/campus.json"
 ];
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {

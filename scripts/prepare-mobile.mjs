@@ -9,6 +9,9 @@ const required = [
   path.join(root, "miniapp", "app.js"),
   path.join(root, "data", "groups.json"),
   path.join(root, "favicon.png"),
+  path.join(root, "service-worker.js"),
+  path.join(root, "manifest.webmanifest"),
+  path.join(root, "offline.html"),
 ];
 
 for (const file of required) {
@@ -20,6 +23,9 @@ await mkdir(path.join(webDir, "miniapp"), { recursive: true });
 await cp(path.join(root, "miniapp"), path.join(webDir, "miniapp"), { recursive: true });
 await cp(path.join(root, "data"), path.join(webDir, "data"), { recursive: true });
 await cp(path.join(root, "favicon.png"), path.join(webDir, "favicon.png"));
+await cp(path.join(root, "service-worker.js"), path.join(webDir, "service-worker.js"));
+await cp(path.join(root, "manifest.webmanifest"), path.join(webDir, "manifest.webmanifest"));
+await cp(path.join(root, "offline.html"), path.join(webDir, "offline.html"));
 
 // Bundle the native-only Capacitor bridge into the Android app. The website keeps
 // a harmless stub so the same Mini App source continues to work in browsers.
