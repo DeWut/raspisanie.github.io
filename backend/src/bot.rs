@@ -1051,7 +1051,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "/warn" => {
             if !is_group_chat {
                 "Предупреждения работают только в групповом чате.".into()
-            } else if !crate::services::chat_roles::can_manage_chat(
+            } else if !crate::services::chat_roles::can_warn_chat(
                 &bot,
                 db,
                 message.chat.id,
@@ -1121,7 +1121,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "/warnings" => {
             if !is_group_chat {
                 "Список предупреждений доступен только в групповом чате.".into()
-            } else if !crate::services::chat_roles::can_manage_chat(
+            } else if !crate::services::chat_roles::can_warn_chat(
                 &bot,
                 db,
                 message.chat.id,
@@ -1163,7 +1163,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 "Мут работает только в групповом чате.".into()
             } else if !message.chat.is_supergroup() {
                 "Для временного ограничения нужна супергруппа Telegram.".into()
-            } else if !crate::services::chat_roles::can_manage_chat(
+            } else if !crate::services::chat_roles::can_mute_chat(
                 &bot,
                 db,
                 message.chat.id,
@@ -1299,7 +1299,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 "Снять мут можно только в групповом чате.".into()
             } else if !message.chat.is_supergroup() {
                 "Для снятия ограничения нужна супергруппа Telegram.".into()
-            } else if !crate::services::chat_roles::can_manage_chat(
+            } else if !crate::services::chat_roles::can_mute_chat(
                 &bot,
                 db,
                 message.chat.id,
@@ -1387,7 +1387,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "/ban" => {
             if !is_group_chat {
                 "Блокировка работает только в групповом чате.".into()
-            } else if !crate::services::chat_roles::can_manage_chat(
+            } else if !crate::services::chat_roles::can_ban_chat(
                 &bot,
                 db,
                 message.chat.id,
@@ -1458,7 +1458,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "/unban" => {
             if !is_group_chat {
                 "Разблокировка работает только в групповом чате.".into()
-            } else if !crate::services::chat_roles::can_manage_chat(
+            } else if !crate::services::chat_roles::can_ban_chat(
                 &bot,
                 db,
                 message.chat.id,
