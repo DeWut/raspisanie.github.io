@@ -5,7 +5,7 @@ use teloxide::{
     prelude::*,
     types::{
         BotCommand, BotCommandScope, ButtonRequest, ChatPermissions, InlineQuery,
-        InlineQueryResult, InlineQueryResultArticle, InputMessageContent, InputMessageContentText,
+        InlineQueryResult, InlineQueryResultArticle, InputFile, InputMessageContent, InputMessageContentText,
         KeyboardButton, KeyboardMarkup, Message, MessageId, ThreadId, UserId, WebAppInfo,
     },
 };
@@ -710,6 +710,35 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
             return Ok(());
         }
+    }
+
+    if command == "/export_calendar" {
+        if !is_group_chat {
+            reply(&bot, db, &message, "Экспорт календаря доступен в настроенном учебном чате: /export_calendar".into(), &state.config.webapp_url).await?;
+            return Ok(());
+        }
+        match crate::services::calendar_export::build_group_calendar(db, message.chat.id.0).await {
+            Ok(Some(calendar)) => {
+                let file = InputFile::memory(calendar.into_bytes())
+                    .file_name("SPbFTU-SMART-CAMPUS.ics");
+                let request = bot
+                    .send_document(message.chat.id, file)
+                    .caption("📅 Календарь SPbFTU SMART CAMPUS: расписание, экзамены и мероприятия на ближайшие 180 дней.");
+                let request = match message.thread_id.clone() {
+                    Some(thread_id) => request.message_thread_id(thread_id),
+                    None => request,
+                };
+                request.await?;
+            }
+            Ok(None) => {
+                reply(&bot, db, &message, "Для этой группы нет будущих занятий, экзаменов или мероприятий либо учебная группа ещё не настроена.".into(), &state.config.webapp_url).await?;
+            }
+            Err(error) => {
+                tracing::error!("Calendar export failed for chat {}: {}", message.chat.id.0, error);
+                reply(&bot, db, &message, "Не удалось сформировать календарь. Проверьте настройки учебного чата и попробуйте позже.".into(), &state.config.webapp_url).await?;
+            }
+        }
+        return Ok(());
     }
 
     if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/exam_info" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_waitlist" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off") {
@@ -1974,6 +2003,7 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("edit_exam", "Изменить экзамен"),
         BotCommand::new("exam_info", "Темы, формат и литература экзамена"),
         BotCommand::new("delete_exam", "Архивировать экзамен"),
+        BotCommand::new("export_calendar", "Экспорт расписания в календарь .ics"),
         BotCommand::new("events", "Список мероприятий"),
         BotCommand::new("add_event", "Создать мероприятие"),
         BotCommand::new("edit_event", "Изменить мероприятие"),
