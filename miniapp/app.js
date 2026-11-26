@@ -660,6 +660,8 @@
     const status = $('#campus-online-status');
     if (!panel) return;
     panel.hidden = false;
+    $('.campus-explorer')?.classList.add('online-active');
+    requestAnimationFrame(() => campusOnlineMap?.resize());
     if (campusOnlineMap) { campusOnlineMap.resize(); return; }
     status.textContent = 'Загружаем реальную карту и 3D-здания…';
     try {
@@ -924,7 +926,11 @@
     $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); loadCampusDirectory(); });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
-    $('#campus-close-online')?.addEventListener('click', () => { $('#campus-online-panel').hidden = true; });
+    $('#campus-close-online')?.addEventListener('click', () => {
+      $('#campus-online-panel').hidden = true;
+      $('.campus-explorer')?.classList.remove('online-active');
+      requestAnimationFrame(() => campusOnlineMap?.resize());
+    });
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));

@@ -459,3 +459,12 @@ button { font-family: inherit; }
 .campus-map-marker { display:grid; place-items:center; width:30px; height:30px; border:2px solid #f2f7ed; border-radius:50% 50% 50% 4px; transform:rotate(-45deg); background:#246a48; color:#fff; box-shadow:0 2px 9px rgba(0,0,0,.35); font:800 12px/1 system-ui,sans-serif; cursor:pointer; }
 .campus-map-marker::first-letter { transform:rotate(45deg); }
 .maplibregl-popup-content { color:#183b29; font:12px/1.45 system-ui,sans-serif; }
+
+/* The online map replaces, rather than duplicates, the local 3D preview. */
+.campus-explorer.online-active .campus-viewbar,
+.campus-explorer.online-active .campus-viewport,
+.campus-explorer.online-active .campus-map-actions { display:none; }
+.campus-explorer.online-active .campus-online-panel { display:block; margin:0; border:0; border-radius:0 0 18px 18px; }
+.campus-online-head button { min-width:84px; padding:0 10px; width:auto; font-size:11px; font-weight:800; }
+.campus-online-map { height:clamp(360px,62vh,620px); }
+@media(max-width:420px) { .campus-online-map { height:clamp(340px,58vh,520px); } }
