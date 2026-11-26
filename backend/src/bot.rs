@@ -6,7 +6,7 @@ use teloxide::{
     types::{
         BotCommand, BotCommandScope, ButtonRequest, ChatPermissions, InlineQuery,
         InlineQueryResult, InlineQueryResultArticle, InputMessageContent, InputMessageContentText,
-        KeyboardButton, KeyboardMarkup, Message, UserId, WebAppInfo,
+        KeyboardButton, KeyboardMarkup, Message, MessageId, ThreadId, UserId, WebAppInfo,
     },
 };
 
@@ -1508,6 +1508,58 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             }
         }
 
+        "/chat_topic" => {
+            if !is_group_chat {
+                "Выбор темы доступен только в групповом чате.".into()
+            } else if !matches!(
+                crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None)
+                    .await.ok().flatten().as_deref(),
+                Some("owner" | "admin")
+            ) {
+                "⛔ Выбирать тему публикаций может только создатель или администратор Telegram.".into()
+            } else if !message.chat.is_supergroup() {
+                "Темы доступны только в супергруппах Telegram.".into()
+            } else if let Some(thread_id) = message.thread_id {
+                match sqlx::query("UPDATE bot_chat_settings SET message_thread_id = $2, updated_at = now() WHERE chat_id = $1")
+                    .bind(message.chat.id.0)
+                    .bind(i64::from(thread_id.0.0))
+                    .execute(db).await {
+                    Ok(result) if result.rows_affected() == 1 => format!(
+                        "✅ Тема сохранена (ID {}). Ежедневное расписание и уведомления будут отправляться сюда.",
+                        thread_id.0.0
+                    ),
+                    Ok(_) => "Сначала привяжи учебную группу командой /setgroup название.".into(),
+                    Err(error) => {
+                        tracing::error!("Could not save Telegram topic: {}", error);
+                        "Не удалось сохранить тему публикаций.".into()
+                    }
+                }
+            } else {
+                "Отправь /chat_topic прямо внутри нужной темы Telegram. В общем чате команда не выберет тему.".into()
+            }
+        }
+        "/chat_topic_off" => {
+            if !is_group_chat {
+                "Настройка темы доступна только в групповом чате.".into()
+            } else if !matches!(
+                crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None)
+                    .await.ok().flatten().as_deref(),
+                Some("owner" | "admin")
+            ) {
+                "⛔ Изменять тему публикаций может только создатель или администратор Telegram.".into()
+            } else {
+                match sqlx::query("UPDATE bot_chat_settings SET message_thread_id = NULL, updated_at = now() WHERE chat_id = $1")
+                    .bind(message.chat.id.0)
+                    .execute(db).await {
+                    Ok(result) if result.rows_affected() == 1 => "✅ Публикации возвращены в общий чат.".into(),
+                    Ok(_) => "Сначала привяжи учебную группу командой /setgroup название.".into(),
+                    Err(error) => {
+                        tracing::error!("Could not clear Telegram topic: {}", error);
+                        "Не удалось изменить тему публикаций.".into()
+                    }
+                }
+            }
+        }
         "/daily_on" | "/daily_off" | "/chat_notify_on" | "/chat_notify_off" => {
             if !is_group_chat {
                 "Эти настройки доступны только в групповом чате.".into()
@@ -1586,11 +1638,11 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             if !is_group_chat {
                 "Команда работает только в групповом чате.".into()
             } else {
-                match sqlx::query_as::<_, (String, bool, String, bool, bool)>(
+                match sqlx::query_as::<_, (String, bool, String, bool, bool, Option<i64>)>(
                     r#"
                     SELECT g.name, c.daily_schedule_enabled,
                            to_char(c.daily_schedule_time, 'HH24:MI'),
-                           c.lesson_notifications_enabled, c.is_active
+                           c.lesson_notifications_enabled, c.is_active, c.message_thread_id
                     FROM bot_chat_settings c
                     JOIN groups g ON g.id = c.group_id
                     WHERE c.chat_id = $1
@@ -1600,12 +1652,13 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .fetch_optional(db)
                 .await
                 {
-                    Ok(Some((group, daily, time, notifications, active))) => format!(
-                        "⚙️ Настройки учебного чата\\nГруппа: {}\\nАвтопубликация: {} (ежедневно в {})\\nУведомления о парах: {}\\nИнтеграция: {}\\n\\nКоманды администратора:\\n/daily_on — включить расписание каждый день\\n/daily_off — выключить\\n/daily_time ЧЧ:ММ — время публикации (МСК, по умолчанию 07:00)\\n/chat_notify_on — уведомлять за 10 минут до пары\\n/chat_notify_off — выключить уведомления",
+                    Ok(Some((group, daily, time, notifications, active, thread_id))) => format!(
+                        "⚙️ Настройки учебного чата\\nГруппа: {}\\nАвтопубликация: {} (ежедневно в {})\\nУведомления о парах: {}\\nТема публикаций: {}\\nИнтеграция: {}\\n\\nКоманды администратора:\\n/chat_topic — выбрать текущую тему\\n/chat_topic_off — публиковать в общий чат\\n/daily_on — включить расписание каждый день\\n/daily_off — выключить\\n/daily_time ЧЧ:ММ — время публикации (МСК)\\n/chat_notify_on — уведомлять за 10 минут до пары\\n/chat_notify_off — выключить уведомления",
                         group,
                         if daily { "включена" } else { "выключена" },
                         time,
                         if notifications { "включены" } else { "выключены" },
+                        thread_id.map(|id| format!("тема #{}", id)).unwrap_or_else(|| "общий чат".into()),
                         if active { "активна" } else { "приостановлена" }
                     ),
                     Ok(None) => "Сначала привяжи учебную группу командой /setgroup название.".into(),
@@ -1880,6 +1933,8 @@ async fn register_bot_commands(bot: &Bot) {
     }
 
     let mut admin_commands = group_commands;
+    admin_commands.push(BotCommand::new("chat_topic", "Выбрать текущую тему для публикаций"));
+    admin_commands.push(BotCommand::new("chat_topic_off", "Публиковать в общий чат"));
     admin_commands.push(BotCommand::new(
         "setgroup",
         "Привязать учебную группу к чату",
@@ -1942,9 +1997,9 @@ pub async fn run(state: Arc<AppState>) {
 /// Delivers opt-in daily schedule posts and 10-minute lesson reminders to configured group chats.
 /// Delivery rows are reserved before sending to prevent duplicate messages across worker ticks.
 async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
-    let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate)>(
+    let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate, Option<i64>)>(
         r#"
-        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date
+        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date, c.message_thread_id
         FROM bot_chat_settings c
         WHERE c.is_active = TRUE
           AND c.daily_schedule_enabled = TRUE
@@ -1953,6 +2008,7 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
               SELECT 1 FROM bot_chat_daily_posts p
               WHERE p.chat_id = c.chat_id
                 AND p.local_date = (now() AT TIME ZONE 'Europe/Moscow')::date
+                AND p.delivered_at IS NOT NULL
           )
         "#
     )
@@ -1963,9 +2019,16 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         Vec::new()
     });
 
-    for (chat_id, group_id, local_date) in daily_chats {
+    for (chat_id, group_id, local_date, thread_id) in daily_chats {
         let reserved = sqlx::query(
-            "INSERT INTO bot_chat_daily_posts (chat_id, local_date) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+            r#"
+            INSERT INTO bot_chat_daily_posts (chat_id, local_date, sent_at)
+            VALUES ($1, $2, now())
+            ON CONFLICT (chat_id, local_date) DO UPDATE
+                SET sent_at = now()
+                WHERE bot_chat_daily_posts.delivered_at IS NULL
+                  AND bot_chat_daily_posts.sent_at < now() - interval '2 minutes'
+            "#
         )
         .bind(chat_id)
         .bind(local_date)
@@ -1978,7 +2041,20 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
 
         let text = schedule_text(&state.db, group_id, "/today").await;
         let message = format!("📢 Ежедневное расписание учебной группы\\n\\n{}", text);
-        if let Err(error) = bot.send_message(ChatId(chat_id), message).await {
+        let request = bot.send_message(ChatId(chat_id), message);
+        let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
+            Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
+            None => request,
+        };
+        match request.await {
+            Ok(_) => {
+                if let Err(error) = sqlx::query(
+                    "UPDATE bot_chat_daily_posts SET delivered_at = now() WHERE chat_id = $1 AND local_date = $2"
+                ).bind(chat_id).bind(local_date).execute(&state.db).await {
+                    tracing::error!("Could not mark daily schedule as delivered to chat {}: {}", chat_id, error);
+                }
+            }
+            Err(error) => {
             tracing::warn!("Could not post daily schedule to chat {}: {}", chat_id, error);
             let _ = sqlx::query(
                 "DELETE FROM bot_chat_daily_posts WHERE chat_id = $1 AND local_date = $2"
@@ -1990,9 +2066,9 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         }
     }
 
-    let lessons = sqlx::query_as::<_, (i64, String, String, DateTime<Utc>)>(
+    let lessons = sqlx::query_as::<_, (i64, String, String, DateTime<Utc>, Option<i64>)>(
         r#"
-        SELECT c.chat_id, l.id::text, l.subject, l.starts_at
+        SELECT c.chat_id, l.id::text, l.subject, l.starts_at, c.message_thread_id
         FROM bot_chat_settings c
         JOIN lessons l ON l.group_id = c.group_id
         WHERE c.is_active = TRUE
@@ -2014,7 +2090,7 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         Vec::new()
     });
 
-    for (chat_id, lesson_id, subject, starts_at) in lessons {
+    for (chat_id, lesson_id, subject, starts_at, thread_id) in lessons {
         let Ok(lesson_uuid) = uuid::Uuid::parse_str(&lesson_id) else { continue };
         let reserved = sqlx::query(
             "INSERT INTO bot_chat_lesson_notifications (chat_id, lesson_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
@@ -2033,7 +2109,12 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
             subject,
             moscow_time(starts_at, "%H:%M")
         );
-        if let Err(error) = bot.send_message(ChatId(chat_id), text).await {
+        let request = bot.send_message(ChatId(chat_id), text);
+        let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
+            Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
+            None => request,
+        };
+        if let Err(error) = request.await {
             tracing::warn!("Could not send lesson notification to chat {}: {}", chat_id, error);
             let _ = sqlx::query(
                 "DELETE FROM bot_chat_lesson_notifications WHERE chat_id = $1 AND lesson_id = $2"
