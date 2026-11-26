@@ -263,7 +263,11 @@ pub async fn handle_ownership(
     if target_id == actor {
         return Some("Ты уже владелец SMART CAMPUS.".into());
     }
-    let active_member = match bot.get_chat_member(chat_id, UserId(target_id as u64)).await {
+    let target_user_id = match u64::try_from(target_id) {
+        Ok(id) if id > 0 => id,
+        _ => return Some("Некорректный Telegram ID участника.".into()),
+    };
+    let active_member = match bot.get_chat_member(chat_id, UserId(target_user_id)).await {
         Ok(member) => !member.kind.is_left() && !member.kind.is_banned(),
         Err(_) => false,
     };
