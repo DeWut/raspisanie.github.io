@@ -960,7 +960,7 @@
     });
     map.addLayer({
       id: 'campus-selected-building-highlight', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
-      filter: ['==', ['get', 'osmId'], ''],
+      filter: ['all', ['==', ['get', 'heightKnown'], true], ['==', ['get', 'osmId'], '']],
       paint: {
         'fill-extrusion-color': '#d8f08d',
         'fill-extrusion-height': ['+', ['get', 'heightMeters'], 0.28],
@@ -990,6 +990,12 @@
       filter: ['==', ['get', 'kind'], 'amenity'],
       paint: { 'circle-radius': 3, 'circle-color': '#fff7df', 'circle-stroke-color': '#6d8160', 'circle-stroke-width': 1 }
     });
+    const buildingFeatures = scene.features.filter((feature) => feature.properties?.kind === 'building');
+    scene.metadata.heightCounts = {
+      measured: buildingFeatures.filter((feature) => feature.properties?.heightSource === 'OSM height').length,
+      estimated: buildingFeatures.filter((feature) => String(feature.properties?.heightSource || '').includes('estimate')).length,
+      unknown: buildingFeatures.filter((feature) => feature.properties?.heightKnown === false).length
+    };
     return scene.metadata;
   }
   function appendCampusPopupLink(container, href, label) {
@@ -1114,10 +1120,10 @@
         const osmId = String(properties.osmId);
         if (building) selectCampusBuilding(building.number, { openPopup: false });
         if (map.getLayer('campus-selected-building-highlight')) {
-          map.setFilter('campus-selected-building-highlight', ['==', ['get', 'osmId'], osmId]);
+          map.setFilter('campus-selected-building-highlight', ['all', ['==', ['get', 'heightKnown'], true], ['==', ['get', 'osmId'], osmId]]);
         }
         if (map.getLayer('campus-selected-building-footprint-highlight')) {
-          map.setFilter('campus-selected-building-footprint-highlight', ['==', ['get', 'osmId'], osmId]);
+          map.setFilter('campus-selected-building-footprint-highlight', ['all', ['==', ['get', 'heightKnown'], false], ['==', ['get', 'osmId'], osmId]]);
         }
         new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: '320px' })
           .setLngLat(event.lngLat)
@@ -1179,7 +1185,14 @@
             osmId: String(building.osm?.id || ''),
             osmBuilding: building.osm?.building || '',
             levels: building.osm?.levels || '',
-            heightMeters: building.osm?.heightMeters || '',
+            heightMeters: building.osm?.heightMeters ?? '',
+            heightSource: building.osm?.heightSource || (
+              Number(building.osm?.heightMeters) > 0
+                ? 'OSM height'
+                : Number(building.osm?.levels) > 0
+                  ? 'OSM levels × 3.4 m (estimate)'
+                  : 'unknown; height not mapped in OSM'
+            ),
             cladding: building.osm?.cladding || '',
             roofShape: building.osm?.roofShape || '',
             sourceUrl: building.osm?.url || ''
@@ -1196,7 +1209,8 @@
         try {
           const metadata = await addCampusParkLayers(campusOnlineMap);
           if (metadata && campusOnlineMap && $('#map-dialog')?.open) {
-            status.textContent = `Автономная 3D-карта парка загружена: ${metadata.counts.building || 0} зданий, ${metadata.counts.path || 0} дорожек, водоёмы и зелёные зоны. Геометрия сохранена на устройстве.`;
+            const heights = metadata.heightCounts || {};
+            status.textContent = `Карта парка загружена: ${metadata.counts.building || 0} зданий (${heights.measured || 0} высот из OSM, ${heights.estimated || 0} оценок по этажности, ${heights.unknown || 0} контуров без высоты), ${metadata.counts.path || 0} дорожек, водоёмы и зелёные зоны.`;
           }
           if (metadata && campusOnlineMap) installCampusBuildingInteractions(campusOnlineMap, maplibregl);
         } catch (error) {
