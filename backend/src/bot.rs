@@ -696,7 +696,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
 
     if is_group_chat && matches!(command, "/content_rights" | "/content_editor") {
         let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
-        if let Some(answer) = crate::services::group_content::handle_content_admin(db, message.chat.id.0, telegram_id, command, argument).await {
+        if let Some(answer) = crate::services::group_content::handle_content_admin(&bot, db, message.chat.id.0, telegram_id, command, argument).await {
             reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
             return Ok(());
         }
