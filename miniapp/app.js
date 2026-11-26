@@ -43,6 +43,11 @@
   }
   async function fetchDataFile(path) {
     const localUrl = new URL(path, DATA_ROOT).href;
+    // Do not wait for external mirrors while the browser already reports offline.
+    if (!navigator.onLine) {
+      const cached = await readCachedData(localUrl);
+      if (cached) return cached;
+    }
     const candidates = [...new Set([localUrl, ...DATA_FALLBACKS.map((root) => new URL(path, root).href)])];
     let lastError;
     for (const url of candidates) {
