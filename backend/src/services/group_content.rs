@@ -374,19 +374,36 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
                 let _=tx.rollback().await;
                 return Some("Не удалось сохранить ответ.".into());
             }
-            let mut promoted=false;
+            let mut promoted_user=None;
             if previous.as_deref()==Some("going") {
-                let next=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY joined_at LIMIT 1 FOR UPDATE")
-                    .bind(chat_id).bind(id).fetch_optional(&mut *tx).await.unwrap_or(None);
+                let next=match sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY joined_at,telegram_id LIMIT 1 FOR UPDATE")
+                    .bind(chat_id).bind(id).fetch_optional(&mut *tx).await {
+                    Ok(user)=>user,
+                    Err(_)=>{
+                        let _=tx.rollback().await;
+                        return Some("Не удалось обработать лист ожидания.".into());
+                    }
+                };
                 if let Some(user)=next {
-                    let _=sqlx::query("UPDATE bot_event_participants SET response='going',updated_at=now() WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3")
+                    let promoted=sqlx::query("UPDATE bot_event_participants SET response='going',updated_at=now() WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3 AND response='waitlist'")
                         .bind(chat_id).bind(id).bind(user).execute(&mut *tx).await;
-                    promoted=true;
+                    match promoted {
+                        Ok(result) if result.rows_affected()==1=>promoted_user=Some(user),
+                        _=>{
+                            let _=tx.rollback().await;
+                            return Some("Не удалось перевести следующего участника из листа ожидания.".into());
+                        }
+                    }
                 }
             }
             if tx.commit().await.is_err() { return Some("Не удалось сохранить ответ.".into()); }
+            if let Some(user)=promoted_user {
+                if let Err(error)=bot.send_message(ChatId(user),format!("🎉 Освободилось место! Ты записан на мероприятие #{id}.")).await {
+                    tracing::debug!("Could not notify promoted event participant {}: {}",user,error);
+                }
+            }
             let base=if response=="maybe"{format!("🤔 Отмечено: ты думаешь насчёт мероприятия #{id}.")}else{format!("Отмечено: ты не идёшь на мероприятие #{id}.")};
-            Some(if promoted {format!("{base}\nСледующий участник из листа ожидания автоматически добавлен.")} else {base})
+            Some(if promoted_user.is_some() {format!("{base}\nСледующий участник из листа ожидания автоматически добавлен и уведомлён.")} else {base})
         }
         "/event_reminders_on" | "/event_reminders_off" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some(format!("Формат: {} ID",command)); };
