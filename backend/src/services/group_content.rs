@@ -63,7 +63,7 @@ pub async fn handle_homework(
     argument: &str,
 ) -> Option<String> {
     if chat_id >= 0 { return None; }
-    if !matches!(command, "/dz" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done") {
+    if !matches!(command, "/dz" | "/homework" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done") {
         return None;
     }
     let configured: bool = sqlx::query_scalar(
@@ -72,11 +72,11 @@ pub async fn handle_homework(
     if !configured {
         return Some("Сначала администратор должен привязать учебную группу: /setgroup название".into());
     }
-    if command != "/dz" && command != "/done" && !permitted(db, chat_id, actor, "homework").await {
+    if command != "/dz" && command != "/homework" && command != "/done" && !permitted(db, chat_id, actor, "homework").await {
         return Some("⛔ Добавлять и изменять домашние задания в этом чате могут только пользователи с соответствующими правами.".into());
     }
     match command {
-        "/dz" => {
+        "/dz" | "/homework" => {
             let rows = sqlx::query_as::<_, (i64, String, String, Option<DateTime<Utc>>, String, String)>(
                 "SELECT h.id,h.subject,h.description,h.due_at,h.priority,CASE WHEN p.completed_at IS NOT NULL THEN 'completed' ELSE 'not_started' END FROM bot_homework h LEFT JOIN bot_homework_progress p ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2 WHERE h.chat_id=$1 AND h.status='active' ORDER BY h.due_at NULLS LAST,h.id DESC LIMIT 30"
             ).bind(chat_id).bind(actor).fetch_all(db).await.unwrap_or_default();
