@@ -707,7 +707,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
         }
         if let Some(answer) = crate::services::group_content::handle_exams_events(
-            db, message.chat.id.0, telegram_id, command, argument
+            &bot, db, message.chat.id.0, telegram_id, command, argument
         ).await {
             reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
             return Ok(());
