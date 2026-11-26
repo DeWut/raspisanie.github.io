@@ -660,3 +660,144 @@ pub async fn handle_content_admin(bot: &Bot, db: &PgPool, chat_id: i64, actor: i
         _ => None
     }
 }
+
+
+/// Read-only discovery and aggregate statistics for one configured Telegram study chat.
+/// All records are scoped by chat_id; personal completion statistics are scoped by actor.
+pub async fn handle_group_tools(
+    db: &PgPool,
+    chat_id: i64,
+    actor: i64,
+    command: &str,
+    argument: &str,
+) -> Option<String> {
+    if chat_id >= 0 || !matches!(command, "/search" | "/group_stats" | "/my_stats") {
+        return None;
+    }
+    let configured: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE)"
+    )
+    .bind(chat_id)
+    .fetch_one(db)
+    .await
+    .unwrap_or(false);
+    if !configured {
+        return Some("Сначала привяжите учебную группу: /setgroup название".into());
+    }
+
+    match command {
+        "/search" => {
+            let query = argument.trim();
+            let length = query.chars().count();
+            if !(2..=100).contains(&length) {
+                return Some("Укажи запрос длиной от 2 до 100 символов: /search линейная алгебра".into());
+            }
+            let pattern = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
+            let homework = match sqlx::query_as::<_, (i64,String,String,Option<DateTime<Utc>>)>(
+                r#"SELECT id,subject,left(description,180),due_at
+                   FROM bot_homework
+                   WHERE chat_id=$1 AND status='active'
+                     AND (subject ILIKE $2 ESCAPE '\\' OR description ILIKE $2 ESCAPE '\\')
+                   ORDER BY due_at NULLS LAST,id DESC LIMIT 5"#
+            )
+            .bind(chat_id).bind(&pattern).fetch_all(db).await {
+                Ok(rows)=>rows,
+                Err(error)=>{tracing::warn!("Group homework search failed: {}",error);return Some("Не удалось выполнить поиск по домашним заданиям.".into());}
+            };
+            let exams = match sqlx::query_as::<_, (i64,String,DateTime<Utc>,Option<String>,Option<String>)>(
+                r#"SELECT id,subject,exam_at,format,topics
+                   FROM bot_exams
+                   WHERE chat_id=$1 AND status='active'
+                     AND (subject ILIKE $2 ESCAPE '\\' OR COALESCE(format,'') ILIKE $2 ESCAPE '\\'
+                          OR COALESCE(topics,'') ILIKE $2 ESCAPE '\\' OR COALESCE(details,'') ILIKE $2 ESCAPE '\\')
+                   ORDER BY exam_at LIMIT 5"#
+            )
+            .bind(chat_id).bind(&pattern).fetch_all(db).await {
+                Ok(rows)=>rows,
+                Err(error)=>{tracing::warn!("Group exam search failed: {}",error);return Some("Не удалось выполнить поиск по экзаменам.".into());}
+            };
+            let events = match sqlx::query_as::<_, (i64,String,DateTime<Utc>,Option<String>)>(
+                r#"SELECT id,title,starts_at,location
+                   FROM bot_events
+                   WHERE chat_id=$1 AND status='active'
+                     AND (title ILIKE $2 ESCAPE '\\' OR COALESCE(description,'') ILIKE $2 ESCAPE '\\')
+                   ORDER BY starts_at LIMIT 5"#
+            )
+            .bind(chat_id).bind(&pattern).fetch_all(db).await {
+                Ok(rows)=>rows,
+                Err(error)=>{tracing::warn!("Group event search failed: {}",error);return Some("Не удалось выполнить поиск по мероприятиям.".into());}
+            };
+            if homework.is_empty() && exams.is_empty() && events.is_empty() {
+                return Some(format!("По запросу «{query}» ничего не найдено."));
+            }
+            let mut out=format!("🔎 РЕЗУЛЬТАТЫ ПОИСКА: {query}\n\n");
+            if !homework.is_empty() {
+                out.push_str("📚 ДОМАШНИЕ ЗАДАНИЯ\n");
+                for (id,subject,description,due) in homework {
+                    let due=due.map(|v|v.with_timezone(&moscow()).format("%d.%m.%Y %H:%M").to_string()).unwrap_or_else(||"без срока".into());
+                    out.push_str(&format!("#{id} · {subject}\n{description}\nСрок: {due}\n\n"));
+                }
+            }
+            if !exams.is_empty() {
+                out.push_str("📝 ЭКЗАМЕНЫ\n");
+                for (id,subject,at,format,topics) in exams {
+                    out.push_str(&format!("#{id} · {subject}\n{} МСК{}{}\n\n",
+                        at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),
+                        format.map(|v|format!(" · {v}")).unwrap_or_default(),
+                        topics.map(|v|format!("\nТемы: {}",v.chars().take(120).collect::<String>())).unwrap_or_default()));
+                }
+            }
+            if !events.is_empty() {
+                out.push_str("🎉 МЕРОПРИЯТИЯ\n");
+                for (id,title,at,location) in events {
+                    out.push_str(&format!("#{id} · {title}\n{} МСК · {}\n\n",
+                        at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),
+                        location.unwrap_or_else(||"место уточняется".into())));
+                }
+            }
+            if out.chars().count()>3800 {
+                out=out.chars().take(3790).collect();
+                out.push_str("\n…Результат сокращён.");
+            }
+            Some(out)
+        }
+        "/group_stats" => {
+            let stats=sqlx::query_as::<_,(i64,i64,i64,i64,i64)>(
+                r#"SELECT
+                    (SELECT count(*) FROM bot_homework WHERE chat_id=$1 AND status='active'),
+                    (SELECT count(*) FROM bot_homework_progress p JOIN bot_homework h ON h.chat_id=p.chat_id AND h.id=p.homework_id WHERE h.chat_id=$1 AND h.status='active'),
+                    (SELECT count(*) FROM bot_exams WHERE chat_id=$1 AND status='active' AND exam_at>now()),
+                    (SELECT count(*) FROM bot_events WHERE chat_id=$1 AND status='active' AND starts_at>now()),
+                    (SELECT count(*) FROM bot_chat_members WHERE chat_id=$1 AND telegram_status IN ('creator','administrator','member'))"#
+            )
+            .bind(chat_id).fetch_one(db).await;
+            let (homework,completed,exams,events,members)=match stats {
+                Ok(value)=>value,
+                Err(error)=>{tracing::warn!("Group stats query failed: {}",error);return Some("Не удалось получить статистику учебного чата.".into());}
+            };
+            Some(format!(
+                "📊 СТАТИСТИКА УЧЕБНОГО ЧАТА\n\n👥 Активных участников в базе бота: {members}\n📚 Активных домашних заданий: {homework}\n✅ Отметок о выполнении: {completed}\n📝 Предстоящих экзаменов: {exams}\n🎉 Предстоящих мероприятий: {events}"
+            ))
+        }
+        "/my_stats" => {
+            let stats=sqlx::query_as::<_,(i64,i64)>(
+                r#"SELECT count(*),count(p.completed_at)
+                   FROM bot_homework h
+                   LEFT JOIN bot_homework_progress p
+                     ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2
+                   WHERE h.chat_id=$1 AND h.status='active'"#
+            )
+            .bind(chat_id).bind(actor).fetch_one(db).await;
+            let (total,completed)=match stats {
+                Ok(value)=>value,
+                Err(error)=>{tracing::warn!("Personal homework stats query failed: {}",error);return Some("Не удалось получить твою статистику.".into());}
+            };
+            let percent=if total==0 {0} else {(completed*100)/total};
+            Some(format!(
+                "📈 ТВОЯ СТАТИСТИКА ПО ДОМАШНИМ ЗАДАНИЯМ\n\n✅ Выполнено: {completed} из {total}\n📊 Прогресс: {percent}%"
+            ))
+        }
+        _ => None,
+    }
+}
+
