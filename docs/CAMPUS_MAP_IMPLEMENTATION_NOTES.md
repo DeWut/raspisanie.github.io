@@ -168,3 +168,12 @@ The data source/engine research is complete enough to choose CesiumJS, but actua
 - The previously hard-coded Yandex API key was removed because keys committed to a public repository must be treated as exposed. The app now reads an optional `yandexMapsApiKey` from `window.CAMPUS_MAP_CONFIG`; the checked-in config keeps it empty. A replacement key must be created/rotated by the project owner and restricted to the deployed HTTP referrer before use.
 - Yandex's current terms require an API key; panorama display is only permitted within the Yandex Maps JS API/Panorama Player service, with a stated 100 panorama requests/day free limit. Yandex JS API v3 does not include satellite imagery by default; the current separate mode intentionally uses v2.1's documented satellite type.
 - Sources: https://yandex.ru/legal/maps_api/ru/ ; https://yandex.com/maps-api/docs/js-api/quickstart.html ; https://yandex.ru/dev/jsapi-v2-1/doc/ru/v2-1/dg/concepts/panoramas/yandex-panoramas .
+
+
+## Reproducible OSM geometry refresh (2026-11-27)
+
+- Added `scripts/update-campus-osm.py`, which queries public Overpass data for the campus bounding box and writes a compact GeoJSON snapshot. It keeps explicit height tags only; missing building heights are not invented. OSM attribution and ODbL metadata are included.
+- Added `.github/workflows/refresh-campus-osm.yml` for manual and monthly refresh on the feature branch. It commits the refreshed data file only when the snapshot changes.
+- Cesium now prefers the refreshed OSM snapshot for building, path, green-area and water features while retaining the hand-curated tree/amenity details from the base scene. If the new snapshot is missing or unavailable, it falls back to the existing scene.
+- The workflow has been added but has not yet been run; until its first successful run, the Cesium viewer continues using the existing 35-building base snapshot. This is an intentional graceful fallback.
+- The script queries OSM only. The larger TerraLab Overture extraction (291 buildings, 841 road/path features, 32 waterways, 10 water areas, 112 land-use polygons) was identified, but its temporary download is not committed because the extraction tool did not expose raw file bytes to this GitHub integration. No claim is made that those Overture counts are already in the app.
