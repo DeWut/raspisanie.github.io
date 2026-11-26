@@ -874,7 +874,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             if !is_group_chat {
                 "Роли модерации настраиваются в групповом чате.".into()
             } else {
-                "🛡 РОЛИ МОДЕРАЦИИ\\n\\n👑 Создатель / администратор Telegram — полный доступ и назначение ролей.\\n⭐ senior_moderator — предупреждения, муты и блокировки. Назначает только создатель чата.\\n🛡 moderator — предупреждения, муты и снятие мутов.\\n🔰 helper — предупреждения и просмотр их истории.\\n👤 member — обычный участник.\\n\\nНазначение ответом на сообщение:\\n/role senior_moderator\\n/role moderator\\n/role helper\\n/role member\\n\\nИли по username:\\n/role @username moderator\\n\\nСписок команд: /help".into()
+                "🛡 РОЛИ МОДЕРАЦИИ\n\n👑 Создатель / администратор Telegram — полный доступ и назначение ролей.\n⭐ senior_moderator — предупреждения, муты и блокировки. Назначает только создатель чата.\n🛡 moderator — предупреждения, муты и снятие мутов.\n🔰 helper — предупреждения и просмотр их истории.\n👤 member — обычный участник.\n\nНазначение ответом на сообщение:\n/role senior_moderator\n/role moderator\n/role helper\n/role member\n\nИли по username:\n/role @username moderator\n\nСписок команд: /help".into()
             }
         }
 
@@ -1600,7 +1600,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     .await
                 {
                     Ok(result) if result.rows_affected() == 1 => format!(
-                        "{} {}.\\nТекущие параметры: /chat_settings",
+                        "{} {}.\nТекущие параметры: /chat_settings",
                         if enabled { "✅ Включена" } else { "🔕 Выключена" },
                         label
                     ),
@@ -1665,7 +1665,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .await
                 {
                     Ok(Some((group, daily, time, notifications, active, thread_id))) => format!(
-                        "⚙️ Настройки учебного чата\\nГруппа: {}\\nАвтопубликация: {} (ежедневно в {})\\nУведомления о парах: {}\\nТема публикаций: {}\\nИнтеграция: {}\\n\\nКоманды администратора:\\n/chat_topic — выбрать текущую тему\\n/chat_topic_off — публиковать в общий чат\\n/daily_on — включить расписание каждый день\\n/daily_off — выключить\\n/daily_time ЧЧ:ММ — время публикации (МСК)\\n/chat_notify_on — уведомлять за 10 минут до пары\\n/chat_notify_off — выключить уведомления",
+                        "⚙️ Настройки учебного чата\nГруппа: {}\nАвтопубликация: {} (ежедневно в {})\nУведомления о парах: {}\nТема публикаций: {}\nИнтеграция: {}\n\nКоманды администратора:\n/chat_topic — выбрать текущую тему\n/chat_topic_off — публиковать в общий чат\n/daily_on — включить расписание каждый день\n/daily_off — выключить\n/daily_time ЧЧ:ММ — время публикации (МСК)\n/chat_notify_on — уведомлять за 10 минут до пары\n/chat_notify_off — выключить уведомления",
                         group,
                         if daily { "включена" } else { "выключена" },
                         time,
@@ -2053,7 +2053,7 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         }
 
         let text = schedule_text(&state.db, group_id, "/today").await;
-        let message = format!("📢 Ежедневное расписание учебной группы\\n\\n{}", text);
+        let message = format!("📢 Ежедневное расписание учебной группы\n\n{}", text);
         let request = bot.send_message(ChatId(chat_id), message);
         let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
             Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
@@ -2119,7 +2119,7 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         }
 
         let text = format!(
-            "🔔 Скоро начинается пара!\\n\\n📚 {}\\n🕒 Начало: {}\\n⏳ До начала примерно 10 минут",
+            "🔔 Скоро начинается пара!\n\n📚 {}\n🕒 Начало: {}\n⏳ До начала примерно 10 минут",
             subject,
             moscow_time(starts_at, "%H:%M")
         );
