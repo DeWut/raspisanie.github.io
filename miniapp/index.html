@@ -8,10 +8,10 @@
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
     <link rel="manifest" href="../manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20261126-23" />
+    <link rel="stylesheet" href="./styles.css?v=20261126-26" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script defer src="./native-bridge.js"></script>
-    <script defer src="./app.js?v=20261126-23"></script>
+    <script defer src="./app.js?v=20261126-26"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -110,7 +110,7 @@
     <dialog class="group-dialog utility-dialog map-dialog" id="map-dialog">
       <form method="dialog" class="dialog-head"><div><p class="eyebrow">НАВИГАЦИЯ</p><h2>Карта и корпуса</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form>
       <section class="campus-explorer" aria-label="Интерактивная 3D-карта кампуса">
-        <div class="campus-viewbar"><span class="campus-live-dot"></span><span>3D-МОДЕЛЬ КАМПУСА</span><span class="campus-view-hint">Проведи пальцем, чтобы повернуть</span></div>
+        <div class="campus-viewbar"><span class="campus-live-dot"></span><span>ОФЛАЙН-СХЕМА КАМПУСА</span><span class="campus-view-hint">Проведи пальцем, чтобы повернуть</span></div>
         <div class="campus-viewport" id="campus-viewport">
           <div class="campus-world" id="campus-world">
             <svg class="campus-world-map" viewBox="0 0 800 560" role="img" aria-label="Объёмная схема парка и четырёх учебных корпусов по плану университета">
@@ -152,9 +152,9 @@
           <div class="campus-zoom"><button type="button" id="campus-zoom-in" aria-label="Приблизить">+</button><button type="button" id="campus-zoom-out" aria-label="Отдалить">−</button><button type="button" id="campus-reset-view" aria-label="Сбросить вид">↺</button></div>
           <div class="campus-map-caption" id="campus-map-caption">Выбери корпус на модели или в поиске</div>
         </div>
-        <div class="campus-map-actions"><button type="button" id="campus-top-view">Вид сверху</button><button type="button" id="campus-open-online">Реальная 3D-карта</button><a href="https://spbftu.ru/public/index.php/map" target="_blank" rel="noopener">Официальная карта ↗</a></div><div id="campus-online-panel" class="campus-online-panel" hidden><div class="campus-online-head"><span>РЕАЛЬНАЯ КАРТА · 4 КОРПУСА</span><button type="button" id="campus-close-online" aria-label="Вернуться к 3D-модели">← Модель</button></div><div id="campus-online-map" class="campus-online-map"></div><p id="campus-online-status" class="campus-online-status">Загрузка карты…</p></div>
+        <div class="campus-map-actions"><button type="button" id="campus-top-view">Вид сверху</button><button type="button" id="campus-open-online">Открыть 3D-карту местности</button><a href="https://spbftu.ru/public/index.php/map" target="_blank" rel="noopener">Официальная карта ↗</a></div><div id="campus-online-panel" class="campus-online-panel" hidden><div class="campus-online-head"><span>РЕАЛЬНАЯ КАРТА · 4 КОРПУСА</span><button type="button" id="campus-close-online" aria-label="Вернуться к офлайн-схеме">← Офлайн-схема</button></div><div id="campus-online-map" class="campus-online-map"></div><p id="campus-online-status" class="campus-online-status">Загрузка карты…</p></div>
       </section>
-      <p class="campus-plan-note">Интерактивная объёмная схема построена по предоставленному плану кампуса (стр. 1). Геометрия и взаимное расположение корпусов ориентировочные; это не геодезическая 3D-съёмка.</p>
+      <p class="campus-plan-note">Офлайн-схема построена по предоставленному плану и служит резервом без интернета. Геометрия и взаимное расположение корпусов ориентировочные; для точного положения используй онлайн-карту.</p>
       <label class="search-box campus-search-box"><span>⌕</span><input id="campus-search" type="search" placeholder="Найти корпус, кафедру или кабинет…" autocomplete="off" /></label>
       <div class="campus-buildings" id="campus-buildings"><p class="campus-empty">Справочник корпусов будет загружен…</p></div>
     </dialog>

@@ -634,6 +634,7 @@
   let campusZoom = 1;
   let campusPointer = null;
   let campusOnlineMap = null;
+  const campusMapMarkers = new Map();
   let campusMapLibraryPromise = null;
   function loadCampusMapLibrary() {
     if (window.maplibregl) return Promise.resolve(window.maplibregl);
@@ -655,18 +656,24 @@
     });
     return campusMapLibraryPromise;
   }
+  function setCampusMapMode(mode) {
+    const online = mode === 'online';
+    const panel = $('#campus-online-panel');
+    const explorer = document.querySelector('.campus-explorer');
+    if (!panel || !explorer) return;
+    panel.hidden = !online;
+    explorer.classList.toggle('online-active', online);
+    ['.campus-viewbar', '.campus-viewport', '.campus-map-actions'].forEach((selector) => {
+      const element = explorer.querySelector(selector);
+      if (element) element.hidden = online;
+    });
+    requestAnimationFrame(() => campusOnlineMap?.resize());
+  }
   async function openCampusOnlineMap() {
     const panel = $('#campus-online-panel');
     const status = $('#campus-online-status');
     if (!panel) return;
-    panel.hidden = false;
-    const explorer = document.querySelector('.campus-explorer');
-    explorer?.classList.add('online-active');
-    ['.campus-viewbar', '.campus-viewport', '.campus-map-actions'].forEach((selector) => {
-      const element = explorer?.querySelector(selector);
-      if (element) element.hidden = true;
-    });
-    requestAnimationFrame(() => campusOnlineMap?.resize());
+    setCampusMapMode('online');
     if (campusOnlineMap) { campusOnlineMap.resize(); return; }
     status.textContent = 'Загружаем реальную карту и 3D-здания…';
     try {
@@ -683,7 +690,9 @@
         attributionControl: true
       });
       campusOnlineMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+      let styleLoaded = false;
       campusOnlineMap.on('load', () => {
+        styleLoaded = true;
         const styleLayers = campusOnlineMap.getStyle().layers || [];
         const labelLayer = styleLayers.find((layer) => layer.type === 'symbol' && layer.layout?.['text-field']);
         const sourceName = Object.keys(campusOnlineMap.getStyle().sources || {}).find((name) => {
@@ -709,29 +718,47 @@
         const buildings = state.campus?.buildings || [];
         buildings.forEach((building) => {
           if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
-          const marker = document.createElement('div');
+          const marker = document.createElement('button');
+          marker.type = 'button';
           marker.className = 'campus-map-marker';
-          marker.textContent = String(building.number);
+          marker.setAttribute('aria-label', `Выбрать корпус ${building.number}`);
+          const markerLabel = document.createElement('span');
+          markerLabel.textContent = String(building.number);
+          marker.append(markerLabel);
           const popup = document.createElement('div');
           const title = document.createElement('strong');
           title.textContent = building.name;
           const address = document.createElement('div');
           address.textContent = building.address || '';
           popup.append(title, address);
-          new maplibregl.Marker({ element: marker, anchor: 'bottom' })
+          const mapMarker = new maplibregl.Marker({ element: marker, anchor: 'bottom' })
             .setLngLat([building.longitude, building.latitude])
             .setPopup(new maplibregl.Popup({ offset: 22 }).setDOMContent(popup))
             .addTo(campusOnlineMap);
+          campusMapMarkers.set(String(building.number), mapMarker);
+          marker.addEventListener('click', () => selectCampusBuilding(building.number, { openPopup: false }));
           bounds.extend([building.longitude, building.latitude]);
         });
         if (!bounds.isEmpty()) campusOnlineMap.fitBounds(bounds, { padding: { top: 45, right: 45, bottom: 45, left: 45 }, maxZoom: 16, duration: 700 });
         status.textContent = 'Реальная карта OpenStreetMap. На карте отмечены все четыре учебных корпуса по адресам университета. Для 3D-зданий требуется интернет.';
       });
       campusOnlineMap.on('error', (event) => {
-        if (event?.error) console.warn('Campus map tile error:', event.error);
+        if (!styleLoaded && campusOnlineMap && event?.error) {
+          console.warn('Campus map failed before style load:', event.error);
+          status.textContent = 'Онлайн-карта сейчас недоступна. Показываю офлайн-схему кампуса.';
+          const failedMap = campusOnlineMap;
+          campusOnlineMap = null;
+          failedMap.remove();
+          setCampusMapMode('offline');
+        }
       });
     } catch (error) {
-      status.textContent = `${error.message}. Локальная 3D-модель кампуса доступна выше без интернета.`;
+      status.textContent = `${error.message}. Показываю офлайн-схему кампуса.`;
+      campusMapLibraryPromise = null;
+      const failedMap = campusOnlineMap;
+      campusOnlineMap = null;
+      failedMap?.remove();
+      setCampusMapMode('offline');
     }
   }
   function updateCampusCamera() {
@@ -739,7 +766,7 @@
     if (!world) return;
     world.style.transform = `rotateX(${campusRotation.x}deg) rotateZ(${campusRotation.z}deg) scale(${campusZoom})`;
   }
-  function selectCampusBuilding(number) {
+  function selectCampusBuilding(number, { openPopup = true } = {}) {
     const selected = String(number);
     document.querySelectorAll('.campus-building-model').forEach((node) => {
       node.classList.toggle('selected', node.dataset.building === selected);
@@ -749,6 +776,11 @@
     });
     const building = state.campus?.buildings?.find((item) => String(item.number) === selected);
     $('#campus-map-caption').textContent = building ? `Корпус № ${selected} · ${building.description || building.name}` : 'Выбери корпус на модели или в поиске';
+    const mapMarker = campusMapMarkers.get(selected);
+    if (building && campusOnlineMap && mapMarker) {
+      campusOnlineMap.flyTo({ center: [building.longitude, building.latitude], zoom: Math.max(campusOnlineMap.getZoom(), 16), duration: 450 });
+      if (openPopup) mapMarker.togglePopup();
+    }
     const card = document.querySelector(`.campus-building-card[data-building="${selected}"]`);
     if (card && $('#campus-search')?.value) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -928,18 +960,16 @@
     });
     $('#toggle-notifications')?.addEventListener('click', () => { closeQuickMenu(); toggleLessonReminders(); });
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
-    $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); loadCampusDirectory(); });
+    $('#open-map').addEventListener('click', async () => {
+      closeQuickMenu();
+      $('#map-dialog').showModal();
+      await loadCampusDirectory();
+      openCampusOnlineMap();
+    });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
     $('#campus-close-online')?.addEventListener('click', () => {
-      $('#campus-online-panel').hidden = true;
-      const explorer = document.querySelector('.campus-explorer');
-      explorer?.classList.remove('online-active');
-      ['.campus-viewbar', '.campus-viewport', '.campus-map-actions'].forEach((selector) => {
-        const element = explorer?.querySelector(selector);
-        if (element) element.hidden = false;
-      });
-      requestAnimationFrame(() => campusOnlineMap?.resize());
+      setCampusMapMode('offline');
     });
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
