@@ -780,6 +780,28 @@
           const address = document.createElement('div');
           address.textContent = building.address || '';
           popup.append(title, address);
+          const osm = building.osm;
+          const osmFacts = [];
+          if (Number.isFinite(osm?.levels)) osmFacts.push(`${osm.levels} эт.`);
+          if (Number.isFinite(osm?.heightMeters)) osmFacts.push(`${osm.heightMeters} м`);
+          const claddingLabels = { plaster: 'штукатурка', brick: 'кирпич' };
+          const roofLabels = { hipped: 'вальмовая крыша', gabled: 'двускатная крыша' };
+          if (claddingLabels[osm?.cladding]) osmFacts.push(claddingLabels[osm.cladding]);
+          if (roofLabels[osm?.roofShape]) osmFacts.push(roofLabels[osm.roofShape]);
+          if (osmFacts.length) {
+            const facts = document.createElement('div');
+            facts.className = 'campus-map-popup-facts';
+            facts.textContent = osmFacts.join(' · ');
+            popup.append(facts);
+          }
+          if (osm?.url) {
+            const source = document.createElement('a');
+            source.href = osm.url;
+            source.target = '_blank';
+            source.rel = 'noopener noreferrer';
+            source.textContent = 'Данные и контур в OpenStreetMap';
+            popup.append(source);
+          }
           const mapMarker = new maplibregl.Marker({ element: marker, anchor: 'bottom' })
             .setLngLat([building.longitude, building.latitude])
             .setPopup(new maplibregl.Popup({ offset: 22 }).setDOMContent(popup))

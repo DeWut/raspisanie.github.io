@@ -1,6 +1,12 @@
 {
   "institution": "Санкт-Петербургский государственный лесотехнический университет имени С. М. Кирова",
   "source": "План кампуса, предоставленный пользователем (страница 1)",
+  "osmData": {
+    "attribution": "© OpenStreetMap contributors",
+    "license": "Open Database License (ODbL) 1.0",
+    "copyrightUrl": "https://www.openstreetmap.org/copyright",
+    "verifiedAt": "2026-11-26"
+  },
   "buildings": [
     {
       "number": "3",
@@ -15,6 +21,15 @@
       "address": "Институтский переулок, 5, литера В",
       "longitude": 30.332388,
       "latitude": 59.996727,
+      "osm": {
+        "type": "way",
+        "id": 30656773,
+        "url": "https://www.openstreetmap.org/way/30656773",
+        "building": "university",
+        "levels": 2,
+        "heightMeters": 10,
+        "roofShape": "hipped"
+      },
       "source": "Yandex Maps"
     },
     {
@@ -58,6 +73,15 @@
       "address": "Институтский переулок, 5, литера Б",
       "longitude": 30.344677,
       "latitude": 59.994946,
+      "osm": {
+        "type": "way",
+        "id": 22985481,
+        "url": "https://www.openstreetmap.org/way/22985481",
+        "building": "university",
+        "levels": 4,
+        "heightMeters": 18.5,
+        "cladding": "plaster"
+      },
       "source": "Yandex Maps"
     },
     {
@@ -73,6 +97,15 @@
       "address": "Институтский переулок, 3, литера Е",
       "longitude": 30.336565,
       "latitude": 59.992556,
+      "osm": {
+        "type": "way",
+        "id": 140576176,
+        "url": "https://www.openstreetmap.org/way/140576176",
+        "building": "university",
+        "levels": 4,
+        "cladding": "brick",
+        "roofShape": "gabled"
+      },
       "source": "Yandex Maps"
     },
     {
@@ -132,6 +165,17 @@
       "address": "Институтский переулок, 5, литера У",
       "longitude": 30.343689,
       "latitude": 59.992691,
+      "osm": {
+        "type": "relation",
+        "id": 2045600,
+        "outerWayId": 151322107,
+        "url": "https://www.openstreetmap.org/relation/2045600",
+        "building": "university",
+        "levels": 3,
+        "heightMeters": 16,
+        "cladding": "plaster",
+        "description": "1й (главный) учебный корпус"
+      },
       "source": "Yandex Maps"
     }
   ],
