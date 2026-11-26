@@ -712,8 +712,8 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
-    if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/exam_info" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off") {
-        if matches!(command, "/add_exam" | "/edit_exam" | "/exam_info" | "/delete_exam" | "/add_event" | "/edit_event" | "/cancel_event" | "/event_capacity") {
+    if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/exam_info" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_waitlist" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off") {
+        if matches!(command, "/add_exam" | "/edit_exam" | "/exam_info" | "/delete_exam" | "/add_event" | "/edit_event" | "/cancel_event" | "/event_capacity" | "/event_waitlist") {
             let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
         }
         if let Some(answer) = crate::services::group_content::handle_exams_events(
@@ -1981,6 +1981,7 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("join_event", "Записаться на мероприятие"),
         BotCommand::new("leave_event", "Отменить запись на мероприятие"),
         BotCommand::new("event_capacity", "Установить лимит участников мероприятия"),
+        BotCommand::new("event_waitlist", "Включить или выключить лист ожидания"),
         BotCommand::new("event_attendees", "Посмотреть ответы участников мероприятия"),
         BotCommand::new("event_maybe", "Возможно, пойду на мероприятие"),
         BotCommand::new("event_no", "Отметить, что не иду на мероприятие"),
