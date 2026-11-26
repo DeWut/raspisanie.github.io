@@ -21,6 +21,18 @@ await cp(path.join(root, "miniapp"), path.join(webDir, "miniapp"), { recursive: 
 await cp(path.join(root, "data"), path.join(webDir, "data"), { recursive: true });
 await cp(path.join(root, "favicon.png"), path.join(webDir, "favicon.png"));
 
+// Bundle the native-only Capacitor bridge into the Android app. The website keeps
+// a harmless stub so the same Mini App source continues to work in browsers.
+const { execFile } = await import("node:child_process");
+const { promisify } = await import("node:util");
+await promisify(execFile)("npx", [
+  "esbuild",
+  path.join(root, "mobile", "bridge.js"),
+  "--bundle",
+  "--format=iife",
+  "--outfile=" + path.join(webDir, "miniapp", "native-bridge.js"),
+], { cwd: root });
+
 const entry = `<!doctype html>
 <html lang="ru">
 <head>
