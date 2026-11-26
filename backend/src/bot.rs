@@ -2263,9 +2263,11 @@ async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
 
 /// Sends exam and event reminders to the configured chat at the requested milestones.
 async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
-    let rows = sqlx::query_as::<_, (i64, String, i64, String, DateTime<Utc>, String, Option<i64>)>(
+    // Exams are announced in the configured group; event reminders are private
+    // and go only to participants who opted into reminders.
+    let rows = sqlx::query_as::<_, (i64, String, i64, String, DateTime<Utc>, String, Option<i64>, i64)>(
         r#"
-        SELECT c.chat_id, 'exam', e.id, e.subject, e.exam_at, r.key, c.message_thread_id
+        SELECT c.chat_id, 'exam', e.id, e.subject, e.exam_at, r.key, c.message_thread_id, 0::bigint
         FROM bot_exams e
         JOIN bot_chat_settings c ON c.chat_id=e.chat_id
         CROSS JOIN (VALUES ('7d', interval '7 days'), ('3d', interval '3 days'), ('1d', interval '1 day')) AS r(key, lead)
@@ -2273,13 +2275,15 @@ async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
           AND e.exam_at BETWEEN now()+r.lead-interval '30 seconds' AND now()+r.lead
           AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='exam' AND d.record_id=e.id AND d.telegram_id=0 AND d.reminder_key=r.key)
         UNION ALL
-        SELECT c.chat_id, 'event', e.id, e.title, e.starts_at, r.key, c.message_thread_id
+        SELECT c.chat_id, 'event', e.id, e.title, e.starts_at, r.key, NULL::bigint, p.telegram_id
         FROM bot_events e
         JOIN bot_chat_settings c ON c.chat_id=e.chat_id
+        JOIN bot_event_participants p ON p.chat_id=e.chat_id AND p.event_id=e.id
         CROSS JOIN (VALUES ('3d', interval '3 days'), ('1d', interval '1 day'), ('2h', interval '2 hours')) AS r(key, lead)
         WHERE c.is_active=TRUE AND e.status='active'
+          AND p.response='going' AND p.reminders_enabled=TRUE
           AND e.starts_at BETWEEN now()+r.lead-interval '30 seconds' AND now()+r.lead
-          AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='event' AND d.record_id=e.id AND d.telegram_id=0 AND d.reminder_key=r.key)
+          AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='event' AND d.record_id=e.id AND d.telegram_id=p.telegram_id AND d.reminder_key=r.key)
         ORDER BY 5
         "#
     ).fetch_all(&state.db).await.unwrap_or_else(|error| {
@@ -2287,18 +2291,22 @@ async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         Vec::new()
     });
 
-    for (chat_id, kind, record_id, title, at, key, thread_id) in rows {
-        let reserved=sqlx::query("INSERT INTO bot_group_reminder_deliveries(chat_id,record_type,record_id,telegram_id,reminder_key) VALUES($1,$2,$3,0,$4) ON CONFLICT DO NOTHING")
-            .bind(chat_id).bind(&kind).bind(record_id).bind(&key).execute(&state.db).await;
+    for (chat_id, kind, record_id, title, at, key, thread_id, telegram_id) in rows {
+        let reserved=sqlx::query("INSERT INTO bot_group_reminder_deliveries(chat_id,record_type,record_id,telegram_id,reminder_key) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING")
+            .bind(chat_id).bind(&kind).bind(record_id).bind(telegram_id).bind(&key).execute(&state.db).await;
         if !matches!(reserved,Ok(ref r) if r.rows_affected()==1) { continue; }
         let label=if kind=="exam" {"экзамен"} else {"мероприятие"};
-        let text=format!("🔔 Напоминание: {} через {}\\n\\n{}\\n🕒 {} МСК",label,match key.as_str(){"7d"=>"7 дней","3d"=>"3 дня","1d"=>"1 день","2h"=>"2 часа",_=>"некоторое время"},title,moscow_time(at,"%d.%m.%Y %H:%M"));
-        let request=bot.send_message(ChatId(chat_id),text);
-        let request=match thread_id.and_then(|id|i32::try_from(id).ok()) { Some(id)=>request.message_thread_id(ThreadId(MessageId(id))),None=>request };
+        let lead=match key.as_str(){"7d"=>"7 дней","3d"=>"3 дня","1d"=>"1 день","2h"=>"2 часа",_=>"скоро"};
+        let message=format!("🔔 Напоминание: {} через {}\n\n{}\n🕒 {} МСК",label,lead,title,moscow_time(at,"%d.%m.%Y %H:%M"));
+        let target=if kind=="event" {telegram_id} else {chat_id};
+        let request=bot.send_message(ChatId(target),message);
+        let request=if kind=="exam" {
+            match thread_id.and_then(|id|i32::try_from(id).ok()) { Some(id)=>request.message_thread_id(ThreadId(MessageId(id))),None=>request }
+        } else { request };
         if let Err(error)=request.await {
-            tracing::warn!("Could not send {} reminder to chat {}: {}",kind,chat_id,error);
-            let _=sqlx::query("DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type=$2 AND record_id=$3 AND telegram_id=0 AND reminder_key=$4")
-                .bind(chat_id).bind(&kind).bind(record_id).bind(&key).execute(&state.db).await;
+            tracing::warn!("Could not send {} reminder to {}: {}",kind,target,error);
+            let _=sqlx::query("DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type=$2 AND record_id=$3 AND telegram_id=$4 AND reminder_key=$5")
+                .bind(chat_id).bind(&kind).bind(record_id).bind(telegram_id).bind(&key).execute(&state.db).await;
         }
     }
 }
