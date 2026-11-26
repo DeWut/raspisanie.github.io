@@ -185,13 +185,45 @@ pub async fn find_member_by_username(
     .map_err(|e| e.to_string())
 }
 
-/// Telegram administrators and the chat creator always have administrative access.
+/// Checks a moderation capability against the chat's role hierarchy.
+/// Telegram creator/admin always pass; helper can warn, moderator can mute,
+/// senior moderator can ban. Assignment of roles remains owner/admin-only.
+async fn has_moderation_level(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    telegram_id: i64,
+    minimum_level: u8,
+) -> bool {
+    let level = match sync_member(bot, db, chat_id, telegram_id, None).await {
+        Ok(Some(role)) => match role.as_str() {
+            "owner" | "admin" => 3,
+            "senior_moderator" => 3,
+            "moderator" => 2,
+            "helper" => 1,
+            _ => 0,
+        },
+        Ok(None) | Err(_) => 0,
+    };
+    level >= minimum_level
+}
+
+/// Permission to issue and review warnings.
+pub async fn can_warn_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: i64) -> bool {
+    has_moderation_level(bot, db, chat_id, telegram_id, 1).await
+}
+
+/// Permission to mute and unmute members.
+pub async fn can_mute_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: i64) -> bool {
+    has_moderation_level(bot, db, chat_id, telegram_id, 2).await
+}
+
+/// Permission to ban and unban members.
+pub async fn can_ban_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: i64) -> bool {
+    has_moderation_level(bot, db, chat_id, telegram_id, 3).await
+}
+
+/// Compatibility alias for general moderation actions.
 pub async fn can_manage_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: i64) -> bool {
-    match sync_member(bot, db, chat_id, telegram_id, None).await {
-        Ok(Some(role)) => matches!(
-            role.as_str(),
-            "owner" | "admin" | "senior_moderator" | "moderator"
-        ),
-        Ok(None) | Err(_) => false,
-    }
+    can_mute_chat(bot, db, chat_id, telegram_id).await
 }
