@@ -195,13 +195,13 @@ fn parse_moscow_datetime(value: &str) -> Option<DateTime<Utc>> {
 
 pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
     let exams = matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam");
-    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no");
+    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off");
     if chat_id >= 0 || (!exams && !events) { return None; }
     let configured: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE)")
         .bind(chat_id).fetch_one(db).await.unwrap_or(false);
     if !configured { return Some("Сначала привяжите учебную группу: /setgroup название".into()); }
     let section = if exams { "exams" } else { "events" };
-    let writes = !matches!(command, "/exams" | "/events" | "/join_event" | "/leave_event" | "/event_attendees" | "/event_maybe" | "/event_no");
+    let writes = !matches!(command, "/exams" | "/events" | "/join_event" | "/leave_event" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off");
     if writes && !permitted(db, chat_id, actor, section).await {
         return Some("⛔ Недостаточно прав для управления этим разделом.".into());
     }
@@ -273,7 +273,7 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
         }
         "/cancel_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /cancel_event ID".into()); };
-            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist') AND reminders_enabled=TRUE")
+            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist')")
                 .bind(chat_id).bind(id).fetch_all(db).await.unwrap_or_default();
             let result=sqlx::query("UPDATE bot_events SET status='cancelled',updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).execute(db).await;
             match result {
@@ -331,6 +331,17 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             if tx.commit().await.is_err() { return Some("Не удалось сохранить ответ.".into()); }
             let base=if response=="maybe"{format!("🤔 Отмечено: ты думаешь насчёт мероприятия #{id}.")}else{format!("Отмечено: ты не идёшь на мероприятие #{id}.")};
             Some(if promoted {format!("{base}\nСледующий участник из листа ожидания автоматически добавлен.")} else {base})
+        }
+        "/event_reminders_on" | "/event_reminders_off" => {
+            let Ok(id)=argument.trim().parse::<i64>() else { return Some(format!("Формат: {} ID",command)); };
+            let enabled=command=="/event_reminders_on";
+            let result=sqlx::query("UPDATE bot_event_participants p SET reminders_enabled=$4,updated_at=now() FROM bot_events e WHERE p.chat_id=$1 AND p.event_id=$2 AND p.telegram_id=$3 AND e.chat_id=p.chat_id AND e.id=p.event_id AND e.status='active'")
+                .bind(chat_id).bind(id).bind(actor).bind(enabled).execute(db).await;
+            Some(match result {
+                Ok(r) if r.rows_affected()==1 => if enabled {format!("🔔 Личные напоминания о мероприятии #{id} включены.")} else {format!("🔕 Личные напоминания о мероприятии #{id} выключены.")},
+                Ok(_) => "Сначала запишись на активное мероприятие командой /join_event ID.".into(),
+                Err(_) => "Не удалось изменить настройку напоминаний.".into()
+            })
         }
         "/event_capacity" => {
             let Some((id_text, capacity_text)) = argument.trim().split_once(' ') else {
