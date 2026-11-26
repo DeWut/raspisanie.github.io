@@ -72,7 +72,7 @@ pub async fn handle_homework(
     if !configured {
         return Some("Сначала администратор должен привязать учебную группу: /setgroup название".into());
     }
-    if command != "/dz" && !permitted(db, chat_id, actor, "homework").await {
+    if command != "/dz" && command != "/done" && !permitted(db, chat_id, actor, "homework").await {
         return Some("⛔ Добавлять и изменять домашние задания в этом чате могут только пользователи с соответствующими правами.".into());
     }
     match command {
@@ -95,12 +95,30 @@ pub async fn handle_homework(
             if parts.len()<2 || parts[0].is_empty() || parts[1].is_empty() {
                 return Some("Формат: /add_dz Предмет | задание | срок (например, завтра или 15.12)\nСрок можно не указывать.".into());
             }
-            let due = parts.get(2).and_then(|s| parse_due(s));
+            let explicit_due = parts.get(2).copied().unwrap_or("");
+            let due = parse_due(explicit_due);
+            if !explicit_due.is_empty() && due.is_none() {
+                return Some("Не понял срок. Используй: завтра, послезавтра или ДД.ММ (например, 15.12).".into());
+            }
+            let group_id: Option<uuid::Uuid> = sqlx::query_scalar(
+                "SELECT group_id FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(chat_id).fetch_optional(db).await.ok().flatten();
+            let next_lesson = if due.is_none() {
+                if let Some(group_id) = group_id {
+                    sqlx::query_as::<_, (uuid::Uuid, DateTime<Utc>)>(
+                        "SELECT id,starts_at FROM lessons WHERE group_id=$1 AND starts_at>now() AND subject ILIKE $2 ORDER BY starts_at LIMIT 1"
+                    ).bind(group_id).bind(format!("%{}%",parts[0])).fetch_optional(db).await.ok().flatten()
+                } else { None }
+            } else { None };
+            let deadline = due.or_else(|| next_lesson.as_ref().map(|(_, at)| *at));
             let id: Option<i64> = sqlx::query_scalar(
-                "WITH n AS (UPDATE bot_chat_settings SET homework_next_id=homework_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING homework_next_id-1) INSERT INTO bot_homework(chat_id,id,subject,description,due_at,created_by) SELECT $1,n.homework_next_id-1,$2,$3,$4,$5 FROM n RETURNING id"
-            ).bind(chat_id).bind(parts[0]).bind(parts[1]).bind(due).bind(actor).fetch_optional(db).await.ok().flatten();
+                "WITH n AS (UPDATE bot_chat_settings SET homework_next_id=homework_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING homework_next_id-1) INSERT INTO bot_homework(chat_id,id,subject,description,due_at,due_lesson_id,due_lesson_at,created_by) SELECT $1,n.homework_next_id-1,$2,$3,$4,$5,$6,$7 FROM n RETURNING id"
+            ).bind(chat_id).bind(parts[0]).bind(parts[1]).bind(deadline)
+             .bind(next_lesson.as_ref().map(|(id,_)| *id))
+             .bind(next_lesson.as_ref().map(|(_,at)| *at))
+             .bind(actor).fetch_optional(db).await.ok().flatten();
             match id {
-                Some(id) => Some(format!("✅ Домашнее задание добавлено!\n#{id} · {}\n{}\nСрок: {}",parts[0],parts[1],due.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"к следующей паре по предмету (автоматический расчёт подключается)".into()))),
+                Some(id) => Some(format!("✅ Домашнее задание добавлено!\\n#{id} · {}\\n{}\\nСрок: {}",parts[0],parts[1],deadline.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"не удалось найти следующую пару по этому предмету — укажи срок вручную".into()))),
                 None => Some("Не удалось добавить задание. Проверь, что группа настроена.".into())
             }
         }
