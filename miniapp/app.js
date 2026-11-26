@@ -660,7 +660,12 @@
     const status = $('#campus-online-status');
     if (!panel) return;
     panel.hidden = false;
-    $('.campus-explorer')?.classList.add('online-active');
+    const explorer = document.querySelector('.campus-explorer');
+    explorer?.classList.add('online-active');
+    ['.campus-viewbar', '.campus-viewport', '.campus-map-actions'].forEach((selector) => {
+      const element = explorer?.querySelector(selector);
+      if (element) element.hidden = true;
+    });
     requestAnimationFrame(() => campusOnlineMap?.resize());
     if (campusOnlineMap) { campusOnlineMap.resize(); return; }
     status.textContent = 'Загружаем реальную карту и 3D-здания…';
@@ -928,7 +933,12 @@
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
     $('#campus-close-online')?.addEventListener('click', () => {
       $('#campus-online-panel').hidden = true;
-      $('.campus-explorer')?.classList.remove('online-active');
+      const explorer = document.querySelector('.campus-explorer');
+      explorer?.classList.remove('online-active');
+      ['.campus-viewbar', '.campus-viewport', '.campus-map-actions'].forEach((selector) => {
+        const element = explorer?.querySelector(selector);
+        if (element) element.hidden = false;
+      });
       requestAnimationFrame(() => campusOnlineMap?.resize());
     });
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
