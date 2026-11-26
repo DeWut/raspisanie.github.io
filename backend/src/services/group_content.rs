@@ -1,5 +1,6 @@
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use sqlx::PgPool;
+use teloxide::{prelude::*, types::ChatId};
 
 fn moscow() -> FixedOffset {
     FixedOffset::east_opt(3 * 60 * 60).expect("UTC+3")
@@ -192,7 +193,7 @@ fn parse_moscow_datetime(value: &str) -> Option<DateTime<Utc>> {
     moscow().from_local_datetime(&NaiveDateTime::new(date, time)).single().map(|v| v.with_timezone(&Utc))
 }
 
-pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
+pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
     let exams = matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam");
     let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no");
     if chat_id >= 0 || (!exams && !events) { return None; }
@@ -257,13 +258,32 @@ pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command:
             if p.len()<3 { return Some("Формат: /edit_event ID | название | дата время | место".into()); }
             let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
             let Some(at)=parse_moscow_datetime(p[2]) else { return Some("Дата: 20.12.2026 18:00".into()); };
+            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist') AND reminders_enabled=TRUE")
+                .bind(chat_id).bind(id).fetch_all(db).await.unwrap_or_default();
             let result=sqlx::query("UPDATE bot_events SET title=$3,starts_at=$4,location=$5,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).bind(p[1]).bind(at).bind(p.get(3).copied()).execute(db).await;
-            Some(match result { Ok(r) if r.rows_affected()==1=>format!("✏️ Мероприятие #{id} обновлено."),Ok(_)=>"Мероприятие не найдено.".into(),Err(_)=>"Ошибка обновления мероприятия.".into() })
+            match result {
+                Ok(r) if r.rows_affected()==1 => {
+                    let notice=format!("✏️ Мероприятие #{id} обновлено: {}\n🕒 {} МСК\n📍 {}",p[1],at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),p.get(3).copied().unwrap_or("место уточняется"));
+                    for user in recipients { if let Err(error)=bot.send_message(ChatId(user),notice.clone()).await { tracing::debug!("Could not notify event participant {}: {}",user,error); } }
+                    Some(format!("✏️ Мероприятие #{id} обновлено. Участники уведомлены в личных сообщениях."))
+                },
+                Ok(_) => Some("Мероприятие не найдено.".into()),
+                Err(_) => Some("Ошибка обновления мероприятия.".into())
+            }
         }
         "/cancel_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /cancel_event ID".into()); };
+            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist') AND reminders_enabled=TRUE")
+                .bind(chat_id).bind(id).fetch_all(db).await.unwrap_or_default();
             let result=sqlx::query("UPDATE bot_events SET status='cancelled',updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).execute(db).await;
-            Some(match result { Ok(r) if r.rows_affected()==1=>format!("❌ Мероприятие #{id} отменено."),Ok(_)=>"Мероприятие не найдено.".into(),Err(_)=>"Ошибка отмены мероприятия.".into() })
+            match result {
+                Ok(r) if r.rows_affected()==1 => {
+                    for user in recipients { if let Err(error)=bot.send_message(ChatId(user),format!("❌ Мероприятие #{id} отменено организатором.")).await { tracing::debug!("Could not send event cancellation to {}: {}",user,error); } }
+                    Some(format!("❌ Мероприятие #{id} отменено. Участники уведомлены в личных сообщениях."))
+                },
+                Ok(_) => Some("Мероприятие не найдено.".into()),
+                Err(_) => Some("Ошибка отмены мероприятия.".into())
+            }
         }
         "/event_attendees" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /event_attendees ID".into()); };
