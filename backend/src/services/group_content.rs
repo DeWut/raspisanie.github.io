@@ -120,14 +120,17 @@ pub async fn handle_homework(
                 return Some("Формат: /add_dz Предмет | задание | срок (например, завтра или 15.12)\nСрок можно не указывать.".into());
             }
             let explicit_due = parts.get(2).copied().unwrap_or("");
-            let due = parse_due(explicit_due);
-            if !explicit_due.is_empty() && due.is_none() {
-                return Some("Не понял срок. Используй: завтра, послезавтра или ДД.ММ (например, 15.12).".into());
+            let no_due = matches!(explicit_due.to_lowercase().as_str(), "-" | "нет" | "без срока");
+            let due = if no_due { None } else { parse_due(explicit_due) };
+            if !explicit_due.is_empty() && !no_due && due.is_none() {
+                return Some("Не понял срок. Используй: завтра, послезавтра, ДД.ММ или «без срока».".into());
             }
             let group_id: Option<uuid::Uuid> = sqlx::query_scalar(
                 "SELECT group_id FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
             ).bind(chat_id).fetch_optional(db).await.ok().flatten();
-            let next_lesson = if due.is_none() {
+            // An omitted deadline defaults to the next matching lesson; an explicit
+            // "no deadline" value suppresses that automatic fallback.
+            let next_lesson = if explicit_due.is_empty() {
                 if let Some(group_id) = group_id {
                     sqlx::query_as::<_, (uuid::Uuid, DateTime<Utc>)>(
                         "SELECT id,starts_at FROM lessons WHERE group_id=$1 AND starts_at>now() AND subject ILIKE $2 ORDER BY starts_at LIMIT 1"
@@ -142,7 +145,7 @@ pub async fn handle_homework(
              .bind(next_lesson.as_ref().map(|(_,at)| *at))
              .bind(actor).fetch_optional(db).await.ok().flatten();
             match id {
-                Some(id) => Some(format!("✅ Домашнее задание добавлено!\n#{id} · {}\n{}\nСрок: {}",parts[0],parts[1],deadline.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"не удалось найти следующую пару по этому предмету — укажи срок вручную".into()))),
+                Some(id) => Some(format!("✅ Домашнее задание добавлено!\n#{id} · {}\n{}\nСрок: {}",parts[0],parts[1],deadline.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||if no_due {"не указан".into()}else{"не удалось найти следующую пару по этому предмету — укажи срок вручную".into()}))),
                 None => Some("Не удалось добавить задание. Проверь, что группа настроена.".into())
             }
         }
@@ -151,10 +154,11 @@ pub async fn handle_homework(
             if parts.len()<3 { return Some("Формат: /edit_dz ID | предмет | задание | срок".into()); }
             let id=match parts[0].parse::<i64>() { Ok(v) if v>0=>v,_=>return Some("Укажи корректный ID задания.".into()) };
             let due_text=parts.get(3).copied().unwrap_or("");
-            let due=if due_text.is_empty(){None}else{parse_due(due_text)};
-            if !due_text.is_empty() && due.is_none() { return Some("Не понял срок. Используй: завтра, послезавтра или ДД.ММ.".into()); }
-            let result=sqlx::query("UPDATE bot_homework SET subject=$3,description=$4,due_at=COALESCE($5,due_at),updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
-                .bind(chat_id).bind(id).bind(parts[1]).bind(parts[2]).bind(due).execute(db).await;
+            let clear_due=matches!(due_text.to_lowercase().as_str(), "-" | "нет" | "без срока");
+            let due=if due_text.is_empty() || clear_due {None}else{parse_due(due_text)};
+            if !due_text.is_empty() && !clear_due && due.is_none() { return Some("Не понял срок. Используй: завтра, послезавтра, ДД.ММ или «без срока».".into()); }
+            let result=sqlx::query("UPDATE bot_homework SET subject=$3,description=$4,due_at=CASE WHEN $6::boolean THEN NULL WHEN $5::timestamptz IS NOT NULL THEN $5 ELSE due_at END,due_lesson_id=CASE WHEN $6::boolean OR $5::timestamptz IS NOT NULL THEN NULL ELSE due_lesson_id END,due_lesson_at=CASE WHEN $6::boolean OR $5::timestamptz IS NOT NULL THEN NULL ELSE due_lesson_at END,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
+                .bind(chat_id).bind(id).bind(parts[1]).bind(parts[2]).bind(due).bind(clear_due).execute(db).await;
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("✏️ Задание #{id} обновлено."),Ok(_)=>"Задание с таким ID не найдено в этом чате.".into(),Err(_)=>"Не удалось изменить задание.".into() })
         }
         "/delete_dz" => {
