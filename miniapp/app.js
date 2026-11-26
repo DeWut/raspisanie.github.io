@@ -15,6 +15,7 @@
   const SEMESTER_START = new Date(Date.UTC(2026, 7, 31, 12));
   const GROUP_KEY = 'smart-campus-group-id';
   const THEME_KEY = 'spbftuit-theme';
+  const NOTIFICATIONS_KEY = 'spbftuit-lesson-notifications';
   const pageParams = new URLSearchParams(location.search);
   const isWeekPage = document.body.dataset.page === 'week';
   const requestedDate = pageParams.get('date');
@@ -138,6 +139,95 @@
   }
   function safeStorageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
   function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch { /* Telegram may disable storage in private mode. */ } }
+  function reminderDateTime(date, time) {
+    const [year, month, day] = dateKey(date).split('-').map(Number);
+    const [hour, minute] = String(time).split(':').map(Number);
+    // EIOS timetable is in Saint Petersburg/Moscow time (UTC+3), independent of phone timezone.
+    return new Date(Date.UTC(year, month - 1, day, hour, minute) - 3 * 60 * 60 * 1000);
+  }
+  function reminderId(date, index) {
+    return Number(dateKey(date).replaceAll('-', '')) * 10 + (index % 10);
+  }
+  function buildLessonReminders() {
+    if (!state.schedule?.id) return [];
+    const items = [];
+    const today = startOfDay(new Date());
+    for (let offset = 0; offset < 14; offset += 1) {
+      const date = new Date(today);
+      date.setUTCDate(date.getUTCDate() + offset);
+      getLessons(date).forEach((lesson, index) => {
+        const at = reminderDateTime(date, lesson.start);
+        at.setMinutes(at.getMinutes() - 10);
+        if (at.getTime() <= Date.now() + 60_000) return;
+        const room = lesson.room ? ` · ${String(lesson.room).replace(/^ауд\\.\\s*/i, '')}` : '';
+        items.push({
+          id: reminderId(date, index),
+          title: 'Скоро пара',
+          body: `${lesson.name} · ${lesson.start}${room}`,
+          at: at.toISOString(),
+          date: dateKey(date),
+          groupId: String(state.schedule.id),
+        });
+      });
+    }
+    return items;
+  }
+  function updateNotificationButton() {
+    const button = $('#toggle-notifications');
+    if (!button) return;
+    const enabled = safeStorageGet(NOTIFICATIONS_KEY) === '1';
+    button.setAttribute('aria-pressed', String(enabled));
+    button.title = enabled ? 'Напоминания включены' : 'Напоминания выключены';
+    button.setAttribute('aria-label', button.title);
+    button.textContent = enabled ? '🔔' : '♧';
+  }
+  async function syncLessonReminders() {
+    if (safeStorageGet(NOTIFICATIONS_KEY) !== '1' || !state.schedule) return;
+    const native = window.SPBFTUITNative;
+    if (!native?.available) return;
+    try {
+      const result = await native.scheduleLessonReminders(buildLessonReminders());
+      if (!result.granted) showToast('Разреши уведомления для SPBFTUIT в настройках Android');
+    } catch (error) {
+      console.error('Could not schedule lesson reminders', error);
+      showToast('Не удалось обновить напоминания');
+    }
+  }
+  async function toggleLessonReminders() {
+    const native = window.SPBFTUITNative;
+    if (!native?.available) {
+      showToast('Уведомления доступны в Android-приложении');
+      return;
+    }
+    const enabled = safeStorageGet(NOTIFICATIONS_KEY) === '1';
+    if (enabled) {
+      await native.cancelLessonReminders();
+      safeStorageSet(NOTIFICATIONS_KEY, '0');
+      updateNotificationButton();
+      showToast('Напоминания отключены');
+      return;
+    }
+    if (!state.schedule) {
+      showToast('Сначала выбери учебную группу');
+      return;
+    }
+    try {
+      const permission = await native.requestNotificationPermission();
+      if (!permission.granted) {
+        showToast('Разреши уведомления для SPBFTUIT в Android');
+        return;
+      }
+      safeStorageSet(NOTIFICATIONS_KEY, '1');
+      updateNotificationButton();
+      const result = await native.scheduleLessonReminders(buildLessonReminders());
+      showToast(`Напоминания включены: ${result.scheduled} занятий на 14 дней`);
+    } catch (error) {
+      safeStorageSet(NOTIFICATIONS_KEY, '0');
+      updateNotificationButton();
+      console.error('Could not enable lesson reminders', error);
+      showToast('Не удалось включить напоминания');
+    }
+  }
   function applyTheme(theme, persist = false) {
     const next = theme === 'dark' ? 'dark' : 'light';
     document.documentElement.dataset.theme = next;
@@ -487,6 +577,7 @@
       safeStorageSet(GROUP_KEY, String(group.id));
       $('#group-dialog').close();
       renderAll();
+      await syncLessonReminders();
       showToast(`Группа ${group.name} сохранена`);
     } catch {
       showToast('Не получилось загрузить расписание. Попробуй ещё раз.');
@@ -610,6 +701,7 @@
       $('#quick-main').classList.toggle('active', open);
       $('#quick-main').setAttribute('aria-expanded', String(open));
     });
+    $('#toggle-notifications')?.addEventListener('click', () => { closeQuickMenu(); toggleLessonReminders(); });
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
     $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); });
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
@@ -649,10 +741,12 @@
       $('#welcome-date').textContent = formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
     }
     bindEvents();
+    updateNotificationButton();
     updatePresence();
     window.setInterval(updatePresence, 45_000);
     await loadTeacherDirectory();
     await loadData();
+    await syncLessonReminders();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
   }
   init();
