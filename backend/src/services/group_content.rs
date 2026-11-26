@@ -402,6 +402,9 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
         "/leave_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /leave_event ID".into()); };
             let mut tx=match db.begin().await { Ok(tx)=>tx,Err(_)=>return Some("Не удалось отменить запись.".into()) };
+            let event_exists=sqlx::query_scalar::<_,i64>("SELECT id FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE")
+                .bind(chat_id).bind(id).fetch_optional(&mut *tx).await;
+            if !matches!(event_exists,Ok(Some(_))) { let _=tx.rollback().await; return Some("Мероприятие не найдено или уже отменено.".into()); }
             let removed=sqlx::query("DELETE FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3 AND response='going'")
                 .bind(chat_id).bind(id).bind(actor).execute(&mut *tx).await;
             let changed=match removed { Ok(r)=>r.rows_affected()==1,Err(_)=>{let _=tx.rollback().await;return Some("Ошибка отмены записи.".into());} };
