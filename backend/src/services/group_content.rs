@@ -63,7 +63,7 @@ pub async fn handle_homework(
     argument: &str,
 ) -> Option<String> {
     if chat_id >= 0 { return None; }
-    if !matches!(command, "/dz" | "/homework" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done") {
+    if !matches!(command, "/dz" | "/homework" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done" | "/my_dz" | "/priority_dz") {
         return None;
     }
     let configured: bool = sqlx::query_scalar(
@@ -76,6 +76,25 @@ pub async fn handle_homework(
         return Some("⛔ Добавлять и изменять домашние задания в этом чате могут только пользователи с соответствующими правами.".into());
     }
     match command {
+        "/my_dz" => {
+            let rows = sqlx::query_as::<_, (i64, String, String, Option<DateTime<Utc>>)>(
+                "SELECT h.id,h.subject,h.description,h.due_at FROM bot_homework h LEFT JOIN bot_homework_progress p ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2 WHERE h.chat_id=$1 AND h.status='active' AND p.completed_at IS NULL ORDER BY h.due_at NULLS LAST,h.id DESC LIMIT 50"
+            ).bind(chat_id).bind(actor).fetch_all(db).await.unwrap_or_default();
+            if rows.is_empty() { return Some("🎉 У тебя нет невыполненных заданий в этом чате.".into()); }
+            let mut out=String::from("📌 МОИ НЕВЫПОЛНЕННЫЕ ЗАДАНИЯ\\n\\n");
+            for (id,subject,description,due) in rows {
+                let due=due.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"срок не указан".into());
+                out.push_str(&format!("#{id} · {subject}\\n{description}\\nСрок: {due}\\n\\n"));
+            }
+            Some(out)
+        }
+        "/priority_dz" => {
+            let p:Vec<_>=argument.split_whitespace().collect();
+            if p.len()!=2 || !matches!(p[1],"urgent"|"normal") { return Some("Формат: /priority_dz ID urgent|normal".into()); }
+            let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
+            let result=sqlx::query("UPDATE bot_homework SET priority=$3,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).bind(p[1]).execute(db).await;
+            Some(match result { Ok(r) if r.rows_affected()==1=>format!("Приоритет задания #{id} обновлён."),Ok(_)=>"Задание не найдено.".into(),Err(_)=>"Не удалось изменить приоритет.".into() })
+        }
         "/dz" | "/homework" => {
             let rows = sqlx::query_as::<_, (i64, String, String, Option<DateTime<Utc>>, String, String)>(
                 "SELECT h.id,h.subject,h.description,h.due_at,h.priority,CASE WHEN p.completed_at IS NOT NULL THEN 'completed' ELSE 'not_started' END FROM bot_homework h LEFT JOIN bot_homework_progress p ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2 WHERE h.chat_id=$1 AND h.status='active' ORDER BY h.due_at NULLS LAST,h.id DESC LIMIT 30"
@@ -126,8 +145,10 @@ pub async fn handle_homework(
             let parts: Vec<_> = argument.splitn(4, '|').map(str::trim).collect();
             if parts.len()<3 { return Some("Формат: /edit_dz ID | предмет | задание | срок".into()); }
             let id=match parts[0].parse::<i64>() { Ok(v) if v>0=>v,_=>return Some("Укажи корректный ID задания.".into()) };
-            let due=parts.get(3).and_then(|s|parse_due(s));
-            let result=sqlx::query("UPDATE bot_homework SET subject=$3,description=$4,due_at=$5,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
+            let due_text=parts.get(3).copied().unwrap_or("");
+            let due=if due_text.is_empty(){None}else{parse_due(due_text)};
+            if !due_text.is_empty() && due.is_none() { return Some("Не понял срок. Используй: завтра, послезавтра или ДД.ММ.".into()); }
+            let result=sqlx::query("UPDATE bot_homework SET subject=$3,description=$4,due_at=COALESCE($5,due_at),updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
                 .bind(chat_id).bind(id).bind(parts[1]).bind(parts[2]).bind(due).execute(db).await;
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("✏️ Задание #{id} обновлено."),Ok(_)=>"Задание с таким ID не найдено в этом чате.".into(),Err(_)=>"Не удалось изменить задание.".into() })
         }
@@ -253,6 +274,41 @@ pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command:
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /leave_event ID".into()); };
             let result=sqlx::query("DELETE FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3").bind(chat_id).bind(id).bind(actor).execute(db).await;
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("Запись на мероприятие #{id} отменена."),Ok(_)=>"Ты не записан на это мероприятие.".into(),Err(_)=>"Ошибка отмены записи.".into() })
+        }
+        _ => None
+    }
+}
+
+
+pub async fn handle_content_admin(db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
+    if chat_id >= 0 || !matches!(command, "/content_rights" | "/content_editor") { return None; }
+    let admin: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status IN ('creator','administrator'))")
+        .bind(chat_id).bind(actor).fetch_one(db).await.unwrap_or(false);
+    if !admin { return Some("⛔ Эти настройки доступны только создателю или администраторам Telegram.".into()); }
+    match command {
+        "/content_rights" => {
+            let p:Vec<_>=argument.split_whitespace().collect();
+            if p.len()!=2 || !matches!(p[0],"homework"|"exams"|"events") || !matches!(p[1],"everyone"|"admins"|"selected") {
+                return Some("Формат: /content_rights homework|exams|events everyone|admins|selected".into());
+            }
+            let result=sqlx::query("UPDATE bot_chat_settings SET content_permissions=jsonb_set(content_permissions,ARRAY[$2]::text[],to_jsonb($3::text),true),updated_at=now() WHERE chat_id=$1 AND is_active=TRUE")
+                .bind(chat_id).bind(p[0]).bind(p[1]).execute(db).await;
+            Some(match result { Ok(r) if r.rows_affected()==1=>format!("✅ Права раздела {}: {}.",p[0],p[1]),Ok(_)=>"Сначала привяжите группу командой /setgroup.".into(),Err(_)=>"Не удалось изменить права.".into() })
+        }
+        "/content_editor" => {
+            let p:Vec<_>=argument.split_whitespace().collect();
+            if p.len()!=3 || !matches!(p[0],"homework"|"exams"|"events") || !matches!(p[1],"add"|"remove") {
+                return Some("Формат: /content_editor homework|exams|events add|remove TELEGRAM_ID".into());
+            }
+            let Ok(target)=p[2].parse::<i64>() else { return Some("Укажи числовой Telegram ID участника.".into()); };
+            let result=if p[1]=="add" {
+                sqlx::query("INSERT INTO bot_chat_content_editors(chat_id,section,telegram_id,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING")
+                    .bind(chat_id).bind(p[0]).bind(target).bind(actor).execute(db).await
+            } else {
+                sqlx::query("DELETE FROM bot_chat_content_editors WHERE chat_id=$1 AND section=$2 AND telegram_id=$3")
+                    .bind(chat_id).bind(p[0]).bind(target).execute(db).await
+            };
+            Some(match result { Ok(_)=>format!("✅ Права редактора {} для участника {} обновлены.",p[0],target),Err(_)=>"Не удалось обновить список редакторов.".into() })
         }
         _ => None
     }
