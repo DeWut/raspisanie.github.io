@@ -354,13 +354,27 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
                     _ => return Some("Вместимость: число от 1 до 10000 или off.".into()),
                 }
             };
-            let result=sqlx::query("UPDATE bot_events SET capacity=$3,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
-                .bind(chat_id).bind(id).bind(capacity).execute(db).await;
-            Some(match result {
-                Ok(r) if r.rows_affected()==1 => format!("✅ Вместимость мероприятия #{id} обновлена."),
-                Ok(_) => "Мероприятие не найдено.".into(),
-                Err(_) => "Не удалось изменить вместимость.".into()
-            })
+            let mut tx=match db.begin().await { Ok(tx)=>tx,Err(_)=>return Some("Не удалось изменить вместимость.".into()) };
+            let exists=sqlx::query_scalar::<_,i64>("SELECT id FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE")
+                .bind(chat_id).bind(id).fetch_optional(&mut *tx).await;
+            if !matches!(exists,Ok(Some(_))) { let _=tx.rollback().await; return Some("Мероприятие не найдено.".into()); }
+            let updated=sqlx::query("UPDATE bot_events SET capacity=$3,updated_at=now() WHERE chat_id=$1 AND id=$2")
+                .bind(chat_id).bind(id).bind(capacity).execute(&mut *tx).await;
+            if updated.is_err() { let _=tx.rollback().await; return Some("Не удалось изменить вместимость.".into()); }
+            let mut demoted:Vec<i64>=Vec::new();
+            if let Some(limit)=capacity {
+                demoted=sqlx::query_scalar("WITH ranked AS (SELECT telegram_id,row_number() OVER (ORDER BY joined_at,telegram_id) AS position FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='going'), changed AS (UPDATE bot_event_participants p SET response='waitlist',updated_at=now() FROM ranked r WHERE p.chat_id=$1 AND p.event_id=$2 AND p.telegram_id=r.telegram_id AND r.position>$3 RETURNING p.telegram_id) SELECT telegram_id FROM changed")
+                    .bind(chat_id).bind(id).bind(i64::from(limit)).fetch_all(&mut *tx).await.unwrap_or_default();
+            }
+            let going:i64=sqlx::query_scalar("SELECT count(*) FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='going'")
+                .bind(chat_id).bind(id).fetch_one(&mut *tx).await.unwrap_or(0);
+            let slots=capacity.map(|v|(i64::from(v)-going).max(0)).unwrap_or(10000);
+            let promoted:Vec<i64>=sqlx::query_scalar("WITH chosen AS (SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY joined_at,telegram_id LIMIT $3 FOR UPDATE), changed AS (UPDATE bot_event_participants p SET response='going',updated_at=now() FROM chosen c WHERE p.chat_id=$1 AND p.event_id=$2 AND p.telegram_id=c.telegram_id RETURNING p.telegram_id) SELECT telegram_id FROM changed")
+                .bind(chat_id).bind(id).bind(slots).fetch_all(&mut *tx).await.unwrap_or_default();
+            if tx.commit().await.is_err() { return Some("Не удалось сохранить новую вместимость.".into()); }
+            for user in &demoted { let _=bot.send_message(ChatId(*user),format!("ℹ️ Вместимость мероприятия #{id} уменьшена. Ты перемещён в лист ожидания." )).await; }
+            for user in &promoted { let _=bot.send_message(ChatId(*user),format!("🎉 Для мероприятия #{id} появилось место! Ты записан." )).await; }
+            Some(format!("✅ Вместимость мероприятия #{id} обновлена. В лист ожидания перемещено: {}; повышено из очереди: {}.",demoted.len(),promoted.len()))
         }
         "/join_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /join_event ID".into()); };
