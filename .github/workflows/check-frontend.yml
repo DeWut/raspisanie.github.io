@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/smart-campus-step-1
+      - feature/campus-map-realism-scroll
   pull_request:
     branches:
       - main
