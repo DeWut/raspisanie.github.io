@@ -1,0 +1,73 @@
+name: Build iOS Simulator App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/smart-campus-step-1
+    paths:
+      - 'miniapp/**'
+      - 'data/**'
+      - 'favicon.png'
+      - 'package.json'
+      - 'capacitor.config.json'
+      - 'scripts/prepare-mobile.mjs'
+      - 'mobile/**'
+      - '.github/workflows/build-ios.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build iOS Simulator
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare web assets
+        run: |
+          npm install
+          npm run mobile:prepare
+
+      - name: Generate and sync iOS project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Build for iOS Simulator
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios-derived \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package simulator app
+        run: |
+          APP_PATH="build/ios-derived/Build/Products/Debug-iphonesimulator/App.app"
+          test -d "$APP_PATH"
+          ditto "$APP_PATH" SPBFTUIT-iOS-Simulator.app
+          ditto -c -k --sequesterRsrc --keepParent SPBFTUIT-iOS-Simulator.app SPBFTUIT-iOS-Simulator.zip
+
+      - name: Upload simulator build
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPBFTUIT-ios-simulator
+          path: SPBFTUIT-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 14
