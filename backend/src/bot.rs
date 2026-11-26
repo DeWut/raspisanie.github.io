@@ -102,7 +102,7 @@ async fn reply(
     let request = bot
         .send_message(message.chat.id, text)
         .reply_markup(main_keyboard(webapp_url, message.chat.is_private()));
-    let request = match message.thread_id {
+    let request = match message.thread_id.clone() {
         Some(thread_id) => request.message_thread_id(thread_id),
         None => request,
     };
