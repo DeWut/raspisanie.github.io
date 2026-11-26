@@ -1538,21 +1538,12 @@
       if (campusOnlineMap) fitCampusMapToPark();
       else openCampusOnlineMap();
     });
-    $('#campus-mode-osm')?.addEventListener('click', () => {
-      setCampusMapMode('online');
-      openCampusOnlineMap();
-    });
     $('#map-dialog')?.addEventListener('close', () => {
       destroyCampusCesiumViewer();
       if (campusMapMode === 'cesium') setCampusMapMode('offline');
     });
     $('#campus-basemap-osm')?.addEventListener('click', () => setCampusBasemap('osm'));
     $('#campus-basemap-satellite')?.addEventListener('click', () => setCampusBasemap('satellite'));
-    $('#campus-mode-osm')?.addEventListener('click', () => {
-      setCampusMapMode('online');
-      if (campusOnlineMap) fitCampusMapToPark();
-      else openCampusOnlineMap();
-    });
     $('#campus-mode-yandex')?.addEventListener('click', openCampusYandexMap);
     $('#campus-fit-buildings')?.addEventListener('click', () => campusMapMode === 'yandex' ? fitCampusYandexMap() : fitCampusMapToBuildings());
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
