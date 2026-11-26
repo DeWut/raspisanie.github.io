@@ -502,7 +502,7 @@ button { font-family: inherit; }
 .campus-basemap-switch button { min-height: 30px; font-size: 9px; }
 .campus-map-footer { flex-wrap: wrap; }
 .maplibregl-popup-content {
-  max-height: min(52dvh, 390px);
+  max-height: min(42dvh, 340px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -519,4 +519,7 @@ button { font-family: inherit; }
   .map-dialog > .campus-plan-note { max-height: 8dvh; margin-bottom: 7px; }
   .map-dialog > .campus-buildings { min-height: 72px; }
   .campus-online-map { height: clamp(220px, 35dvh, 360px); min-height: 210px; }
+  /* Keep a selected-building card inside the map viewport on phones. */
+  .maplibregl-popup-content { max-height: min(34dvh, 260px); }
+  .campus-map-building-photo img { max-height: 112px; }
 }
