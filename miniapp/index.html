@@ -120,8 +120,12 @@
         <div id="campus-online-panel" class="campus-online-panel" hidden>
           <div class="campus-online-head"><span>ТЕРРИТОРИЯ ПАРКА · ЛОКАЛЬНЫЕ ДАННЫЕ OSM</span></div>
           <div class="campus-map-switch" role="group" aria-label="Источник карты">
-            <button type="button" id="campus-mode-osm" aria-pressed="true">Автономный 3D-парк</button>
+            <button type="button" id="campus-mode-osm" aria-pressed="true">3D-парк</button>
             <button type="button" id="campus-mode-yandex" aria-pressed="false">Спутник Яндекса</button>
+          </div>
+          <div class="campus-map-switch campus-basemap-switch" role="group" aria-label="Подложка 3D-карты">
+            <button type="button" id="campus-basemap-osm" aria-pressed="true">Схема</button>
+            <button type="button" id="campus-basemap-satellite" aria-pressed="false">Спутник</button>
           </div>
           <div id="campus-online-map" class="campus-online-map"></div>
           <div id="campus-yandex-map" class="campus-online-map campus-yandex-map" hidden></div>
