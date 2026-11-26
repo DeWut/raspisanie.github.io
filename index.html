@@ -7,9 +7,11 @@
     <meta name="description" content="Полное расписание университета SPBFTUIT." />
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="./favicon.png" />
-    <link rel="stylesheet" href="./miniapp/styles.css?v=20261126-19" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./miniapp/styles.css?v=20261127-12" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="./miniapp/app.js?v=20261126-19"></script>
+    <script defer src="./miniapp/campus-map-config.js?v=20261127-12"></script>
+    <script defer src="./miniapp/app.js?v=20261127-12"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -27,6 +29,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.2 9a6.5 6.5 0 0 1 10.7-2L20 12M4 12l3.1 5a6.5 6.5 0 0 0 10.7-2" /></svg>
         </button>
       </header>
+      <div class="connectivity-note" id="connectivity-note" role="status" hidden>Нет подключения · показываем сохранённые данные</div>
 
       <main>
         <section class="welcome-row">
@@ -104,7 +107,35 @@
       </div>
     </dialog>
     <dialog class="group-dialog utility-dialog" id="calendar-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">УЧЕБНЫЙ ГОД</p><h2>Календарь</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div class="calendar-controls"><button class="icon-button small" id="calendar-prev" type="button" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><strong id="calendar-month-name">—</strong><button class="icon-button small" id="calendar-next" type="button" aria-label="Следующий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-details" id="calendar-details">Выбери день, чтобы увидеть расписание.</div></dialog>
-    <dialog class="group-dialog utility-dialog map-dialog" id="map-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">НАВИГАЦИЯ</p><h2>Карта университета</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div class="map-frame"><iframe title="Карта университета" src="https://yandex.ru/map-widget/v1/?um=constructor%3A387733f7d1016f2a91784a9959e5ef96b5b2a07a0533787e90a5bf53a8fcf4c3&amp;source=constructor" loading="lazy" allowfullscreen></iframe></div></dialog>
+    <dialog class="group-dialog utility-dialog map-dialog" id="map-dialog">
+      <form method="dialog" class="dialog-head"><div><p class="eyebrow">НАВИГАЦИЯ</p><h2>Карта и корпуса</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form>
+      <section class="campus-explorer" aria-label="Карта кампуса">
+        <div class="campus-offline-panel" id="campus-offline-panel">
+          <span class="campus-offline-kicker">СПРАВОЧНИК КАМПУСА</span>
+          <h3>Корпуса и аудитории</h3>
+          <p id="campus-offline-status">3D-схема парка, дорожки, водоёмы и корпуса хранятся на устройстве. Спутник Яндекса требует интернет.</p>
+          <button type="button" id="campus-open-online">Открыть автономную 3D-карту</button>
+          <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта университета ↗</a>
+        </div>
+        <div id="campus-online-panel" class="campus-online-panel" hidden>
+          <div class="campus-online-head"><span>ТЕРРИТОРИЯ ПАРКА · ЛОКАЛЬНЫЕ ДАННЫЕ OSM</span></div>
+          <div class="campus-map-switch" role="group" aria-label="Источник карты">
+            <button type="button" id="campus-mode-osm" aria-pressed="true">Автономный 3D-парк</button>
+            <button type="button" id="campus-mode-yandex" aria-pressed="false">Спутник Яндекса</button>
+          </div>
+          <div id="campus-online-map" class="campus-online-map"></div>
+          <div id="campus-yandex-map" class="campus-online-map campus-yandex-map" hidden></div>
+          <div class="campus-map-footer">
+            <p id="campus-online-status" class="campus-online-status" role="status" aria-live="polite">Загрузка карты и зданий…</p>
+            <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта ↗</a>
+            <button type="button" id="campus-fit-buildings" disabled>Показать все корпуса</button>
+          </div>
+        </div>
+      </section>
+      <p class="campus-plan-note">Карта ограничена контуром парка Лесотехнической академии и построена на сохранённых данных <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap · ODbL</a>: граница, лесные массивы, дорожки, водоёмы и здания. Лесная текстура иллюстративная, не спутниковый снимок; кроны и высоты зданий без данных в OSM показаны условно.</p>
+      <label class="search-box campus-search-box"><span>⌕</span><input id="campus-search" type="search" placeholder="Найти корпус, кафедру или кабинет…" autocomplete="off" /></label>
+      <div class="campus-buildings" id="campus-buildings"><p class="campus-empty">Справочник корпусов будет загружен…</p></div>
+    </dialog>
     <dialog class="group-dialog utility-dialog" id="weather-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">САНКТ-ПЕТЕРБУРГ</p><h2>Погода</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div id="weather-content" class="weather-content">Загружаем погоду…</div></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </body>
