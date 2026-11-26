@@ -934,10 +934,19 @@
       paint: { 'line-color': '#f5edcf', 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.65, 16, 2.5], 'line-opacity': 0.98 }
     });
     map.addLayer({
-      id: 'campus-park-buildings', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 12,
-      filter: ['==', ['get', 'kind'], 'building'],
+      id: 'campus-park-building-footprints', type: 'fill', source: 'campus-park-scene', minzoom: 12,
+      filter: ['all', ['==', ['get', 'kind'], 'building'], ['==', ['get', 'heightKnown'], false]],
       paint: {
-        'fill-extrusion-color': ['coalesce', ['get', 'styleColor'], '#dfcba8'],
+        'fill-color': '#b9b8b3',
+        'fill-opacity': 0.96,
+        'fill-outline-color': '#807f79'
+      }
+    });
+    map.addLayer({
+      id: 'campus-park-buildings', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 12,
+      filter: ['all', ['==', ['get', 'kind'], 'building'], ['==', ['get', 'heightKnown'], true]],
+      paint: {
+        'fill-extrusion-color': ['coalesce', ['get', 'styleColor'], '#c7c4bc'],
         'fill-extrusion-height': ['get', 'heightMeters'],
         'fill-extrusion-base': 0,
         'fill-extrusion-opacity': 1,
