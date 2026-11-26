@@ -633,6 +633,84 @@
   let campusRotation = { x: 54, z: -28 };
   let campusZoom = 1;
   let campusPointer = null;
+  let campusOnlineMap = null;
+  let campusMapLibraryPromise = null;
+  function loadCampusMapLibrary() {
+    if (window.maplibregl) return Promise.resolve(window.maplibregl);
+    if (campusMapLibraryPromise) return campusMapLibraryPromise;
+    campusMapLibraryPromise = new Promise((resolve, reject) => {
+      if (!document.querySelector('link[data-campus-maplibre]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css';
+        link.dataset.campusMaplibre = '1';
+        document.head.appendChild(link);
+      }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js';
+      script.async = true;
+      script.onload = () => window.maplibregl ? resolve(window.maplibregl) : reject(new Error('MapLibre не инициализировался'));
+      script.onerror = () => reject(new Error('Не удалось загрузить библиотеку 3D-карты'));
+      document.head.appendChild(script);
+    });
+    return campusMapLibraryPromise;
+  }
+  async function openCampusOnlineMap() {
+    const panel = $('#campus-online-panel');
+    const status = $('#campus-online-status');
+    if (!panel) return;
+    panel.hidden = false;
+    if (campusOnlineMap) { campusOnlineMap.resize(); return; }
+    status.textContent = 'Загружаем реальную карту и 3D-здания…';
+    try {
+      const maplibregl = await loadCampusMapLibrary();
+      campusOnlineMap = new maplibregl.Map({
+        container: 'campus-online-map',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        center: [30.3437, 59.9927],
+        zoom: 16.8,
+        pitch: 62,
+        bearing: -24,
+        maxPitch: 80,
+        antialias: true,
+        attributionControl: true
+      });
+      campusOnlineMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+      campusOnlineMap.on('load', () => {
+        const styleLayers = campusOnlineMap.getStyle().layers || [];
+        const labelLayer = styleLayers.find((layer) => layer.type === 'symbol' && layer.layout?.['text-field']);
+        const sourceName = Object.keys(campusOnlineMap.getStyle().sources || {}).find((name) => {
+          const source = campusOnlineMap.getStyle().sources[name];
+          return source.type === 'vector';
+        });
+        if (sourceName && !campusOnlineMap.getLayer('campus-3d-buildings')) {
+          campusOnlineMap.addLayer({
+            id: 'campus-3d-buildings',
+            source: sourceName,
+            'source-layer': 'building',
+            type: 'fill-extrusion',
+            minzoom: 14,
+            paint: {
+              'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 8], 0, '#d7dfd5', 24, '#a7bca8', 60, '#78977e'],
+              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
+              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+              'fill-extrusion-opacity': 0.88
+            }
+          }, labelLayer?.id);
+        }
+        new maplibregl.Marker({ color: '#23734e' })
+          .setLngLat([30.3437, 59.9927])
+          .setPopup(new maplibregl.Popup({ offset: 24 }).setHTML('<strong>СПбГЛТУ им. С. М. Кирова</strong><br>Институтский переулок, 5'))
+          .addTo(campusOnlineMap);
+        status.textContent = 'Реальная карта OpenStreetMap. Поверни двумя пальцами или кнопками справа. Для 3D-зданий требуется интернет.';
+      });
+      campusOnlineMap.on('error', (event) => {
+        if (event?.error) console.warn('Campus map tile error:', event.error);
+      });
+    } catch (error) {
+      status.textContent = `${error.message}. Локальная 3D-модель кампуса доступна выше без интернета.`;
+    }
+  }
   function updateCampusCamera() {
     const world = $('#campus-world');
     if (!world) return;
@@ -829,6 +907,8 @@
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
     $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); loadCampusDirectory(); });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
+    $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
+    $('#campus-close-online')?.addEventListener('click', () => { $('#campus-online-panel').hidden = true; });
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
