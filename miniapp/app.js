@@ -639,7 +639,7 @@
   let campusCesiumLibraryPromise = null;
   let campusCesiumOpenAttempted = false;
   let campusYandexApiPromise = null;
-  const YANDEX_MAPS_API_KEY = ''; // Configure only through an authorised owner-managed runtime setting.
+  const YANDEX_MAPS_API_KEY = typeof window.CAMPUS_MAP_CONFIG?.yandexMapsApiKey === 'string' ? window.CAMPUS_MAP_CONFIG.yandexMapsApiKey.trim() : '';
   const CAMPUS_PARK_BOUNDS = [[30.3304887, 59.9899431], [30.3542134, 59.9975551]];
   const campusMapMarkers = new Map();
   const campusSceneLabelMarkers = [];
@@ -936,6 +936,7 @@ function setCampusSatelliteVisible(visible) {
     setCampusSatelliteVisible(satellite);
   }
   function loadCampusYandexApi() {
+    if (!YANDEX_MAPS_API_KEY) return Promise.reject(new Error('Для спутникового режима Яндекса нужен отдельный ключ JavaScript API в miniapp/campus-map-config.js'));
     if (window.ymaps?.Map) return new Promise((resolve) => window.ymaps.ready(() => resolve(window.ymaps)));
     if (campusYandexApiPromise) return campusYandexApiPromise;
     campusYandexApiPromise = new Promise((resolve, reject) => {
