@@ -31,6 +31,7 @@ jobs:
       - name: Check Mini App and offline scripts
         run: |
           node --check miniapp/app.js
+          node --check miniapp/campus-map-config.js
           node --check service-worker.js
           node --check scripts/prepare-mobile.mjs
 
