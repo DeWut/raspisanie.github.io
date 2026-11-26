@@ -682,17 +682,18 @@
     setCampusMapMode('cesium');
     const apiKey = getCampusPhotorealisticApiKey();
     if (!apiKey) {
-      status.textContent = 'Фотореалистичный режим Cesium подготовлен, но не настроен: добавь ограниченный Google Maps Platform API key в CAMPUS_MAP_CONFIG. Пока доступна локальная 3D-карта.';
+      status.textContent = 'Фотореалистичный режим Cesium подготовлен, но ключ ещё не подключён. Для точной 3D-сцены требуется Google Maps Platform API key с разрешением Map Tiles API и HTTP-referrer ограничением. Локальная 3D-карта остаётся доступна.';
       return false;
     }
     status.textContent = 'Загружаем CesiumJS и проверяем доступность фотограмметрической 3D-сцены…';
+    let viewer = null;
     try {
       const Cesium = await loadCampusCesiumLibrary();
       if (campusCesiumViewer && !campusCesiumViewer.isDestroyed()) {
         campusCesiumViewer.resize();
         return true;
       }
-      const viewer = new Cesium.Viewer(mapHost, {
+      viewer = new Cesium.Viewer(mapHost, {
         animation: false,
         timeline: false,
         baseLayerPicker: false,
@@ -713,10 +714,9 @@
       viewer.scene.globe.show = false;
       viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#dce6dc');
       viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
-      const center = Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 900);
       viewer.camera.setView({
-        destination: center,
-        orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-38), roll: 0 }
+        destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 900),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-38), roll: 0 }
       });
       const rootUrl = `https://tile.googleapis.com/v1/3dtiles/root.json?key=${encodeURIComponent(apiKey)}`;
       const tileset = await Cesium.Cesium3DTileset.fromUrl(rootUrl, {
@@ -731,12 +731,19 @@
         orientation: { heading: Cesium.Math.toRadians(-15), pitch: Cesium.Math.toRadians(-42), roll: 0 },
         duration: 1.1
       });
-      status.textContent = 'CesiumJS запущен. Фотореалистичные 3D Tiles загружаются; если территория кампуса не покрыта, Google покажет только доступные данные местности.';
+      const requestStatus = tileset.initialTilesLoaded ? 'первый набор тайлов загружен' : 'ожидается загрузка 3D-тайлов';
+      status.textContent = `CesiumJS запущен: ${requestStatus}. Наличие зданий именно в этом районе зависит от покрытия Google Photorealistic 3D Tiles.`;
+      tileset.tileFailed.addEventListener((error) => {
+        console.warn('Photorealistic tile failed:', error);
+        status.textContent = 'Некоторые 3D-тайлы не загрузились. Проверь покрытие, billing, разрешения Map Tiles API и ограничения ключа.';
+      });
       return true;
     } catch (error) {
       console.warn('Campus photorealistic 3D failed:', error);
-      destroyCampusCesiumViewer();
-      status.textContent = `Не удалось открыть фотореалистичные 3D Tiles: ${error.message}. Переключись на автономную 3D-карту или проверь API key, billing и покрытие территории.`;
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+      campusCesiumViewer = null;
+      campusCesiumTileset = null;
+      status.textContent = `Не удалось открыть фотореалистичные 3D Tiles: ${error.message}. Проверь API key, billing, включённый Map Tiles API и покрытие кампуса. Автономная 3D-карта остаётся доступна.`;
       return false;
     }
   }
