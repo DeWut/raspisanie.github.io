@@ -748,7 +748,12 @@
                 }
               }, labelLayer?.id);
             }
-            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-color', ['to-color', ['coalesce', ['get', 'colour'], '#c9bea9']]);
+            campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-color', [
+              'case',
+              ['all', ['has', 'colour'], ['!=', ['to-string', ['get', 'colour']], '']],
+              ['to-color', ['get', 'colour']],
+              '#c9bea9'
+            ]);
             campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-height', ['coalesce', ['get', 'render_height'], ['get', 'height'], 8]);
             campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-base', ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]);
             campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-opacity', 1);
