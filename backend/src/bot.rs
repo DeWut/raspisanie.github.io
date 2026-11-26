@@ -5,9 +5,8 @@ use teloxide::{
     prelude::*,
     types::{
         BotCommand, BotCommandScope, ButtonRequest, ChatPermissions, InlineQuery,
-        InlineQueryResult, InlineQueryResultArticle, InputMessageContent,
-        InputMessageContentText, KeyboardButton, KeyboardMarkup, Message, UserId,
-        WebAppInfo,
+        InlineQueryResult, InlineQueryResultArticle, InputMessageContent, InputMessageContentText,
+        KeyboardButton, KeyboardMarkup, Message, UserId, WebAppInfo,
     },
 };
 
@@ -1786,16 +1785,18 @@ pub async fn run(state: Arc<AppState>) {
     let inline_state = state.clone();
 
     let handler = dptree::entry()
-        .branch(Update::filter_message().endpoint(move |bot: Bot, message: Message| {
-            let state = message_state.clone();
-            async move { handle(bot, state, message).await }
-        }))
-        .branch(Update::filter_inline_query().endpoint(
-            move |bot: Bot, query: InlineQuery| {
+        .branch(
+            Update::filter_message().endpoint(move |bot: Bot, message: Message| {
+                let state = message_state.clone();
+                async move { handle(bot, state, message).await }
+            }),
+        )
+        .branch(
+            Update::filter_inline_query().endpoint(move |bot: Bot, query: InlineQuery| {
                 let state = inline_state.clone();
                 async move { handle_inline_query(bot, state, query).await }
-            },
-        ));
+            }),
+        );
 
     Dispatcher::builder(bot, handler).build().dispatch().await;
 }
@@ -1853,17 +1854,24 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
 
                 match inserted {
                     Ok(result) if result.rows_affected() == 1 => {
-                        match bot.send_message(
-                            ChatId(telegram_id),
-                            format!(
-                                "⏰ Через 10 минут пара: {}\nНачало: {}",
-                                subject,
-                                moscow_time(starts_at, "%H:%M")
-                            ),
-                        ).await {
+                        match bot
+                            .send_message(
+                                ChatId(telegram_id),
+                                format!(
+                                    "⏰ Через 10 минут пара: {}\nНачало: {}",
+                                    subject,
+                                    moscow_time(starts_at, "%H:%M")
+                                ),
+                            )
+                            .await
+                        {
                             Ok(_) => {}
                             Err(error) => {
-                                tracing::warn!("Could not deliver lesson reminder to {}: {}", telegram_id, error);
+                                tracing::warn!(
+                                    "Could not deliver lesson reminder to {}: {}",
+                                    telegram_id,
+                                    error
+                                );
                                 let _ = sqlx::query(
                                     "DELETE FROM bot_reminder_deliveries WHERE telegram_id = $1 AND lesson_id = $2"
                                 ).bind(telegram_id).bind(id).execute(&state.db).await;
@@ -1871,7 +1879,11 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
                         }
                     }
                     Ok(_) => {}
-                    Err(error) => tracing::error!("Could not reserve reminder delivery for {}: {}", telegram_id, error),
+                    Err(error) => tracing::error!(
+                        "Could not reserve reminder delivery for {}: {}",
+                        telegram_id,
+                        error
+                    ),
                 }
             }
         }
