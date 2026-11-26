@@ -373,6 +373,7 @@ button { font-family: inherit; }
 
 /* Campus directory stays available from the local data cache. */
 .campus-plan-note { margin:8px 3px 12px; color:var(--muted); font-size:10px; line-height:1.55; }
+.campus-plan-note a { color:var(--forest); font-weight:800; }
 .campus-search-box { margin-bottom:10px; }
 .campus-buildings { display:grid; gap:9px; }
 .campus-building-card { padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--surface,#fff); cursor:pointer; transition:border-color .2s,transform .2s; }
