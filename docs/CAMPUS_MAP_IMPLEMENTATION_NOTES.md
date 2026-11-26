@@ -123,3 +123,13 @@ Do not describe a satellite raster plus extruded building footprints as photorea
 
 ### Current stopping point
 The data source/engine research is complete enough to choose CesiumJS, but actual photorealistic campus coverage and an authorised Google API key are not verified/available in this session. The next code step should be the Cesium viewer shell and provider-config fallback; the final photorealistic layer remains gated by the user's Google Maps Platform project/API key and coverage confirmation.
+
+## CesiumJS viewer shell implemented (2026-11-27)
+
+- Added a dedicated "Фотореалистичный 3D" mode and CesiumJS renderer host to the campus map dialog. The existing MapLibre offline/OSM scene and Yandex satellite mode remain separate.
+- Added lazy CesiumJS loading from the official CesiumJS distribution and a Google Photorealistic 3D Tiles root tileset request. The integration explicitly enables on-screen credit display and uses the tile service only as a live visualisation.
+- Added `miniapp/campus-map-config.js` as a no-key runtime config stub and a configuration guard. No Google key, credentials, or secrets were added to Git. When no key is present, the UI explains the requirement and the local map remains available.
+- Added a separate Cesium viewport, responsive styles, attribution area, Service Worker shell caching for the configuration stub, and CI syntax checking for the new config file.
+- The Cesium mode is an integration shell only until a valid browser-restricted key is supplied and the precise campus coverage is confirmed. Google tile loading has not yet been tested against a real project/key.
+- The Cesium scene is not yet carrying the university's OSM footprints, markers, search or building information popups as vector overlays. That remains the next code task after proving the photorealistic tiles load.
+- No local image or mesh has been derived from third-party map imagery. Google imagery/geometry stays remote and is only rendered in the authorised online viewer.
