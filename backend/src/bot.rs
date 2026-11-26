@@ -4,8 +4,10 @@ use std::{sync::Arc, time::Duration};
 use teloxide::{
     prelude::*,
     types::{
-        BotCommand, BotCommandScope, ButtonRequest, ChatPermissions, KeyboardButton,
-        KeyboardMarkup, Message, UserId, WebAppInfo,
+        BotCommand, BotCommandScope, ButtonRequest, ChatPermissions, InlineQuery,
+        InlineQueryResult, InlineQueryResultArticle, InputMessageContent,
+        InputMessageContentText, KeyboardButton, KeyboardMarkup, Message, UserId,
+        WebAppInfo,
     },
 };
 
@@ -388,6 +390,118 @@ async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> Stri
     output
 }
 
+#[derive(Clone, Copy)]
+struct InlineScheduleAction {
+    id: &'static str,
+    command: Option<&'static str>,
+    title: &'static str,
+    description: &'static str,
+}
+
+const INLINE_SCHEDULE_ACTIONS: [InlineScheduleAction; 4] = [
+    InlineScheduleAction {
+        id: "inline_today",
+        command: Some("/today"),
+        title: "📅 Расписание на сегодня",
+        description: "Показать занятия на сегодня",
+    },
+    InlineScheduleAction {
+        id: "inline_tomorrow",
+        command: Some("/tomorrow"),
+        title: "📅 Расписание на завтра",
+        description: "Показать занятия на завтра",
+    },
+    InlineScheduleAction {
+        id: "inline_next",
+        command: Some("/next"),
+        title: "⏭ Следующая пара",
+        description: "Найти ближайшее занятие",
+    },
+    InlineScheduleAction {
+        id: "inline_week",
+        command: Some("/week"),
+        title: "🗓 Расписание на неделю",
+        description: "Показать занятия на ближайшие 7 дней",
+    },
+];
+
+const INLINE_HELP_ACTION: InlineScheduleAction = InlineScheduleAction {
+    id: "inline_help",
+    command: None,
+    title: "Как искать расписание",
+    description: "Запросы: today, tomorrow, next, week",
+};
+
+fn inline_actions(query: &str) -> Vec<InlineScheduleAction> {
+    match query.trim().to_lowercase().as_str() {
+        "" => INLINE_SCHEDULE_ACTIONS.to_vec(),
+        "today" | "сегодня" | "/today" => vec![INLINE_SCHEDULE_ACTIONS[0]],
+        "tomorrow" | "завтра" | "/tomorrow" => vec![INLINE_SCHEDULE_ACTIONS[1]],
+        "next" | "пара" | "следующая" | "/next" => vec![INLINE_SCHEDULE_ACTIONS[2]],
+        "week" | "неделя" | "/week" => vec![INLINE_SCHEDULE_ACTIONS[3]],
+        "help" | "помощь" | "команды" | "?" => vec![INLINE_HELP_ACTION],
+        _ => vec![INLINE_HELP_ACTION],
+    }
+}
+
+async fn handle_inline_query(
+    bot: Bot,
+    state: Arc<AppState>,
+    query: InlineQuery,
+) -> ResponseResult<()> {
+    let telegram_id = i64::try_from(query.from.id.0).ok();
+    let group_id = match telegram_id {
+        Some(id) => selected_group(&state.db, id, id).await,
+        None => None,
+    };
+
+    let mut results = Vec::<InlineQueryResult>::new();
+
+    if let Some(group_id) = group_id {
+        for action in inline_actions(&query.query) {
+            let message_text = match action.command {
+                Some(command) => schedule_text(&state.db, group_id, command)
+                    .await
+                    .replace('*', ""),
+                None => "Быстрый поиск расписания SPBFTUIT.\n\n\
+                    Введи один из запросов после имени бота:\n\
+                    today — сегодня\n\
+                    tomorrow — завтра\n\
+                    next — следующая пара\n\
+                    week — ближайшие 7 дней"
+                    .to_owned(),
+            };
+
+            let article = InlineQueryResultArticle::new(
+                action.id.to_owned(),
+                action.title.to_owned(),
+                InputMessageContent::Text(InputMessageContentText::new(message_text)),
+            )
+            .description(action.description.to_owned());
+
+            results.push(article.into());
+        }
+    } else {
+        let article = InlineQueryResultArticle::new(
+            "inline_choose_group".to_owned(),
+            "⚙️ Сначала выбери учебную группу".to_owned(),
+            InputMessageContent::Text(InputMessageContentText::new(
+                "Чтобы отправлять расписание в чаты, сначала открой @spbftuITbot в личных сообщениях и выбери группу командой /group название. Затем вернись в чат и повтори inline-запрос.",
+            )),
+        )
+        .description("Настрой личную группу в боте, затем используй today, tomorrow, next или week");
+
+        results.push(article.into());
+    }
+
+    bot.answer_inline_query(query.id, results)
+        .cache_time(0)
+        .is_personal(true)
+        .await?;
+
+    Ok(())
+}
+
 async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseResult<()> {
     if let Some(web_app_data) = message.web_app_data() {
         if !message.chat.is_private() || web_app_data.data.len() > 1_000 {
@@ -567,6 +681,13 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     "\n\n🛡 *Модераторам*\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
                 );
             }
+            if !is_group_chat
+                && state.config.admin_telegram_id > 0
+                && telegram_id == state.config.admin_telegram_id
+            {
+                help.push_str("\n\n🔄 /sync — вручную обновить расписание из ЭИОС");
+            }
+            help.push_str("\n\n⚡ Inline-поиск: @spbftuITbot today | tomorrow | next | week");
             help
         }
 
@@ -1538,9 +1659,21 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     };
 
                     let response = match result {
-                Ok(()) => "✅ Синхронизация расписаний завершена. Подробности есть в логах сервера.".to_owned(),
-                Err(error) => format!("❌ Синхронизация не выполнена: {}", error),
-            };
+                    Ok(report) if report.groups_failed == 0 => format!(
+                        "✅ Синхронизация завершена.\nГрупп обработано: {}/{}\nЗанятий импортировано: {}",
+                        report.groups_successful,
+                        report.groups_total,
+                        report.lessons_imported
+                    ),
+                    Ok(report) => format!(
+                        "⚠️ Синхронизация завершена частично.\nУспешно: {}/{} групп\nОшибок: {}\nЗанятий импортировано: {}",
+                        report.groups_successful,
+                        report.groups_total,
+                        report.groups_failed,
+                        report.lessons_imported
+                    ),
+                    Err(error) => format!("❌ Синхронизация не выполнена: {}", error),
+                };
 
                     if let Err(error) = sync_bot.send_message(sync_chat, response).await {
                         tracing::error!("Could not send sync result to admin: {}", error);
@@ -1572,6 +1705,7 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("reminders", "Статус напоминаний"),
         BotCommand::new("settings", "Мои настройки"),
         BotCommand::new("clear", "Удалить последние сообщения бота"),
+        BotCommand::new("sync", "Обновить расписание из ЭИОС (администратор)"),
     ];
 
     if let Err(error) = bot
@@ -1648,10 +1782,20 @@ pub async fn run(state: Arc<AppState>) {
         reminder_loop(reminder_bot, reminder_state).await;
     });
 
-    let handler = Update::filter_message().endpoint(move |bot: Bot, message: Message| {
-        let state = state.clone();
-        async move { handle(bot, state, message).await }
-    });
+    let message_state = state.clone();
+    let inline_state = state.clone();
+
+    let handler = dptree::entry()
+        .branch(Update::filter_message().endpoint(move |bot: Bot, message: Message| {
+            let state = message_state.clone();
+            async move { handle(bot, state, message).await }
+        }))
+        .branch(Update::filter_inline_query().endpoint(
+            move |bot: Bot, query: InlineQuery| {
+                let state = inline_state.clone();
+                async move { handle_inline_query(bot, state, query).await }
+            },
+        ));
 
     Dispatcher::builder(bot, handler).build().dispatch().await;
 }
