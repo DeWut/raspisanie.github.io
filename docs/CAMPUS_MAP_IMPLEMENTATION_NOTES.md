@@ -74,3 +74,52 @@ Do not describe a satellite raster plus extruded building footprints as photorea
 - GitHub Actions exposed a pre-existing syntax error in `setCampusMapMode()`: a literal `\\n` sequence had been committed into the JavaScript source instead of a line break. It has been corrected; the frontend workflow must be rerun and pass before treating this branch as validated.
 - The available public sources reviewed so far do not establish a downloadable, openly licensed photogrammetric mesh for the four teaching buildings. The Esri World Imagery raster is a flat aerial basemap; its source dates and resolutions vary by tile and it does not supply facade geometry. Google's Photorealistic 3D Tiles are a technically suitable online rendering candidate, but campus coverage has not been confirmed and requires an enabled Google Maps Platform project/API key. Do not claim photorealistic coverage until checked in Google's coverage viewer or via an authorised API session.
 - Wikimedia Commons has additional independently attributed building photographs, but ordinary oblique photographs are not a geometrically registered texture or a photogrammetric mesh. Do not assemble a fake facade from unrelated photos. Any future photo/model import needs a source-by-source licence review and correct georeferencing.
+
+## 3D engine decision and external imagery verification (2026-11-27)
+
+### Recommended renderer: CesiumJS + OGC 3D Tiles
+- MapLibre is suitable for 2D/2.5D vector maps and raster basemaps, but it is not the correct primary renderer for photogrammetric 3D mesh tiles.
+- CesiumJS is the preferred browser renderer for this requirement. It streams hierarchical 3D Tiles, supports camera tilt/rotation/zoom, WGS84 georeferencing and can display campus OSM overlays and clickable directory markers alongside the real mesh.
+- Google officially documents Photorealistic 3D Tiles as high-resolution textured 3D meshes in OGC 3D Tiles format and gives CesiumJS as a supported renderer. This is a better architecture fit than building a custom Three.js loader.
+- Official references:
+  - https://developers.google.com/maps/documentation/tile/3d-tiles
+  - https://developers.google.com/maps/documentation/tile/3d-tiles-overview
+  - https://developers.google.com/maps/documentation/tile/use-renderer
+  - https://cesium.com/platform/cesiumjs/
+
+### Coverage and licensing are hard gates
+- Google's official coverage page says terrain is worldwide, but surface data (buildings and trees) is only supplied in highlighted areas and coverage is updated daily. No machine-verifiable confirmation for the exact Forestry University campus was obtained in this research session. Do not ship a Google layer as the main experience before verifying the campus in the coverage viewer or using an authorised API request.
+- Google Map Tiles API requires an enabled Maps Platform project, billing and API key. For EEA developers, Google states EEA-specific terms apply from 2025-07-08 and some Map Tiles API content is no longer returned.
+- Renderers must preserve Google's on-screen logo and aggregate/display tile copyright data. Do not fetch tiles for analysis, save the tiles as local assets, extract mesh geometry, bake textures, or use a screenshot/model as a derivative local model. The Google tiles are for online visualisation only.
+- Official references:
+  - https://developers.google.com/maps/documentation/javascript/3d/coverage
+  - https://developers.google.com/maps/documentation/tile/policies
+  - https://developers.google.com/maps/documentation/tile/create-renderer
+
+### TerraLab extraction for the campus
+- A new Overture/OSM extraction was requested over bbox [30.3300, 59.9895, 30.3550, 59.9980] around the Forestry University.
+- TerraLab returned 291 building polygons, 841 road/path features, 112 land-use polygons and 10 water areas in approximately 1.321 km². The combined extraction reported 1,254 features total for the buildings theme query, with the above per-theme counts.
+- Building-source snapshot is Overture Maps 2026-11-18, composed of OSM, Overture, Microsoft ML Building Footprints, Google Open Buildings, Esri Community Maps and other source datasets. Source/licence attribution must be kept; the building database is distributed under ODbL 1.0 share-alike conditions. See:
+  - https://docs.overturemaps.org/attribution/#buildings
+  - https://opendatacommons.org/licenses/odbl/1-0/
+- These are footprints, not photogrammetric meshes. They improve exact footprint coverage and campus context but cannot supply true facade textures or roof forms where attributes are missing.
+- TerraLab's GIS preview and direct downloads are returned in the tool response for this extraction; do not present them as already committed into this GitHub branch unless a data file is actually added and verified.
+
+### Public imagery reference
+- Aerial reference image of the historic main building was found at:
+  https://smapse.com/storage/2022/11/converted/660_464_2-7.jpg
+- It clearly shows the U-shaped main building and the internal courtyard, but is an oblique aerial photograph hosted by a third party. Its source and licence/permission for reuse in this app were not verified. Do not download, store, or use it as a texture unless permission and redistribution rights are confirmed.
+- The existing Commons image remains the only currently documented licensed photograph in the repository, and it is an information-card image, not registered geometry.
+
+### Architecture plan for next implementation phase
+1. Add a dedicated CesiumJS map renderer as a separate mode, retaining current directory/search/popups as business logic and preserving the current MapLibre/OSM viewer as an offline/fallback mode.
+2. Build a small provider module that reads an owner-supplied, restricted browser key from runtime configuration (not committed to Git). It should only be used for the online photorealistic 3D Tiles rendering route.
+3. Do not make a Google layer mandatory. If coverage fails or no key exists, keep the existing offline campus scene and show a clear diagnostic message.
+4. Load the OSM/Overture building footprints and campus directory as vector overlays on Cesium, not as replacements for the photogrammetric mesh. Use OSM IDs to match the four campus building cards where a match is known.
+5. Keep the existing map controls, directory scroll and popup scroll independent. Add a mobile fullscreen / expand action for the map to make camera gestures usable on small screens.
+6. Keep an explicit attribution component visible and do not suppress Cesium/Google credits.
+7. Add a visual source status ("Photorealistic 3D tiles", "OSM footprint overlay", "offline schematic fallback") so users know what they are looking at.
+8. Before deployment, validate 3D coverage at [30.3300,59.9895]-[30.3550,59.9980], mobile GPU performance, camera gesture conflicts, loading errors, key restrictions and Actions. Do not call the map photorealistic when only the fallback is active.
+
+### Current stopping point
+The data source/engine research is complete enough to choose CesiumJS, but actual photorealistic campus coverage and an authorised Google API key are not verified/available in this session. The next code step should be the Cesium viewer shell and provider-config fallback; the final photorealistic layer remains gated by the user's Google Maps Platform project/API key and coverage confirmation.
