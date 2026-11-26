@@ -310,3 +310,63 @@ button { font-family: inherit; }
 @media (min-width:700px) {
   .week-page .week-list { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
 }
+
+/* Calendar dialog stays scrollable even when a selected day has many lessons. */
+.utility-dialog { overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+.utility-dialog > .dialog-head { position:sticky; top:-18px; z-index:3; padding:5px 0 10px; background:var(--paper); }
+.calendar-details { max-height:42dvh; overflow-y:auto; overscroll-behavior:contain; padding-bottom:8px; scrollbar-width:thin; }
+.calendar-actions { position:sticky; bottom:-8px; display:flex; gap:8px; padding:10px 0 8px; background:var(--paper); }
+.calendar-actions .text-button { flex:1; min-height:40px; }
+.theme-toggle svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+/* Emerald dark palette, shared by the site and Telegram Mini App. */
+:root[data-theme="dark"] {
+  color-scheme:dark;
+  --forest:#2d7958;
+  --forest-2:#3b8b68;
+  --lime:#c6e98b;
+  --lime-soft:#263d30;
+  --ink:#e8f0e9;
+  --muted:#a3b3a8;
+  --line:#2b4035;
+  --paper:#101b16;
+  --card:#192820;
+}
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] html { background:var(--paper); color:var(--ink); }
+:root[data-theme="dark"] .group-pill,
+:root[data-theme="dark"] .icon-button,
+:root[data-theme="dark"] .quick-action,
+:root[data-theme="dark"] .week-day,
+:root[data-theme="dark"] .lesson-card,
+:root[data-theme="dark"] .calendar-day,
+:root[data-theme="dark"] .search-box,
+:root[data-theme="dark"] .group-option,
+:root[data-theme="dark"] .week-range { background:var(--card); color:var(--ink); border-color:var(--line); }
+:root[data-theme="dark"] .calendar-day.odd-week { background:#294532; color:#d2edaa; }
+:root[data-theme="dark"] .calendar-day.even-week { background:#24342b; color:#c1d0c5; }
+:root[data-theme="dark"] .calendar-day.today { border-color:#9fca78; }
+:root[data-theme="dark"] .calendar-day.empty { background:transparent; }
+:root[data-theme="dark"] .calendar-details,
+:root[data-theme="dark"] .calendar-lesson-list p { color:var(--ink); }
+:root[data-theme="dark"] .calendar-lesson-list small,
+:root[data-theme="dark"] .week-lesson-meta { color:var(--muted); }
+:root[data-theme="dark"] .day-chip { color:var(--muted); }
+:root[data-theme="dark"] .day-chip.selected,
+:root[data-theme="dark"] .filter-chip.active { background:var(--forest); color:#fff; }
+:root[data-theme="dark"] .day-chip.today:not(.selected),
+:root[data-theme="dark"] .filter-bar { background:#1b2c22; border-color:var(--line); }
+:root[data-theme="dark"] .filter-chip { color:var(--muted); }
+:root[data-theme="dark"] .week-day-count,
+:root[data-theme="dark"] .week-day-title small { background:#263a2e; color:#c0d0c4; }
+:root[data-theme="dark"] .group-dialog,
+:root[data-theme="dark"] .utility-dialog { background:var(--paper); color:var(--ink); }
+:root[data-theme="dark"] .search-box input { color:var(--ink); }
+:root[data-theme="dark"] .weather-days div { border-color:var(--line); }
+:root[data-theme="dark"] .source-note { background:#1b2c22; }
+:root[data-theme="dark"] .source-note p { color:var(--muted); }
+:root[data-theme="dark"] .calendar-actions { background:var(--paper); }
+:root[data-theme="dark"] .calendar-actions .text-button { background:#294532; color:#d2edaa; }
+@media (prefers-reduced-motion:no-preference) {
+  .utility-dialog { scroll-behavior:smooth; }
+}
