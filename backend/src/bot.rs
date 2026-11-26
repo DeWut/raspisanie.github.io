@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc};
 use sqlx::PgPool;
 use std::{sync::Arc, time::Duration};
 use teloxide::{
@@ -1548,6 +1548,40 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 }
             }
         }
+        "/daily_time" => {
+            if !is_group_chat {
+                "Время публикации настраивается только в групповом чате.".into()
+            } else if !matches!(
+                crate::services::chat_roles::sync_member(
+                    &bot, db, message.chat.id, telegram_id, None
+                ).await.ok().flatten().as_deref(),
+                Some("owner" | "admin")
+            ) {
+                "⛔ Менять время публикации может только создатель или администратор Telegram.".into()
+            } else {
+                match NaiveTime::parse_from_str(argument, "%H:%M") {
+                    Ok(time) => match sqlx::query(
+                        "UPDATE bot_chat_settings SET daily_schedule_time = $2, updated_at = now() WHERE chat_id = $1"
+                    )
+                    .bind(message.chat.id.0)
+                    .bind(time)
+                    .execute(db)
+                    .await
+                    {
+                        Ok(result) if result.rows_affected() == 1 => format!(
+                            "🕒 Время ежедневной публикации установлено: {} (московское время).",
+                            time.format("%H:%M")
+                        ),
+                        Ok(_) => "Сначала привяжи группу командой /setgroup название.".into(),
+                        Err(error) => {
+                            tracing::error!("Could not update daily schedule time: {}", error);
+                            "Не удалось изменить время публикации.".into()
+                        }
+                    },
+                    Err(_) => "Укажи время в формате ЧЧ:ММ, например /daily_time 07:30.".into(),
+                }
+            }
+        }
         "/chat_settings" => {
             if !is_group_chat {
                 "Команда работает только в групповом чате.".into()
@@ -1567,7 +1601,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .await
                 {
                     Ok(Some((group, daily, time, notifications, active))) => format!(
-                        "⚙️ Настройки учебного чата\\nГруппа: {}\\nАвтопубликация: {} (ежедневно в {})\\nУведомления о парах: {}\\nИнтеграция: {}\\n\\nКоманды администратора:\\n/daily_on — включить расписание каждый день\\n/daily_off — выключить\\n/chat_notify_on — уведомлять за 10 минут до пары\\n/chat_notify_off — выключить уведомления",
+                        "⚙️ Настройки учебного чата\\nГруппа: {}\\nАвтопубликация: {} (ежедневно в {})\\nУведомления о парах: {}\\nИнтеграция: {}\\n\\nКоманды администратора:\\n/daily_on — включить расписание каждый день\\n/daily_off — выключить\\n/daily_time ЧЧ:ММ — время публикации (МСК, по умолчанию 07:00)\\n/chat_notify_on — уведомлять за 10 минут до пары\\n/chat_notify_off — выключить уведомления",
                         group,
                         if daily { "включена" } else { "выключена" },
                         time,
@@ -1800,11 +1834,6 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("remind_off", "Выключить напоминания"),
         BotCommand::new("reminders", "Статус напоминаний"),
         BotCommand::new("settings", "Мои настройки"),
-        BotCommand::new("chat_settings", "Настройки расписания учебного чата"),
-        BotCommand::new("daily_on", "Ежедневно публиковать расписание в чате"),
-        BotCommand::new("daily_off", "Отключить ежедневное расписание в чате"),
-        BotCommand::new("chat_notify_on", "Уведомлять о парах в чате"),
-        BotCommand::new("chat_notify_off", "Отключить уведомления о парах в чате"),
         BotCommand::new("clear", "Удалить последние сообщения бота"),
         BotCommand::new("sync", "Обновить расписание из ЭИОС (администратор)"),
     ];
@@ -1830,6 +1859,7 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("chat_settings", "Настройки расписания учебного чата"),
         BotCommand::new("daily_on", "Ежедневно публиковать расписание в чате"),
         BotCommand::new("daily_off", "Отключить ежедневное расписание в чате"),
+        BotCommand::new("daily_time", "Установить время публикации ЧЧ:ММ (МСК)"),
         BotCommand::new("chat_notify_on", "Уведомлять о парах в чате"),
         BotCommand::new("chat_notify_off", "Отключить уведомления о парах в чате"),
         BotCommand::new("warn", "Выдать предупреждение участнику"),
@@ -1999,7 +2029,7 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         }
 
         let text = format!(
-            "🔔 *Скоро начинается пара!*\\n\\n📚 {}\\n🕒 Начало: {}\\n⏳ До начала примерно 10 минут",
+            "🔔 Скоро начинается пара!\\n\\n📚 {}\\n🕒 Начало: {}\\n⏳ До начала примерно 10 минут",
             subject,
             moscow_time(starts_at, "%H:%M")
         );
