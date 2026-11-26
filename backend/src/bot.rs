@@ -694,8 +694,8 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             ⏭ /next — следующая пара\n\
             👥 /group название — выбрать личную группу\n\
             🛠 /setgroup название — настроить группу чата\n\
-            👮 В группе: /role @username moderator\n\
-            ↩️ Ответом на сообщение: /role moderator\n\
+            👮 /roles — список ролей и полномочий\n\
+            👮 /role — назначить роль участнику\n\
             📚 /homework — домашние задания\n\
             🔔 /remind_on — включить личные напоминания\n\
             🔕 /remind_off — выключить напоминания\n\
@@ -704,7 +704,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .to_owned();
             if is_group_chat {
                 help.push_str(
-                    "\n\n📢 *Автоматизация учебного чата*\n/chat_settings — настройки\n/daily_on — расписание каждый день\n/daily_time 07:30 — время публикации (МСК)\n/chat_notify_on — уведомлять за 10 минут до пары\n/daily_off и /chat_notify_off — выключить функции\n\n🛡 *Модераторам*\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
+                    "\n\n📢 *Автоматизация учебного чата*\n/chat_settings — настройки\n/daily_on — расписание каждый день\n/daily_time 07:30 — время публикации (МСК)\n/chat_notify_on — уведомлять за 10 минут до пары\n/daily_off и /chat_notify_off — выключить функции\n/chat_topic — выбрать тему (отправить внутри темы)\n/chat_topic_off — публиковать в общий чат\n\n🛡 *Модераторам*\n/roles — роли и права\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
                 );
             }
             if !is_group_chat
@@ -867,6 +867,14 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 "🔔 Личные напоминания включены.\nДля отключения: /remind_off".into()
             } else {
                 "🔕 Личные напоминания выключены.\nДля включения: /remind_on".into()
+            }
+        }
+
+        "/roles" => {
+            if !is_group_chat {
+                "Роли модерации настраиваются в групповом чате.".into()
+            } else {
+                "🛡 РОЛИ МОДЕРАЦИИ\\n\\n👑 Создатель / администратор Telegram — полный доступ и назначение ролей.\\n⭐ senior_moderator — предупреждения, муты и блокировки. Назначает только создатель чата.\\n🛡 moderator — предупреждения, муты и снятие мутов.\\n🔰 helper — предупреждения и просмотр их истории.\\n👤 member — обычный участник.\\n\\nНазначение ответом на сообщение:\\n/role senior_moderator\\n/role moderator\\n/role helper\\n/role member\\n\\nИли по username:\\n/role @username moderator\\n\\nСписок команд: /help".into()
             }
         }
 
@@ -1914,6 +1922,7 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("homework", "Домашние задания"),
         BotCommand::new("settings", "Настройки учебного чата"),
         BotCommand::new("chat_settings", "Настройки расписания учебного чата"),
+        BotCommand::new("roles", "Список ролей и прав модерации"),
         BotCommand::new("daily_on", "Ежедневно публиковать расписание в чате"),
         BotCommand::new("daily_off", "Отключить ежедневное расписание в чате"),
         BotCommand::new("daily_time", "Установить время публикации ЧЧ:ММ (МСК)"),
