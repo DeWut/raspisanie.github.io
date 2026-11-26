@@ -700,7 +700,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .to_owned();
             if is_group_chat {
                 help.push_str(
-                    "\n\n🛡 *Модераторам*\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
+                    "\n\n📢 *Автоматизация учебного чата*\n/chat_settings — настройки\n/daily_on — расписание каждый день\n/daily_time 07:30 — время публикации (МСК)\n/chat_notify_on — уведомлять за 10 минут до пары\n/daily_off и /chat_notify_off — выключить функции\n\n🛡 *Модераторам*\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
                 );
             }
             if !is_group_chat
