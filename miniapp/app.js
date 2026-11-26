@@ -767,7 +767,7 @@
     });
     return campusMapLibraryPromise;
   }
-  function setCampusMapMode(mode) {
+    function setCampusMapMode(mode) {
     campusMapMode = mode;
     if (mode !== 'online') setCampusSatelliteVisible(false);
     const online = ['online', 'yandex', 'cesium'].includes(mode);
@@ -789,8 +789,14 @@
     if (mode === 'cesium' && campusCesiumViewer && !campusCesiumViewer.isDestroyed()) {
       requestAnimationFrame(() => campusCesiumViewer?.resize());
     }
+    if (mode === 'online' && campusOnlineMap) {
+      requestAnimationFrame(() => {
+        campusOnlineMap?.resize();
+        campusOnlineMap?.triggerRepaint();
+      });
+    }
   }
-  function setCampusSatelliteVisible(visible) {
+function setCampusSatelliteVisible(visible) {
     if (!campusOnlineMap?.getLayer('campus-satellite-raster')) return;
     campusOnlineMap.setLayoutProperty('campus-satellite-raster', 'visibility', visible ? 'visible' : 'none');
     const ground = campusOnlineMap.getLayer('campus-park-ground');
@@ -1537,15 +1543,31 @@
       openCampusOnlineMap();
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
-    $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
+    $('#campus-open-online')?.addEventListener('click', () => {
+      setCampusMapMode('online');
+      if (campusOnlineMap) {
+        campusOnlineMap.resize();
+        fitCampusMapToPark();
+      } else {
+        openCampusOnlineMap();
+      }
+    });
     $('#campus-mode-photorealistic')?.addEventListener('click', openCampusPhotorealisticMap);
     $('#campus-mode-osm')?.addEventListener('click', () => {
       destroyCampusCesiumViewer();
       setCampusMapMode('online');
-      if (campusOnlineMap) fitCampusMapToPark();
-      else openCampusOnlineMap();
+      if (campusOnlineMap) {
+        campusOnlineMap.resize();
+        fitCampusMapToPark();
+      } else {
+        openCampusOnlineMap();
+      }
     });
     $('#map-dialog')?.addEventListener('close', () => {
+      destroyCampusCesiumViewer();
+      if (campusMapMode === 'cesium') setCampusMapMode('offline');
+    });
+    $('#map-dialog')?.addEventListener('cancel', () => {
       destroyCampusCesiumViewer();
       if (campusMapMode === 'cesium') setCampusMapMode('offline');
     });
