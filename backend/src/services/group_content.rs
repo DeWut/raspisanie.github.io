@@ -845,3 +845,48 @@ pub async fn handle_group_tools(
     }
 }
 
+#[cfg(test)]
+mod group_content_date_tests {
+    use super::*;
+
+    #[test]
+    fn exam_datetime_parses_tomorrow_in_moscow_time() {
+        let expected_date = Utc::now()
+            .with_timezone(&moscow())
+            .date_naive()
+            .succ_opt()
+            .expect("tomorrow");
+        let parsed = parse_moscow_datetime("завтра 09:30").expect("valid relative date");
+        let local = parsed.with_timezone(&moscow());
+
+        assert_eq!(local.date_naive(), expected_date);
+        assert_eq!(local.time(), NaiveTime::from_hms_opt(9, 30, 0).unwrap());
+    }
+
+    #[test]
+    fn exam_datetime_parses_explicit_date_and_time() {
+        let today = Utc::now().with_timezone(&moscow()).date_naive();
+        let input = format!("{} 14:05", today.format("%d.%m.%Y"));
+        let parsed = parse_moscow_datetime(&input).expect("valid explicit date");
+        let local = parsed.with_timezone(&moscow());
+
+        assert_eq!(local.date_naive(), today);
+        assert_eq!(local.time(), NaiveTime::from_hms_opt(14, 5, 0).unwrap());
+    }
+
+    #[test]
+    fn exam_datetime_rejects_invalid_date_and_time() {
+        assert!(parse_moscow_datetime("32.13.2026 09:30").is_none());
+        assert!(parse_moscow_datetime("завтра 25:00").is_none());
+        assert!(parse_moscow_datetime("завтра").is_none());
+        assert!(parse_moscow_datetime("завтра 9:30").is_none());
+    }
+
+    #[test]
+    fn homework_due_parser_handles_relative_and_no_deadline_values() {
+        assert!(parse_due("завтра").is_some());
+        assert!(parse_due("послезавтра").is_some());
+        assert!(parse_due("без срока").is_none());
+        assert!(parse_due("32.13.2026").is_none());
+    }
+}
