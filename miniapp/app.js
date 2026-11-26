@@ -633,12 +633,113 @@
   let campusOnlineMap = null;
   let campusYandexMap = null;
   let campusMapMode = 'offline';
+  let campusCesiumViewer = null;
+  let campusCesiumTileset = null;
+  let campusCesiumLibraryPromise = null;
+  let campusCesiumOpenAttempted = false;
   let campusYandexApiPromise = null;
   const YANDEX_MAPS_API_KEY = '46171b6e-a2f6-4d81-8e7b-978252150eb7';
   const CAMPUS_PARK_BOUNDS = [[30.3304887, 59.9899431], [30.3542134, 59.9975551]];
   const campusMapMarkers = new Map();
   const campusSceneLabelMarkers = [];
   let campusMapLibraryPromise = null;
+  function loadCampusCesiumLibrary() {
+    if (window.Cesium) return Promise.resolve(window.Cesium);
+    if (campusCesiumLibraryPromise) return campusCesiumLibraryPromise;
+    campusCesiumLibraryPromise = new Promise((resolve, reject) => {
+      if (!document.querySelector('link[data-campus-cesium]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css';
+        link.dataset.campusCesium = '1';
+        document.head.appendChild(link);
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js';
+      script.async = true;
+      script.onload = () => window.Cesium ? resolve(window.Cesium) : reject(new Error('CesiumJS не инициализировался'));
+      script.onerror = () => reject(new Error('Не удалось загрузить CesiumJS'));
+      document.head.appendChild(script);
+    });
+    return campusCesiumLibraryPromise;
+  }
+  function getCampusPhotorealisticApiKey() {
+    const config = window.CAMPUS_MAP_CONFIG || {};
+    return typeof config.googlePhotorealistic3dTilesKey === 'string'
+      ? config.googlePhotorealistic3dTilesKey.trim()
+      : '';
+  }
+  function destroyCampusCesiumViewer() {
+    if (campusCesiumViewer && !campusCesiumViewer.isDestroyed()) campusCesiumViewer.destroy();
+    campusCesiumViewer = null;
+    campusCesiumTileset = null;
+  }
+  async function openCampusPhotorealisticMap() {
+    const status = $('#campus-online-status');
+    const panel = $('#campus-online-panel');
+    const mapHost = $('#campus-cesium-map');
+    if (!panel || !mapHost) return;
+    setCampusMapMode('cesium');
+    const apiKey = getCampusPhotorealisticApiKey();
+    if (!apiKey) {
+      status.textContent = 'Фотореалистичный режим Cesium подготовлен, но не настроен: добавь ограниченный Google Maps Platform API key в CAMPUS_MAP_CONFIG. Пока доступна локальная 3D-карта.';
+      return false;
+    }
+    status.textContent = 'Загружаем CesiumJS и проверяем доступность фотограмметрической 3D-сцены…';
+    try {
+      const Cesium = await loadCampusCesiumLibrary();
+      if (campusCesiumViewer && !campusCesiumViewer.isDestroyed()) {
+        campusCesiumViewer.resize();
+        return true;
+      }
+      const viewer = new Cesium.Viewer(mapHost, {
+        animation: false,
+        timeline: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        navigationHelpButton: false,
+        fullscreenButton: false,
+        infoBox: false,
+        selectionIndicator: false,
+        baseLayer: false,
+        terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+        requestRenderMode: true,
+        maximumRenderTimeChange: Infinity,
+        scene3DOnly: true,
+        creditContainer: $('#campus-cesium-credits')
+      });
+      viewer.scene.globe.show = false;
+      viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#dce6dc');
+      viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
+      const center = Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 900);
+      viewer.camera.setView({
+        destination: center,
+        orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-38), roll: 0 }
+      });
+      const rootUrl = `https://tile.googleapis.com/v1/3dtiles/root.json?key=${encodeURIComponent(apiKey)}`;
+      const tileset = await Cesium.Cesium3DTileset.fromUrl(rootUrl, {
+        showCreditsOnScreen: true,
+        maximumScreenSpaceError: 2
+      });
+      viewer.scene.primitives.add(tileset);
+      campusCesiumViewer = viewer;
+      campusCesiumTileset = tileset;
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 720),
+        orientation: { heading: Cesium.Math.toRadians(-15), pitch: Cesium.Math.toRadians(-42), roll: 0 },
+        duration: 1.1
+      });
+      status.textContent = 'CesiumJS запущен. Фотореалистичные 3D Tiles загружаются; если территория кампуса не покрыта, Google покажет только доступные данные местности.';
+      return true;
+    } catch (error) {
+      console.warn('Campus photorealistic 3D failed:', error);
+      destroyCampusCesiumViewer();
+      status.textContent = `Не удалось открыть фотореалистичные 3D Tiles: ${error.message}. Переключись на автономную 3D-карту или проверь API key, billing и покрытие территории.`;
+      return false;
+    }
+  }
   function loadCampusMapLibrary() {
     if (window.maplibregl) return Promise.resolve(window.maplibregl);
     if (campusMapLibraryPromise) return campusMapLibraryPromise;
@@ -662,22 +763,25 @@
   function setCampusMapMode(mode) {
     campusMapMode = mode;
     if (mode !== 'online') setCampusSatelliteVisible(false);
-    const online = mode === 'online' || mode === 'yandex';
+    const online = mode === 'online' || mode === 'yandex' || mode === 'cesium';
     const panel = $('#campus-online-panel');
     const offlinePanel = $('#campus-offline-panel');
     if (!panel || !offlinePanel) return;
     panel.hidden = !online;
     offlinePanel.hidden = online;
-    const osmMap = $('#campus-online-map');
-    const yandexMap = $('#campus-yandex-map');
-    if (osmMap) osmMap.hidden = mode !== 'online';
-    if (yandexMap) yandexMap.hidden = mode !== 'yandex';
     $('#campus-mode-osm')?.setAttribute('aria-pressed', String(mode === 'online'));
     $('#campus-mode-yandex')?.setAttribute('aria-pressed', String(mode === 'yandex'));
-    requestAnimationFrame(() => {
-      if (mode === 'online') campusOnlineMap?.resize();
-      if (mode === 'yandex') campusYandexMap?.container.fitToViewport();
-    });
+    $('#campus-mode-photorealistic')?.setAttribute('aria-pressed', String(mode === 'cesium'));
+    const mapLibreHost = $('#campus-online-map');
+    const yandexHost = $('#campus-yandex-map');
+    const cesiumHost = $('#campus-cesium-map');
+    if (mapLibreHost) mapLibreHost.hidden = mode !== 'online';
+    if (yandexHost) yandexHost.hidden = mode !== 'yandex';
+    if (cesiumHost) cesiumHost.hidden = mode !== 'cesium';
+    if (mode === 'yandex') campusYandexMap?.container.fitToViewport();
+    if (mode === 'cesium' && campusCesiumViewer && !campusCesiumViewer.isDestroyed()) {
+      requestAnimationFrame(() => campusCesiumViewer?.resize());
+    }
   }
   function setCampusSatelliteVisible(visible) {
     if (!campusOnlineMap?.getLayer('campus-satellite-raster')) return;
@@ -1134,6 +1238,7 @@
     });
   }
   async function openCampusOnlineMap() {
+    if (campusMapMode === 'cesium') setCampusMapMode('online');
     const panel = $('#campus-online-panel');
     const status = $('#campus-online-status');
     if (!panel) return;
@@ -1427,6 +1532,15 @@
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
+    $('#campus-mode-photorealistic')?.addEventListener('click', openCampusPhotorealisticMap);
+    $('#campus-mode-osm')?.addEventListener('click', () => {
+      setCampusMapMode('online');
+      openCampusOnlineMap();
+    });
+    $('#map-dialog')?.addEventListener('close', () => {
+      destroyCampusCesiumViewer();
+      if (campusMapMode === 'cesium') setCampusMapMode('offline');
+    });
     $('#campus-basemap-osm')?.addEventListener('click', () => setCampusBasemap('osm'));
     $('#campus-basemap-satellite')?.addEventListener('click', () => setCampusBasemap('satellite'));
     $('#campus-mode-osm')?.addEventListener('click', () => {
