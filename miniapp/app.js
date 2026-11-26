@@ -14,6 +14,7 @@
   const TIME_ZONE = 'Europe/Moscow';
   const SEMESTER_START = new Date(Date.UTC(2026, 7, 31, 12));
   const GROUP_KEY = 'smart-campus-group-id';
+  const THEME_KEY = 'spbftuit-theme';
   const pageParams = new URLSearchParams(location.search);
   const isWeekPage = document.body.dataset.page === 'week';
   const requestedDate = pageParams.get('date');
@@ -137,6 +138,27 @@
   }
   function safeStorageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
   function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch { /* Telegram may disable storage in private mode. */ } }
+  function applyTheme(theme, persist = false) {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    document.documentElement.style.colorScheme = next;
+    const button = $('#toggle-theme');
+    if (button) {
+      button.setAttribute('aria-pressed', String(next === 'dark'));
+      button.setAttribute('aria-label', next === 'dark' ? 'Включена тёмная тема. Переключить на светлую' : 'Включена светлая тема. Переключить на тёмную');
+      button.title = next === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+      button.innerHTML = next === 'dark'
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/></svg>';
+    }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = next === 'dark' ? '#101b16' : '#173d2e';
+    if (tg) {
+      tg.setHeaderColor?.(next === 'dark' ? '#101b16' : '#173d2e');
+      tg.setBackgroundColor?.(next === 'dark' ? '#101b16' : '#f5f7f2');
+    }
+    if (persist) safeStorageSet(THEME_KEY, next);
+  }
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   }
@@ -327,7 +349,7 @@
     $('#hero-footer-text').textContent = state.schedule?.updated ? `Обновлено ${state.schedule.updated}` : 'Расписание загружено';
     $('#week-label').textContent = `${isOddWeek(state.selectedDate) ? 'нечётная' : 'чётная'} неделя`;
     $('#welcome-date').textContent = today ? 'ТВОЙ УЧЕБНЫЙ ДЕНЬ' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' }).toUpperCase();
-    $('#schedule-heading').textContent = today ? 'Пары на сегодня' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' });
+    $('#schedule-heading').textContent = formatDate(state.selectedDate, { day: 'numeric', month: 'long' });
     $('#today-button').textContent = 'Сегодня';
     $('#today-button').hidden = !today;
   }
@@ -593,6 +615,7 @@
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
     $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); });
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
+    $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
     $('#calendar-next').addEventListener('click', () => changeCalendarMonth(1));
     $('#group-search').addEventListener('input', (event) => renderGroupOptions(event.target.value));
@@ -614,10 +637,10 @@
     if (tg) {
       tg.ready();
       tg.expand();
-      tg.setHeaderColor?.('#173d2e');
-      tg.setBackgroundColor?.('#f5f7f2');
+      applyTheme(safeStorageGet(THEME_KEY) || 'light');
     }
     setGreeting();
+    applyTheme(safeStorageGet(THEME_KEY) || 'light');
     if (isWeekPage) {
       document.body.classList.add('week-page');
       $('#welcome-date').textContent = 'РАСПИСАНИЕ';
