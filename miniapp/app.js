@@ -856,6 +856,15 @@
       map.addImage('campus-woodland-texture', createCampusWoodlandTexture(), { pixelRatio: 1 });
     }
     map.addSource('campus-park-scene', { type: 'geojson', data: scene });
+    // Aerial raster is opt-in: MapLibre's gesture controls stay attached to the map,
+    // while imagery is served as XYZ tiles (never copied into the repository).
+    map.addSource('campus-satellite', {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+      maxzoom: 19
+    });
     scene.features.filter((feature) => feature.properties?.kind === 'water' && feature.properties?.name).forEach((feature) => {
       const coordinates = feature.geometry.type === 'Polygon'
         ? feature.geometry.coordinates[0]
