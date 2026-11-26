@@ -66,3 +66,11 @@ References:
 ## Accuracy rule
 
 Do not describe a satellite raster plus extruded building footprints as photorealistic 3D. The current work improves source transparency, satellite context, mobile usability and honest massing. Authentic facade/roof photogrammetry is a separate data-acquisition/integration step and remains unfinished.
+
+## Follow-up fixes (2026-11-27)
+
+- Mobile building popups are now constrained to the map viewport: 34dvh / 260 px maximum on narrow screens, with the popup content remaining vertically scrollable. The photo is capped at 112 px so the card does not cover almost the entire map.
+- Desktop popup content is capped at 42dvh / 340 px. Mini App asset query versions were bumped to avoid stale cached CSS/JS.
+- GitHub Actions exposed a pre-existing syntax error in `setCampusMapMode()`: a literal `\\n` sequence had been committed into the JavaScript source instead of a line break. It has been corrected; the frontend workflow must be rerun and pass before treating this branch as validated.
+- The available public sources reviewed so far do not establish a downloadable, openly licensed photogrammetric mesh for the four teaching buildings. The Esri World Imagery raster is a flat aerial basemap; its source dates and resolutions vary by tile and it does not supply facade geometry. Google's Photorealistic 3D Tiles are a technically suitable online rendering candidate, but campus coverage has not been confirmed and requires an enabled Google Maps Platform project/API key. Do not claim photorealistic coverage until checked in Google's coverage viewer or via an authorised API session.
+- Wikimedia Commons has additional independently attributed building photographs, but ordinary oblique photographs are not a geometrically registered texture or a photogrammetric mesh. Do not assemble a fake facade from unrelated photos. Any future photo/model import needs a source-by-source licence review and correct georeferencing.
