@@ -698,6 +698,18 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
+    if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event") {
+        if matches!(command, "/add_exam" | "/edit_exam" | "/delete_exam" | "/add_event" | "/edit_event" | "/cancel_event") {
+            let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
+        }
+        if let Some(answer) = crate::services::group_content::handle_exams_events(
+            db, message.chat.id.0, telegram_id, command, argument
+        ).await {
+            reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
+            return Ok(());
+        }
+    }
+
     let answer = match command {
         "/start" | "/help" | "/menu" => {
             let mut help = "🎓 *SPBFTUIT*\n\n\
@@ -1939,6 +1951,16 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("edit_dz", "Изменить ДЗ по ID"),
         BotCommand::new("delete_dz", "Убрать ДЗ по ID"),
         BotCommand::new("done", "Отметить ДЗ выполненным для себя"),
+        BotCommand::new("exams", "Список экзаменов и зачётов"),
+        BotCommand::new("add_exam", "Добавить экзамен"),
+        BotCommand::new("edit_exam", "Изменить экзамен"),
+        BotCommand::new("delete_exam", "Архивировать экзамен"),
+        BotCommand::new("events", "Список мероприятий"),
+        BotCommand::new("add_event", "Создать мероприятие"),
+        BotCommand::new("edit_event", "Изменить мероприятие"),
+        BotCommand::new("cancel_event", "Отменить мероприятие"),
+        BotCommand::new("join_event", "Записаться на мероприятие"),
+        BotCommand::new("leave_event", "Отменить запись на мероприятие"),
         BotCommand::new("settings", "Настройки учебного чата"),
         BotCommand::new("chat_settings", "Настройки расписания учебного чата"),
         BotCommand::new("roles", "Список ролей и прав модерации"),
