@@ -199,7 +199,7 @@ fn parse_moscow_datetime(value: &str) -> Option<DateTime<Utc>> {
 
 pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
     let exams = matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/exam_info" | "/delete_exam");
-    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off");
+    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_waitlist" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off");
     if chat_id >= 0 || (!exams && !events) { return None; }
     let configured: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE)")
         .bind(chat_id).fetch_one(db).await.unwrap_or(false);
@@ -428,26 +428,95 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
                 }
             };
             let mut tx=match db.begin().await { Ok(tx)=>tx,Err(_)=>return Some("Не удалось изменить вместимость.".into()) };
-            let exists=sqlx::query_scalar::<_,i64>("SELECT id FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE")
-                .bind(chat_id).bind(id).fetch_optional(&mut *tx).await;
-            if !matches!(exists,Ok(Some(_))) { let _=tx.rollback().await; return Some("Мероприятие не найдено.".into()); }
+            let waitlist_enabled=match sqlx::query_scalar::<_,bool>("SELECT waitlist_enabled FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE")
+                .bind(chat_id).bind(id).fetch_optional(&mut *tx).await {
+                Ok(Some(enabled))=>enabled,
+                _=>{let _=tx.rollback().await;return Some("Мероприятие не найдено.".into());}
+            };
             let updated=sqlx::query("UPDATE bot_events SET capacity=$3,updated_at=now() WHERE chat_id=$1 AND id=$2")
                 .bind(chat_id).bind(id).bind(capacity).execute(&mut *tx).await;
             if updated.is_err() { let _=tx.rollback().await; return Some("Не удалось изменить вместимость.".into()); }
             let mut demoted:Vec<i64>=Vec::new();
             if let Some(limit)=capacity {
-                demoted=sqlx::query_scalar("WITH ranked AS (SELECT telegram_id,row_number() OVER (ORDER BY joined_at,telegram_id) AS position FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='going'), changed AS (UPDATE bot_event_participants p SET response='waitlist',updated_at=now() FROM ranked r WHERE p.chat_id=$1 AND p.event_id=$2 AND p.telegram_id=r.telegram_id AND r.position>$3 RETURNING p.telegram_id) SELECT telegram_id FROM changed")
-                    .bind(chat_id).bind(id).bind(i64::from(limit)).fetch_all(&mut *tx).await.unwrap_or_default();
+                demoted=match sqlx::query_scalar("WITH ranked AS (SELECT telegram_id,row_number() OVER (ORDER BY joined_at,telegram_id) AS position FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='going'), changed AS (UPDATE bot_event_participants p SET response=CASE WHEN $4 THEN 'waitlist' ELSE 'maybe' END,updated_at=now() FROM ranked r WHERE p.chat_id=$1 AND p.event_id=$2 AND p.telegram_id=r.telegram_id AND r.position>$3 RETURNING p.telegram_id) SELECT telegram_id FROM changed")
+                    .bind(chat_id).bind(id).bind(i64::from(limit)).bind(waitlist_enabled).fetch_all(&mut *tx).await {
+                    Ok(users)=>users,
+                    Err(_)=>{let _=tx.rollback().await;return Some("Не удалось согласовать список участников с новой вместимостью.".into());}
+                };
             }
-            let going:i64=sqlx::query_scalar("SELECT count(*) FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='going'")
-                .bind(chat_id).bind(id).fetch_one(&mut *tx).await.unwrap_or(0);
-            let slots=capacity.map(|v|(i64::from(v)-going).max(0)).unwrap_or(10000);
-            let promoted:Vec<i64>=sqlx::query_scalar("WITH chosen AS (SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY joined_at,telegram_id LIMIT $3 FOR UPDATE), changed AS (UPDATE bot_event_participants p SET response='going',updated_at=now() FROM chosen c WHERE p.chat_id=$1 AND p.event_id=$2 AND p.telegram_id=c.telegram_id RETURNING p.telegram_id) SELECT telegram_id FROM changed")
-                .bind(chat_id).bind(id).bind(slots).fetch_all(&mut *tx).await.unwrap_or_default();
+            let going:i64=match sqlx::query_scalar("SELECT count(*) FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='going'")
+                .bind(chat_id).bind(id).fetch_one(&mut *tx).await {
+                Ok(count)=>count,
+                Err(_)=>{let _=tx.rollback().await;return Some("Не удалось пересчитать участников.".into());}
+            };
+            let waiting:i64=match sqlx::query_scalar("SELECT count(*) FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist'")
+                .bind(chat_id).bind(id).fetch_one(&mut *tx).await {
+                Ok(count)=>count,
+                Err(_)=>{let _=tx.rollback().await;return Some("Не удалось пересчитать лист ожидания.".into());}
+            };
+            let slots=if waitlist_enabled { capacity.map(|v|(i64::from(v)-going).max(0)).unwrap_or(waiting) } else {0};
+            let promoted:Vec<i64>=match sqlx::query_scalar("WITH chosen AS (SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY joined_at,telegram_id LIMIT $3 FOR UPDATE), changed AS (UPDATE bot_event_participants p SET response='going',updated_at=now() FROM chosen c WHERE p.chat_id=$1 AND p.event_id=$2 AND p.telegram_id=c.telegram_id RETURNING p.telegram_id) SELECT telegram_id FROM changed")
+                .bind(chat_id).bind(id).bind(slots).fetch_all(&mut *tx).await {
+                Ok(users)=>users,
+                Err(_)=>{let _=tx.rollback().await;return Some("Не удалось обработать лист ожидания.".into());}
+            };
             if tx.commit().await.is_err() { return Some("Не удалось сохранить новую вместимость.".into()); }
-            for user in &demoted { let _=bot.send_message(ChatId(*user),format!("ℹ️ Вместимость мероприятия #{id} уменьшена. Ты перемещён в лист ожидания." )).await; }
-            for user in &promoted { let _=bot.send_message(ChatId(*user),format!("🎉 Для мероприятия #{id} появилось место! Ты записан." )).await; }
-            Some(format!("✅ Вместимость мероприятия #{id} обновлена. В лист ожидания перемещено: {}; повышено из очереди: {}.",demoted.len(),promoted.len()))
+            for user in &demoted {
+                let notice=if waitlist_enabled {
+                    format!("ℹ️ Вместимость мероприятия #{id} уменьшена. Ты перемещён в лист ожидания.")
+                } else {
+                    format!("ℹ️ Вместимость мероприятия #{id} уменьшена. Твоя запись снята, статус изменён на «думаю», так как лист ожидания отключён.")
+                };
+                if let Err(error)=bot.send_message(ChatId(*user),notice).await {
+                    tracing::debug!("Could not notify demoted event participant {}: {}",user,error);
+                }
+            }
+            for user in &promoted {
+                if let Err(error)=bot.send_message(ChatId(*user),format!("🎉 Для мероприятия #{id} появилось место! Ты записан.")).await {
+                    tracing::debug!("Could not notify promoted event participant {}: {}",user,error);
+                }
+            }
+            Some(format!("✅ Вместимость мероприятия #{id} обновлена. Снято с подтверждённого списка: {}; повышено из очереди: {}.",demoted.len(),promoted.len()))
+        }
+        "/event_waitlist" => {
+            let p:Vec<_>=argument.split_whitespace().collect();
+            if p.len()!=2 { return Some("Формат: /event_waitlist ID on|off".into()); }
+            let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID мероприятия.".into()); };
+            let enabled=match p[1].to_ascii_lowercase().as_str() {
+                "on"|"вкл"=>true,
+                "off"|"выкл"=>false,
+                _=>return Some("Укажи on или off.".into()),
+            };
+            let mut tx=match db.begin().await { Ok(tx)=>tx,Err(_)=>return Some("Не удалось изменить настройки листа ожидания.".into()) };
+            let exists=sqlx::query_scalar::<_,bool>("SELECT waitlist_enabled FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE")
+                .bind(chat_id).bind(id).fetch_optional(&mut *tx).await;
+            if !matches!(exists,Ok(Some(_))) { let _=tx.rollback().await; return Some("Мероприятие не найдено.".into()); }
+            let waiting:Vec<i64>=if enabled { Vec::new() } else {
+                match sqlx::query_scalar("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' FOR UPDATE")
+                    .bind(chat_id).bind(id).fetch_all(&mut *tx).await {
+                    Ok(users)=>users,
+                    Err(_)=>{let _=tx.rollback().await;return Some("Не удалось получить очередь участников.".into());}
+                }
+            };
+            let saved=sqlx::query("UPDATE bot_events SET waitlist_enabled=$3,updated_at=now() WHERE chat_id=$1 AND id=$2")
+                .bind(chat_id).bind(id).bind(enabled).execute(&mut *tx).await;
+            if saved.is_err() { let _=tx.rollback().await;return Some("Не удалось сохранить настройку листа ожидания.".into()); }
+            if !enabled {
+                let cleared=sqlx::query("UPDATE bot_event_participants SET response='maybe',updated_at=now() WHERE chat_id=$1 AND event_id=$2 AND response='waitlist'")
+                    .bind(chat_id).bind(id).execute(&mut *tx).await;
+                if cleared.is_err() { let _=tx.rollback().await;return Some("Не удалось очистить лист ожидания.".into()); }
+            }
+            if tx.commit().await.is_err() { return Some("Не удалось сохранить настройку листа ожидания.".into()); }
+            for user in &waiting {
+                if let Err(error)=bot.send_message(ChatId(*user),format!("ℹ️ Лист ожидания мероприятия #{id} отключён. Твой статус изменён на «думаю»; при желании ты сможешь снова записаться позже.")).await {
+                    tracing::debug!("Could not notify waitlist participant {}: {}",user,error);
+                }
+            }
+            Some(if enabled {
+                format!("✅ Лист ожидания мероприятия #{id} включён.")
+            } else {
+                format!("✅ Лист ожидания мероприятия #{id} отключён. Участников очереди переведено в «думаю»: {}.",waiting.len())
+            })
         }
         "/join_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /join_event ID".into()); };
