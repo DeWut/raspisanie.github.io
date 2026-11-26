@@ -2236,7 +2236,8 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
             .execute(&state.db)
             .await;
 
-        group_chat_schedule_loop_tick(&bot, &state).await;\n        group_homework_reminder_tick(&bot, &state).await;
+        group_chat_schedule_loop_tick(&bot, &state).await;
+        group_homework_reminder_tick(&bot, &state).await;
 
         let rows = sqlx::query_as::<_, (i64, String, String, DateTime<Utc>)>(
             r#"
