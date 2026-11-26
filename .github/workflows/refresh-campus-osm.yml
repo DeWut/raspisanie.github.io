@@ -1,5 +1,10 @@
 name: Refresh campus OSM geometry
 on:
+  push:
+    branches: [feature/campus-map-realism-scroll]
+    paths:
+      - "scripts/update-campus-osm.py"
+      - ".github/workflows/refresh-campus-osm.yml"
   workflow_dispatch:
   schedule:
     - cron: "23 3 1 * *"
