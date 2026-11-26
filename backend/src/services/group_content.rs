@@ -258,7 +258,7 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             if p.len()<3 { return Some("Формат: /edit_event ID | название | дата время | место".into()); }
             let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
             let Some(at)=parse_moscow_datetime(p[2]) else { return Some("Дата: 20.12.2026 18:00".into()); };
-            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist') AND reminders_enabled=TRUE")
+            let recipients=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist')")
                 .bind(chat_id).bind(id).fetch_all(db).await.unwrap_or_default();
             let result=sqlx::query("UPDATE bot_events SET title=$3,starts_at=$4,location=$5,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).bind(p[1]).bind(at).bind(p.get(3).copied()).execute(db).await;
             match result {
