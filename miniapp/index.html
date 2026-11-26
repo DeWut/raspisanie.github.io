@@ -8,11 +8,11 @@
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
     <link rel="manifest" href="../manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20261127-06" />
+    <link rel="stylesheet" href="./styles.css?v=20261127-07" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script defer src="./campus-map-config.js"></script>
     <script defer src="./native-bridge.js"></script>
-    <script defer src="./app.js?v=20261127-06"></script>
+    <script defer src="./app.js?v=20261127-07"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -133,6 +133,7 @@
           <div id="campus-yandex-map" class="campus-online-map campus-yandex-map" hidden></div>
           <div id="campus-cesium-map" class="campus-online-map campus-cesium-map" hidden aria-label="Фотореалистичная трёхмерная карта кампуса"></div>
           <div id="campus-cesium-credits" class="campus-cesium-credits" aria-live="polite"></div>
+          <div class="campus-cesium-attribution">Геометрия кампуса: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · ODbL 1.0</div>
           <div class="campus-map-footer">
             <p id="campus-online-status" class="campus-online-status" role="status" aria-live="polite">Загрузка карты и зданий…</p>
             <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта ↗</a>
