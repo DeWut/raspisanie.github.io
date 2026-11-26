@@ -554,3 +554,6 @@ button { font-family: inherit; }
   .map-dialog.campus-map-expanded { padding:8px; }
   .map-dialog.campus-map-expanded .campus-cesium-map { height:calc(100dvh - 230px); min-height:260px; }
 }
+
+.campus-cesium-attribution { padding:0 10px 7px; color:var(--muted); font-size:9px; line-height:1.35; }
+.campus-cesium-attribution a { color:var(--forest); font-weight:750; text-decoration:underline; }
