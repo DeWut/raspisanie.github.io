@@ -454,3 +454,61 @@ button { font-family: inherit; }
  .campus-map-switch button { flex:1; padding:0 7px; }
 }
 @media(prefers-reduced-motion:reduce) { .campus-building-card { transition:none; } }
+
+
+/* Campus map: isolate map gestures from the scrollable information panel. */
+.map-dialog {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.map-dialog > .dialog-head { flex: 0 0 auto; }
+.map-dialog > .campus-explorer {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+.map-dialog > .campus-plan-note,
+.map-dialog > .campus-search-box,
+.map-dialog > .campus-buildings {
+  flex: 0 0 auto;
+}
+.map-dialog > .campus-buildings {
+  min-height: 0;
+  max-height: min(32dvh, 300px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+}
+.campus-explorer { min-height: 0; }
+.campus-online-panel { overflow: hidden; }
+.campus-online-map {
+  height: clamp(300px, 48dvh, 560px);
+  min-height: 280px;
+  touch-action: pan-x pan-y pinch-zoom;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.campus-map-switch + .campus-basemap-switch { padding-top: 0; }
+.campus-basemap-switch button { min-height: 30px; font-size: 9px; }
+.campus-map-footer { flex-wrap: wrap; }
+.maplibregl-popup-content {
+  max-height: min(52dvh, 390px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.campus-map-building-popup { max-height: inherit; }
+@media(max-width:520px) {
+  .map-dialog {
+    width: calc(100vw - 12px);
+    max-height: calc(100dvh - 12px);
+    padding: 10px;
+  }
+  .map-dialog > .campus-buildings { max-height: min(29dvh, 230px); }
+  .campus-online-map { height: clamp(290px, 43dvh, 460px); min-height: 260px; }
+}
