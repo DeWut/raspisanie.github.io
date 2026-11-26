@@ -1,11 +1,11 @@
-const SHELL_CACHE = "spbftuit-shell-v16";
+const SHELL_CACHE = "spbftuit-shell-v17";
 const DATA_CACHE = "spbftuit-data-v1";
 const SHELL_FILES = [
   "./", "./index.html", "./miniapp/index.html", "./miniapp/week.html",
   "./miniapp/app.js", "./miniapp/styles.css", "./miniapp/native-bridge.js", "./miniapp/campus-map-config.js",
   "./week.html", "./manifest.webmanifest", "./offline.html", "./favicon.png",
   "./data/groups.json", "./data/teachers.json", "./data/campus.json",
-  "./data/campus-park-scene.json", "./miniapp/assets/campus-main-building-aerial.jpg", "./miniapp/vendor/maplibre-gl.js",
+  "./data/campus-park-scene.json", "./data/campus-open-data.geojson", "./miniapp/assets/campus-main-building-aerial.jpg", "./miniapp/vendor/maplibre-gl.js",
   "./miniapp/vendor/maplibre-gl.css", "./miniapp/vendor/maplibre-gl-LICENSE.txt"
 ];
 self.addEventListener("install", (event) => {
