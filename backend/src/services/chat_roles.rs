@@ -79,7 +79,7 @@ pub async fn sync_member(
 
     if telegram_role == Some("owner") {
         sqlx::query(
-            "UPDATE bot_chat_settings SET owner_telegram_id = $2, updated_at = now() WHERE chat_id = $1"
+            "UPDATE bot_chat_settings SET owner_telegram_id = COALESCE(owner_telegram_id, $2), updated_at = now() WHERE chat_id = $1"
         )
         .bind(chat_id.0)
         .bind(telegram_id)
@@ -227,3 +227,66 @@ pub async fn can_ban_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: 
 pub async fn can_manage_chat(bot: &Bot, db: &PgPool, chat_id: ChatId, telegram_id: i64) -> bool {
     can_mute_chat(bot, db, chat_id, telegram_id).await
 }
+
+/// Transfers SMART CAMPUS ownership to a member already observed in this chat.
+/// Telegram's own creator/admin status remains authoritative and is never changed.
+pub async fn handle_ownership(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    actor: i64,
+    command: &str,
+    argument: &str,
+) -> Option<String> {
+    if !matches!(command, "/transfer_owner" | "/owner") || chat_id.0 >= 0 {
+        return None;
+    }
+    let current_owner: Option<i64> = sqlx::query_scalar(
+        "SELECT owner_telegram_id FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+    ).bind(chat_id.0).fetch_optional(db).await.ok().flatten();
+    let telegram_creator: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status='creator')"
+    ).bind(chat_id.0).bind(actor).fetch_one(db).await.unwrap_or(false);
+    if current_owner != Some(actor) && !telegram_creator {
+        return Some("⛔ Передать владение может только владелец SMART CAMPUS или создатель Telegram-чата.".into());
+    }
+    if command == "/owner" || argument.trim().is_empty() {
+        return Some(format!("👑 Владелец SMART CAMPUS: {}\nПередача: /transfer_owner @username",current_owner.map(|v|v.to_string()).unwrap_or_else(||"не назначен".into())));
+    }
+    let target = argument.trim().trim_start_matches('@');
+    let Some(target_id) = (match find_member_by_username(db, chat_id, target).await {
+        Ok(value) => value,
+        Err(_) => None,
+    }) else {
+        return Some("Не нашёл участника по этому @username. Попроси его написать сообщение в группе и повтори команду.".into());
+    };
+    if target_id == actor {
+        return Some("Ты уже владелец SMART CAMPUS.".into());
+    }
+    let active_member = match bot.get_chat_member(chat_id, UserId(target_id as u64)).await {
+        Ok(member) => !member.kind.is_left() && !member.kind.is_banned(),
+        Err(_) => false,
+    };
+    if !active_member {
+        return Some("Передать владение можно только действующему участнику этого чата.".into());
+    }
+    let mut tx = match db.begin().await {
+        Ok(tx) => tx,
+        Err(_) => return Some("Не удалось начать передачу владения.".into()),
+    };
+    let changed = sqlx::query(
+        "UPDATE bot_chat_settings SET owner_telegram_id=$2,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE"
+    ).bind(chat_id.0).bind(target_id).execute(&mut *tx).await;
+    if !matches!(changed, Ok(ref result) if result.rows_affected()==1) {
+        let _ = tx.rollback().await;
+        return Some("Не удалось передать владение.".into());
+    }
+    let _ = sqlx::query(
+        "INSERT INTO bot_chat_audit_logs(chat_id,actor_telegram_id,target_telegram_id,action,details) VALUES($1,$2,$3,'ownership_transferred',jsonb_build_object('source','telegram_command'))"
+    ).bind(chat_id.0).bind(actor).bind(target_id).execute(&mut *tx).await;
+    if tx.commit().await.is_err() {
+        return Some("Передача владения не была сохранена.".into());
+    }
+    Some(format!("👑 Владение SMART CAMPUS передано участнику @{} (ID {}).",target,target_id))
+}
+
