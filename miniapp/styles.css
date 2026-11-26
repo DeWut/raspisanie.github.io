@@ -417,8 +417,9 @@ button { font-family: inherit; }
 .campus-online-panel[hidden] { display:none !important; }
 .campus-online-head { padding:11px 13px; color:var(--muted); font-size:9px; font-weight:850; letter-spacing:.08em; }
 .campus-map-switch { display:flex; gap:7px; padding:0 12px 9px; }
-.campus-map-switch button { min-height:34px; border:1px solid var(--line); border-radius:10px; padding:0 12px; background:var(--surface,#fff); color:var(--ink); font-size:10px; font-weight:800; cursor:pointer; }
-.campus-map-switch button[aria-pressed="true"] { border-color:var(--forest); background:var(--forest); color:#fff; }
+.campus-map-switch button { min-height:34px; border:1px solid #b8c5bd; border-radius:10px; padding:0 12px; background:#fff; color:#173d2e; font-size:10px; font-weight:800; cursor:pointer; opacity:1; }
+.campus-map-switch button[aria-pressed="true"] { border-color:#246a48; background:#246a48; color:#fff; }
+.campus-map-switch button:disabled { opacity:1; color:#173d2e; cursor:pointer; }
 .campus-map-switch button:focus-visible { outline:3px solid #b8d77f; outline-offset:2px; }
 .campus-online-map { height:clamp(360px,56vh,580px); background:#dbe5d9; }
 .campus-online-map[hidden] { display:none !important; }
@@ -518,7 +519,7 @@ button { font-family: inherit; }
   }
   .map-dialog > .campus-plan-note { max-height: 8dvh; margin-bottom: 7px; }
   .map-dialog > .campus-buildings { min-height: 72px; }
-  .campus-online-map { height: clamp(220px, 35dvh, 360px); min-height: 210px; }
+  .campus-online-map { height: clamp(280px, 42dvh, 460px); min-height: 260px; }
   /* Keep a selected-building card inside the map viewport on phones. */
   .maplibregl-popup-content { max-height: min(34dvh, 260px); }
   .campus-map-building-photo img { max-height: 112px; }
