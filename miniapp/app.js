@@ -786,6 +786,12 @@
     if (yandexHost) yandexHost.hidden = mode !== 'yandex';
     if (cesiumHost) cesiumHost.hidden = mode !== 'cesium';
     if (mode === 'yandex') campusYandexMap?.container.fitToViewport();
+    if (mode === 'online' && campusOnlineMap) {
+      requestAnimationFrame(() => {
+        campusOnlineMap?.resize();
+        campusOnlineMap?.triggerRepaint();
+      });
+    }
     if (mode === 'cesium' && campusCesiumViewer && !campusCesiumViewer.isDestroyed()) {
       requestAnimationFrame(() => campusCesiumViewer?.resize());
     }
