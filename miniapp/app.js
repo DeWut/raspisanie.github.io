@@ -685,6 +685,30 @@
     const response = await fetch(dataUrl, { cache: 'force-cache' });
     if (!response.ok) throw new Error(`Геометрия кампуса: HTTP ${response.status}`);
     const scene = await response.json();
+    let supplementalCount = 0;
+    try {
+      const openDataUrl = new URL('../data/campus-open-data.geojson', APP_SCRIPT_URL).href;
+      const openDataResponse = await fetch(openDataUrl, { cache: 'no-cache' });
+      if (openDataResponse.ok) {
+        const openData = await openDataResponse.json();
+        const extraFeatures = Array.isArray(openData.features) ? openData.features : [];
+        if (extraFeatures.length) {
+          // Prefer the refreshed OSM snapshot for buildings and paths; retain the
+          // hand-curated scene's tree/amenity details that OSM does not provide.
+          scene.features = (scene.features || []).filter((feature) =>
+            !['building', 'path', 'green-area', 'water'].includes(feature.properties?.kind)
+          ).concat(extraFeatures);
+          supplementalCount = extraFeatures.length;
+          scene.metadata = scene.metadata || {};
+          scene.metadata.counts = {
+            ...(scene.metadata.counts || {}),
+            ...(openData.metadata?.counts || {})
+          };
+        }
+      }
+    } catch (error) {
+      console.info('Supplemental OSM campus snapshot unavailable; using base scene:', error);
+    }
     const dataSource = await Cesium.GeoJsonDataSource.load(scene, {
       clampToGround: true,
       stroke: Cesium.Color.fromCssColorString('#e8e2d2'),
@@ -797,7 +821,7 @@
       const number = getCampusCesiumProperty(pickedEntity, 'campusBuildingNumber', Cesium);
       if (number != null) selectCampusBuilding(String(number), { openPopup: false });
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-    return { count: scene.features.length, buildings: scene.metadata?.counts?.building || 0, markers: markerEntities.size };
+    return { count: scene.features.length, supplemental: supplementalCount, buildings: scene.metadata?.counts?.building || 0, markers: markerEntities.size };
   }
   async function openCampusPhotorealisticMap() {
     const status = $('#campus-online-status');
@@ -833,7 +857,7 @@
       });
       campusCesiumViewer = viewer;
       const local = await addCampusCesiumLocalScene(Cesium, viewer, false);
-      status.textContent = `Автономная 3D-сцена загружена: ${local.buildings} зданий, дорожки, зелёные зоны, водоёмы и ${local.markers} маркера корпусов. Внешние картографические ключи не используются.`;
+      status.textContent = `Автономная 3D-сцена загружена: ${local.buildings} зданий, ${local.supplemental} дополнительных OSM-объектов, дорожки, зелёные зоны, водоёмы и ${local.markers} маркера корпусов. Внешние картографические ключи не используются.`;
       if (sourceLabel) sourceLabel.textContent = 'CESIUM · OPEN DATA · LOCAL 3D CAMPUS';
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(30.34235, 59.99375, 1050),
