@@ -99,10 +99,14 @@ async fn reply(
     text: String,
     webapp_url: &str,
 ) -> ResponseResult<()> {
-    let sent = bot
+    let request = bot
         .send_message(message.chat.id, text)
-        .reply_markup(main_keyboard(webapp_url, message.chat.is_private()))
-        .await?;
+        .reply_markup(main_keyboard(webapp_url, message.chat.is_private()));
+    let request = match message.thread_id {
+        Some(thread_id) => request.message_thread_id(thread_id),
+        None => request,
+    };
+    let sent = request.await?;
 
     if let Some(telegram_id) = telegram_user_id(message) {
         let result = async {
