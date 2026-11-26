@@ -42,6 +42,14 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Install dependencies
         run: npm install
 
@@ -54,12 +62,15 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Cache Gradle dependencies
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build APK
         working-directory: android
         run: |
           for attempt in 1 2 3; do
             echo "Android build attempt $attempt/3"
-            if ./gradlew --no-daemon --max-workers=2 assembleDebug; then
+            if ./gradlew --no-daemon --max-workers=2 --stacktrace assembleDebug; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
