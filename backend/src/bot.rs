@@ -2256,6 +2256,49 @@ async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
     }
 }
 
+
+/// Sends exam and event reminders to the configured chat at the requested milestones.
+async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
+    let rows = sqlx::query_as::<_, (i64, String, i64, String, DateTime<Utc>, String, Option<i64>)>(
+        r#"
+        SELECT c.chat_id, 'exam', e.id, e.subject, e.exam_at, r.key, c.message_thread_id
+        FROM bot_exams e
+        JOIN bot_chat_settings c ON c.chat_id=e.chat_id
+        CROSS JOIN (VALUES ('7d', interval '7 days'), ('3d', interval '3 days'), ('1d', interval '1 day')) AS r(key, lead)
+        WHERE c.is_active=TRUE AND e.status='active'
+          AND e.exam_at BETWEEN now()+r.lead-interval '30 seconds' AND now()+r.lead
+          AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='exam' AND d.record_id=e.id AND d.telegram_id=0 AND d.reminder_key=r.key)
+        UNION ALL
+        SELECT c.chat_id, 'event', e.id, e.title, e.starts_at, r.key, c.message_thread_id
+        FROM bot_events e
+        JOIN bot_chat_settings c ON c.chat_id=e.chat_id
+        CROSS JOIN (VALUES ('3d', interval '3 days'), ('1d', interval '1 day'), ('2h', interval '2 hours')) AS r(key, lead)
+        WHERE c.is_active=TRUE AND e.status='active'
+          AND e.starts_at BETWEEN now()+r.lead-interval '30 seconds' AND now()+r.lead
+          AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='event' AND d.record_id=e.id AND d.telegram_id=0 AND d.reminder_key=r.key)
+        ORDER BY 5
+        "#
+    ).fetch_all(&state.db).await.unwrap_or_else(|error| {
+        tracing::error!("Could not load exam/event reminders: {}", error);
+        Vec::new()
+    });
+
+    for (chat_id, kind, record_id, title, at, key, thread_id) in rows {
+        let reserved=sqlx::query("INSERT INTO bot_group_reminder_deliveries(chat_id,record_type,record_id,telegram_id,reminder_key) VALUES($1,$2,$3,0,$4) ON CONFLICT DO NOTHING")
+            .bind(chat_id).bind(&kind).bind(record_id).bind(&key).execute(&state.db).await;
+        if !matches!(reserved,Ok(ref r) if r.rows_affected()==1) { continue; }
+        let label=if kind=="exam" {"экзамен"} else {"мероприятие"};
+        let text=format!("🔔 Напоминание: {} через {}\\n\\n{}\\n🕒 {} МСК",label,match key.as_str(){"7d"=>"7 дней","3d"=>"3 дня","1d"=>"1 день","2h"=>"2 часа",_=>"некоторое время"},title,moscow_time(at,"%d.%m.%Y %H:%M"));
+        let request=bot.send_message(ChatId(chat_id),text);
+        let request=match thread_id.and_then(|id|i32::try_from(id).ok()) { Some(id)=>request.message_thread_id(ThreadId(MessageId(id))),None=>request };
+        if let Err(error)=request.await {
+            tracing::warn!("Could not send {} reminder to chat {}: {}",kind,chat_id,error);
+            let _=sqlx::query("DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type=$2 AND record_id=$3 AND telegram_id=0 AND reminder_key=$4")
+                .bind(chat_id).bind(&kind).bind(record_id).bind(&key).execute(&state.db).await;
+        }
+    }
+}
+
 async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
     let mut tick = tokio::time::interval(Duration::from_secs(30));
 
@@ -2268,6 +2311,7 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
 
         group_chat_schedule_loop_tick(&bot, &state).await;
         group_homework_reminder_tick(&bot, &state).await;
+        group_exam_event_reminder_tick(&bot, &state).await;
 
         let rows = sqlx::query_as::<_, (i64, String, String, DateTime<Utc>)>(
             r#"
