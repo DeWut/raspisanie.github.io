@@ -432,6 +432,20 @@ button { font-family: inherit; }
 .campus-map-area-label { max-width:130px; color:#3e6950; font:italic 700 10px/1.25 system-ui,sans-serif; text-align:center; text-shadow:0 1px 0 #f4f0dc,1px 0 0 #f4f0dc,-1px 0 0 #f4f0dc,0 -1px 0 #f4f0dc; pointer-events:none; }
 .campus-map-popup-facts { margin-top:4px; color:#5b665d; font-size:12px; line-height:1.4; }
 .maplibregl-popup-content { color:#183b29; font:12px/1.45 system-ui,sans-serif; }
+.campus-map-building-popup { display:grid; gap:7px; width:min(285px,65vw); color:#183b29; }
+.campus-map-building-photo { display:grid; gap:5px; margin:0; }
+.campus-map-building-photo img { display:block; width:100%; max-height:155px; border-radius:9px; object-fit:cover; }
+.campus-map-building-photo figcaption { color:#66736a; font-size:9px; line-height:1.35; }
+.campus-map-building-photo figcaption a,.campus-map-building-links a { color:#246a48; font-weight:750; text-decoration:none; }
+.campus-map-building-photo figcaption a:hover,.campus-map-building-links a:hover { text-decoration:underline; }
+.campus-map-building-title { color:#173d2e; font-size:14px; line-height:1.25; }
+.campus-map-building-address { color:#58675c; font-size:10px; }
+.campus-map-building-description { margin:0; color:#3e5044; font-size:10px; line-height:1.4; }
+.campus-map-building-facts { margin:0; color:#59685c; font-size:10px; line-height:1.45; }
+.campus-map-building-history { display:grid; gap:4px; padding:8px; border-radius:9px; background:#f0f5e8; color:#314c37; font-size:10px; line-height:1.4; }
+.campus-map-building-history > strong { font-size:10px; }
+.campus-map-building-history p { margin:0; }
+.campus-map-building-links { display:flex; flex-wrap:wrap; gap:5px 11px; font-size:10px; }
 @media(max-width:520px) {
  .map-dialog { padding:12px; }
  .campus-online-map { height:clamp(340px,56vh,520px); }

@@ -708,6 +708,13 @@
   async function openCampusYandexMap() {
     const status = $('#campus-online-status');
     if (!state.campus) await loadCampusDirectory();
+    if (!state.campus?.buildings?.length) {
+      status.textContent = location.protocol === 'file:'
+        ? 'Карта открыта как локальный файл: браузер блокирует загрузку данных. Открой приложение через GitHub Pages или локальный веб-сервер.'
+        : 'Не удалось загрузить справочник корпусов. Проверь подключение и повтори попытку.';
+      setCampusMapMode('offline');
+      return;
+    }
     setCampusMapMode('yandex');
     if (campusYandexMap) {
       requestAnimationFrame(() => { campusYandexMap.container.fitToViewport(); fitCampusYandexMap(); });
@@ -738,7 +745,7 @@
       fitCampusYandexMap();
       status.textContent = markerCount === 4
         ? 'Спутниковая карта Яндекса загружена. На ней отмечены все четыре корпуса.'
-        : `Спутниковая карта Яндекса загружена; отмечено корпусов: ${markerCount} из 4.`;
+        : `Карта Яндекса открылась, но удалось отметить только ${markerCount} из 4 корпусов. Проверь данные справочника.`;
     } catch (error) {
       console.warn('Campus Yandex map failed:', error);
       status.textContent = `${error.message}. Проверь ключ и ограничение HTTP Referer.`;
@@ -911,6 +918,17 @@
       }
     });
     map.addLayer({
+      id: 'campus-selected-building-highlight', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
+      filter: ['==', ['get', 'osmId'], ''],
+      paint: {
+        'fill-extrusion-color': '#d8f08d',
+        'fill-extrusion-height': ['+', ['get', 'heightMeters'], 0.28],
+        'fill-extrusion-base': ['max', 0, ['-', ['get', 'heightMeters'], 0.12]],
+        'fill-extrusion-opacity': 0.96,
+        'fill-extrusion-vertical-gradient': false
+      }
+    });
+    map.addLayer({
       id: 'campus-park-tree-trunks', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
       filter: ['==', ['get', 'kind'], 'tree-trunk'],
       paint: { 'fill-extrusion-color': '#79563a', 'fill-extrusion-height': ['get', 'heightMeters'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 1 }
@@ -932,6 +950,129 @@
       paint: { 'circle-radius': 3, 'circle-color': '#fff7df', 'circle-stroke-color': '#6d8160', 'circle-stroke-width': 1 }
     });
     return scene.metadata;
+  }
+  function appendCampusPopupLink(container, href, label) {
+    if (!href) return;
+    let url;
+    try { url = new URL(href, location.href); } catch { return; }
+    if (!['https:', 'http:'].includes(url.protocol)) return;
+    const link = document.createElement('a');
+    link.href = url.href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = label;
+    container.append(link);
+  }
+  function createCampusBuildingPopup(properties, building = null) {
+    const root = document.createElement('article');
+    root.className = 'campus-map-building-popup';
+    const heritage = building?.heritage;
+    const photo = heritage?.photo;
+    if (photo?.src) {
+      const figure = document.createElement('figure');
+      figure.className = 'campus-map-building-photo';
+      const image = document.createElement('img');
+      image.src = new URL(photo.src, APP_SCRIPT_URL).href;
+      image.alt = photo.alt || building.name;
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.addEventListener('error', () => figure.remove(), { once: true });
+      figure.append(image);
+      const credit = document.createElement('figcaption');
+      credit.append(document.createTextNode(`${photo.credit || 'Фото Wikimedia Commons'} · `));
+      appendCampusPopupLink(credit, photo.sourceUrl, 'источник');
+      credit.append(document.createTextNode(' · '));
+      appendCampusPopupLink(credit, photo.licenseUrl, photo.license || 'лицензия');
+      figure.append(credit);
+      root.append(figure);
+    }
+
+    const heading = document.createElement('strong');
+    heading.className = 'campus-map-building-title';
+    heading.textContent = building?.name || properties.name || `Здание парка · OSM ${properties.osmId || ''}`;
+    root.append(heading);
+    if (building?.address) {
+      const address = document.createElement('div');
+      address.className = 'campus-map-building-address';
+      address.textContent = building.address;
+      root.append(address);
+    }
+    if (building?.description) {
+      const description = document.createElement('p');
+      description.className = 'campus-map-building-description';
+      description.textContent = building.description;
+      root.append(description);
+    }
+
+    const facts = [];
+    const typeLabels = { university: 'учебное здание', school: 'учебное здание', apartments: 'жилой дом', service: 'служебное здание', bunker: 'убежище', ruins: 'руины' };
+    const styleLabels = { art_nouveau: 'модерн', empire: 'ампир', classicism: 'классицизм', baroque: 'барокко' };
+    const claddingLabels = { plaster: 'штукатурка', brick: 'кирпич', wood: 'дерево', stone: 'камень', concrete: 'бетон', glass: 'стекло' };
+    const roofLabels = { hipped: 'вальмовая крыша', gabled: 'двускатная крыша', flat: 'плоская крыша', mansard: 'мансардная крыша' };
+    const levels = Number(building?.osm?.levels ?? properties.levels);
+    const height = Number(building?.osm?.heightMeters ?? properties.heightMeters);
+    if (Number.isFinite(levels) && levels > 0) facts.push(`${levels} эт.`);
+    if (String(properties.heightSource || '').startsWith('visual default')) facts.push('высота показана условно: значение не указано в OSM');
+    else if (Number.isFinite(height) && height > 0) facts.push(`${height} м по OSM`);
+    const cladding = building?.osm?.cladding || properties.cladding;
+    const roofShape = building?.osm?.roofShape || properties.roofShape;
+    const architecture = properties.architecturalStyle;
+    if (claddingLabels[cladding]) facts.push(`фасад: ${claddingLabels[cladding]}`);
+    if (roofLabels[roofShape]) facts.push(roofLabels[roofShape]);
+    if (styleLabels[architecture]) facts.push(`архитектура: ${styleLabels[architecture]}`);
+    if (typeLabels[properties.osmBuilding]) facts.push(typeLabels[properties.osmBuilding]);
+    if (facts.length) {
+      const list = document.createElement('p');
+      list.className = 'campus-map-building-facts';
+      list.textContent = facts.join(' · ');
+      root.append(list);
+    }
+
+    if (heritage) {
+      const history = document.createElement('div');
+      history.className = 'campus-map-building-history';
+      const heritageLine = document.createElement('strong');
+      heritageLine.textContent = `Объект культурного наследия · № ${heritage.heritageId}`;
+      const historyFacts = document.createElement('p');
+      historyFacts.textContent = `${heritage.built}. ${heritage.style}. Архитекторы: ${heritage.architects}.`;
+      history.append(heritageLine, historyFacts);
+      const sources = document.createElement('div');
+      sources.className = 'campus-map-building-links';
+      appendCampusPopupLink(sources, heritage.heritageSourceUrl, 'История и охранный статус ↗');
+      appendCampusPopupLink(sources, heritage.historySourceUrl, 'Историческая карта LAYRS ↗');
+      history.append(sources);
+      root.append(history);
+    }
+
+    const links = document.createElement('div');
+    links.className = 'campus-map-building-links';
+    appendCampusPopupLink(links, properties.sourceUrl || building?.osm?.url, 'Контур и данные OpenStreetMap ↗');
+    if (String(building?.number) === '1') {
+      appendCampusPopupLink(links, 'https://yandex.ru/maps/org/spbgltu_im_s_m_kirova_aspirantura/98448509917/?l=stv%2Csta&ll=30.343612%2C59.992531&panorama%5Bdirection%5D=48.801822%2C17.418881&panorama%5Bfull%5D=true&panorama%5Bpoint%5D=30.343210%2C59.992557&panorama%5Bspan%5D=117.625646%2C60.000000&z=18.78', 'Фасад в панораме Яндекса ↗');
+    }
+    if (links.childNodes.length) root.append(links);
+    return root;
+  }
+  function installCampusBuildingInteractions(map, maplibregl) {
+    const layerId = 'campus-park-buildings';
+    if (!map.getLayer(layerId)) return;
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+    map.on('click', layerId, (event) => {
+      const feature = event.features?.[0];
+      const properties = feature?.properties;
+      if (!properties) return;
+      const building = state.campus?.buildings?.find((item) => String(item.osm?.id) === String(properties.osmId));
+      document.querySelectorAll('.campus-building-card.selected').forEach((card) => card.classList.remove('selected'));
+      if (building) selectCampusBuilding(building.number, { openPopup: false });
+      else if (map.getLayer('campus-selected-building-highlight')) {
+        map.setFilter('campus-selected-building-highlight', ['==', ['get', 'osmId'], String(properties.osmId)]);
+      }
+      new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: '320px' })
+        .setLngLat(event.lngLat)
+        .setDOMContent(createCampusBuildingPopup(properties, building))
+        .addTo(map);
+    });
   }
   async function openCampusOnlineMap() {
     const panel = $('#campus-online-panel');
@@ -975,45 +1116,19 @@
           const markerLabel = document.createElement('span');
           markerLabel.textContent = String(building.number);
           marker.append(markerLabel);
-          const popup = document.createElement('div');
-          const title = document.createElement('strong');
-          title.textContent = building.name;
-          const address = document.createElement('div');
-          address.textContent = building.address || '';
-          popup.append(title, address);
-          const osm = building.osm;
-          const osmFacts = [];
-          if (Number.isFinite(osm?.levels)) osmFacts.push(`${osm.levels} эт.`);
-          if (Number.isFinite(osm?.heightMeters)) osmFacts.push(`${osm.heightMeters} м`);
-          const claddingLabels = { plaster: 'штукатурка', brick: 'кирпич' };
-          const roofLabels = { hipped: 'вальмовая крыша', gabled: 'двускатная крыша' };
-          if (claddingLabels[osm?.cladding]) osmFacts.push(claddingLabels[osm.cladding]);
-          if (roofLabels[osm?.roofShape]) osmFacts.push(roofLabels[osm.roofShape]);
-          if (osmFacts.length) {
-            const facts = document.createElement('div');
-            facts.className = 'campus-map-popup-facts';
-            facts.textContent = osmFacts.join(' · ');
-            popup.append(facts);
-          }
-          if (osm?.url) {
-            const source = document.createElement('a');
-            source.href = osm.url;
-            source.target = '_blank';
-            source.rel = 'noopener noreferrer';
-            source.textContent = 'Данные и контур в OpenStreetMap';
-            popup.append(source);
-          }
-          if (String(building.number) === '1') {
-            const panorama = document.createElement('a');
-            panorama.href = 'https://yandex.ru/maps/org/spbgltu_im_s_m_kirova_aspirantura/98448509917/?l=stv%2Csta&ll=30.343612%2C59.992531&panorama%5Bdirection%5D=48.801822%2C17.418881&panorama%5Bfull%5D=true&panorama%5Bpoint%5D=30.343210%2C59.992557&panorama%5Bspan%5D=117.625646%2C60.000000&z=18.78';
-            panorama.target = '_blank';
-            panorama.rel = 'noopener noreferrer';
-            panorama.textContent = 'Посмотреть фасад в панораме Яндекса ↗';
-            popup.append(panorama);
-          }
+          const markerProperties = {
+            osmId: String(building.osm?.id || ''),
+            osmBuilding: building.osm?.building || '',
+            levels: building.osm?.levels || '',
+            heightMeters: building.osm?.heightMeters || '',
+            cladding: building.osm?.cladding || '',
+            roofShape: building.osm?.roofShape || '',
+            sourceUrl: building.osm?.url || ''
+          };
+          const popup = createCampusBuildingPopup(markerProperties, building);
           const mapMarker = new maplibregl.Marker({ element: marker, anchor: 'bottom' })
             .setLngLat([building.longitude, building.latitude])
-            .setPopup(new maplibregl.Popup({ offset: 22 }).setDOMContent(popup))
+            .setPopup(new maplibregl.Popup({ offset: 22, maxWidth: '320px' }).setDOMContent(popup))
             .addTo(campusOnlineMap);
           campusMapMarkers.set(String(building.number), mapMarker);
           marker.addEventListener('click', () => selectCampusBuilding(building.number, { openPopup: false }));
@@ -1024,6 +1139,7 @@
           if (metadata && campusOnlineMap && $('#map-dialog')?.open) {
             status.textContent = `Автономная 3D-карта парка загружена: ${metadata.counts.building || 0} зданий, ${metadata.counts.path || 0} дорожек, водоёмы и зелёные зоны. Геометрия сохранена на устройстве.`;
           }
+          if (metadata && campusOnlineMap) installCampusBuildingInteractions(campusOnlineMap, maplibregl);
         } catch (error) {
           console.warn('Campus park scene failed:', error);
           status.textContent = `${error.message}. Справочник корпусов остаётся доступен.`;
@@ -1071,6 +1187,9 @@
       campusYandexMap.setCenter([building.latitude, building.longitude], Math.max(campusYandexMap.getZoom(), 17), { duration: 350 });
     } else if (building && campusOnlineMap && mapMarker) {
       campusOnlineMap.flyTo({ center: [building.longitude, building.latitude], zoom: Math.max(campusOnlineMap.getZoom(), 16), duration: 450 });
+      if (campusOnlineMap.getLayer('campus-selected-building-highlight') && building.osm?.id != null) {
+        campusOnlineMap.setFilter('campus-selected-building-highlight', ['==', ['get', 'osmId'], String(building.osm.id)]);
+      }
       if (openPopup) mapMarker.togglePopup();
     }
     const card = document.querySelector(`.campus-building-card[data-building="${selected}"]`);

@@ -176,6 +176,22 @@
         "cladding": "plaster",
         "description": "1й (главный) учебный корпус"
       },
+      "heritage": {
+        "built": "1826–1833; позднее перестраивался",
+        "style": "Ампир; LAYRS датирует корпус приблизительно 1828 годом",
+        "architects": "И. Ф. Лукини и А. Д. Неллингер; позднее К. И. Реймерс и А. И. Дитрих",
+        "heritageId": "7810193007",
+        "heritageSourceUrl": "https://commons.wikimedia.org/wiki/Category:Saint_Petersburg_State_Forestry_Academy_-_main_building",
+        "historySourceUrl": "https://stop-token.com/ru/lab/spb/",
+        "photo": {
+          "src": "./assets/campus-main-building-aerial.jpg",
+          "alt": "Вид сверху на главный корпус СПбГЛТУ и внутренний двор",
+          "credit": "Nikolai Bulykin / Wikimedia Commons",
+          "license": "CC BY-SA 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+          "sourceUrl": "https://commons.wikimedia.org/wiki/File:%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3,_%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D1%8B%D0%B9_%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81_%D0%9B%D0%B5%D1%81%D1%82%D0%B5%D1%85%D0%B0_%D1%81%D0%B2%D0%B5%D1%80%D1%85%D1%83_(1).jpg"
+        }
+      },
       "source": "Yandex Maps"
     }
   ],

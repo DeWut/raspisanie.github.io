@@ -73,6 +73,32 @@ def height_for(tags: dict[str, str]) -> tuple[float, str]:
     return 8.0, "visual default; height not mapped in OSM"
 
 
+def display_building_colour(tags: dict[str, str], object_id: str) -> str:
+    explicit = tags.get("building:colour", tags.get("colour", "")).strip().lower()
+    if re.fullmatch(r"#[0-9a-f]{6}", explicit):
+        return explicit
+    named_colours = {
+        "white": "#e8e3d8", "off-white": "#ded7c9", "cream": "#e4d3ad",
+        "beige": "#d4c09d", "yellow": "#d8c27d", "red": "#a75d49",
+        "brown": "#89634c", "green": "#7d9978", "blue": "#758c98",
+        "grey": "#aaa69d", "gray": "#aaa69d", "grayish": "#aaa69d",
+    }
+    if explicit in named_colours:
+        return named_colours[explicit]
+
+    material = tags.get("building:material", tags.get("building:cladding", tags.get("cladding", ""))).split(";")[0].strip().lower()
+    material_colours = {
+        "brick": "#ae7159", "masonry": "#bca88e", "stone": "#c8b99f",
+        "plaster": "#ded2bf", "stucco": "#d9cdb8", "wood": "#927052",
+        "concrete": "#aaa89f", "glass": "#718b8c", "metal": "#92958e",
+    }
+    if material in material_colours:
+        return material_colours[material]
+
+    palette = ["#dfcba8", "#c98768", "#e5d9bf", "#b98568", "#d5bd96"]
+    return palette[sum(ord(char) for char in object_id) % len(palette)]
+
+
 def make_multipolygon(outer_rings: list[list[list[float]]], inner_rings: list[list[list[float]]]) -> list[list[list[list[float]]]]:
     polygons = [[outer] for outer in outer_rings]
     for inner in inner_rings:
@@ -94,6 +120,12 @@ def tree_crown(lon: float, lat: float, radius_m: float) -> list[list[float]]:
 
 
 def main() -> None:
+    campus_directory = json.loads((ROOT / "data" / "campus.json").read_text(encoding="utf-8"))
+    campus_buildings_by_osm = {
+        str(building["osm"]["id"]): building
+        for building in campus_directory.get("buildings", [])
+        if building.get("osm", {}).get("id") is not None
+    }
     request = urllib.request.Request(
         MAP_URL,
         headers={"User-Agent": "SPbFTUIT-campus-scene/1.0 (https://github.com/DeWut/raspisanie.github.io)"},
@@ -164,23 +196,27 @@ def main() -> None:
         sample_ring = outer_rings[0]
         sample = (sum(point[0] for point in sample_ring[:-1]) / max(1, len(sample_ring) - 1),
                   sum(point[1] for point in sample_ring[:-1]) / max(1, len(sample_ring) - 1))
-        if not point_in_ring(sample, park_ring):
-            continue
         building_id = building_relation.get("id", "")
+        campus_building = campus_buildings_by_osm.get(str(building_id))
+        if not point_in_ring(sample, park_ring) and not campus_building:
+            continue
         height, height_source = height_for(building_tags)
-        explicit_colour = building_tags.get("building:colour", building_tags.get("colour", ""))
-        palette = ["#dfcba8", "#c98768", "#e5d9bf", "#b98568", "#d5bd96"]
-        palette_index = sum(ord(char) for char in building_id) % len(palette)
+        properties = {"kind": "building", "osmId": building_id,
+                      "name": building_tags.get("name:ru") or building_tags.get("name", ""),
+                      "osmBuilding": building_tags.get("building", ""), "levels": building_tags.get("building:levels", ""),
+                      "heightMeters": height, "heightSource": height_source,
+                      "styleColor": display_building_colour(building_tags, building_id),
+                      "cladding": building_tags.get("building:material", building_tags.get("building:cladding", building_tags.get("cladding", ""))),
+                      "roofShape": building_tags.get("roof:shape", ""),
+                      "roofMaterial": building_tags.get("roof:material", ""),
+                      "roofColor": building_tags.get("roof:colour", building_tags.get("roof:color", "")),
+                      "architecturalStyle": building_tags.get("building:architecture", ""),
+                      "sourceUrl": f"https://www.openstreetmap.org/relation/{building_id}"}
+        if campus_building:
+            properties["campusNumber"] = str(campus_building["number"])
         features.append({
             "type": "Feature", "id": f"relation/{building_id}",
-            "properties": {"kind": "building", "osmId": building_id,
-                           "name": building_tags.get("name:ru") or building_tags.get("name", ""),
-                           "osmBuilding": building_tags.get("building", ""), "levels": building_tags.get("building:levels", ""),
-                           "heightMeters": height, "heightSource": height_source,
-                           "styleColor": explicit_colour if re.fullmatch(r"#[0-9a-fA-F]{6}", explicit_colour) else palette[palette_index],
-                           "cladding": building_tags.get("building:cladding", building_tags.get("cladding", "")),
-                           "roofShape": building_tags.get("roof:shape", ""),
-                           "sourceUrl": f"https://www.openstreetmap.org/relation/{building_id}"},
+            "properties": properties,
             "geometry": {"type": "MultiPolygon", "coordinates": make_multipolygon(outer_rings, inner_rings)},
         })
         counts["building"] = counts.get("building", 0) + 1
@@ -224,7 +260,8 @@ def main() -> None:
                 continue
             coordinates = [nodes[ref] for ref in refs]
             center = (sum(point[0] for point in coordinates) / len(coordinates), sum(point[1] for point in coordinates) / len(coordinates))
-            if not point_in_ring(center, park_ring):
+            campus_building = campus_buildings_by_osm.get(str(osm_id))
+            if not point_in_ring(center, park_ring) and not campus_building:
                 continue
             closed = coordinates[0] == coordinates[-1]
             kind = ""
@@ -240,12 +277,14 @@ def main() -> None:
                           "osmBuilding": tags.get("building", ""), "levels": tags.get("building:levels", tags.get("levels", "")),
                           "surface": tags.get("surface", ""), "colour": tags.get("building:colour", tags.get("colour", "")),
                           "heightMeters": height_for(tags)[0], "heightSource": height_for(tags)[1]}
-            explicit_colour = tags.get("building:colour", tags.get("colour", ""))
-            palette = ["#dfcba8", "#c98768", "#e5d9bf", "#b98568", "#d5bd96"]
-            palette_index = sum(ord(char) for char in osm_id) % len(palette)
-            properties["styleColor"] = explicit_colour if re.fullmatch(r"#[0-9a-fA-F]{6}", explicit_colour) else palette[palette_index]
-            properties["cladding"] = tags.get("building:material", tags.get("cladding", ""))
+            properties["styleColor"] = display_building_colour(tags, osm_id)
+            properties["cladding"] = tags.get("building:material", tags.get("building:cladding", tags.get("cladding", "")))
             properties["roofShape"] = tags.get("roof:shape", "")
+            properties["roofMaterial"] = tags.get("roof:material", "")
+            properties["roofColor"] = tags.get("roof:colour", tags.get("roof:color", ""))
+            properties["architecturalStyle"] = tags.get("building:architecture", "")
+            if campus_building:
+                properties["campusNumber"] = str(campus_building["number"])
             geometry = {"type": "Polygon", "coordinates": [coordinates]} if closed and kind != "path" else {"type": "LineString", "coordinates": coordinates}
 
         source_type = "node" if element.tag == "node" else "way"
@@ -263,7 +302,7 @@ def main() -> None:
                      "retrieved": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "license": "ODbL-1.0",
                      "attribution": "© OpenStreetMap contributors", "copyrightUrl": "https://www.openstreetmap.org/copyright",
                      "bounds": bounds, "counts": counts,
-                     "note": "Mapped geometry is from OSM. Buildings without a mapped height use a clearly marked visual default; trees appear only at mapped OSM tree points."},
+                     "note": "Park geometry is from OSM. The four directory campus buildings are included even where they fall just outside the mapped park relation. Buildings without mapped heights and trees are illustrative."},
         "features": features,
     }
     OUT.write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
