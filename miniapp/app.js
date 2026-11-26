@@ -660,7 +660,7 @@
     return campusMapLibraryPromise;
   }
   function setCampusMapMode(mode) {
-    campusMapMode = mode;
+    campusMapMode = mode;\n    if (mode !== 'online') setCampusSatelliteVisible(false);
     const online = mode === 'online' || mode === 'yandex';
     const panel = $('#campus-online-panel');
     const offlinePanel = $('#campus-offline-panel');
@@ -677,6 +677,24 @@
       if (mode === 'online') campusOnlineMap?.resize();
       if (mode === 'yandex') campusYandexMap?.container.fitToViewport();
     });
+  }
+  function setCampusSatelliteVisible(visible) {
+    if (!campusOnlineMap?.getLayer('campus-satellite-raster')) return;
+    campusOnlineMap.setLayoutProperty('campus-satellite-raster', 'visibility', visible ? 'visible' : 'none');
+    const ground = campusOnlineMap.getLayer('campus-park-ground');
+    if (ground) campusOnlineMap.setPaintProperty('campus-park-ground', 'fill-opacity', visible ? 0 : 1);
+    const green = campusOnlineMap.getLayer('campus-park-green-areas');
+    if (green) campusOnlineMap.setPaintProperty('campus-park-green-areas', 'fill-opacity', visible ? 0.12 : 1);
+    const trees = campusOnlineMap.getLayer('campus-park-woodland-texture');
+    if (trees) campusOnlineMap.setPaintProperty('campus-park-woodland-texture', 'fill-opacity', visible ? 0.16 : 0.96);
+    const water = campusOnlineMap.getLayer('campus-park-water');
+    if (water) campusOnlineMap.setPaintProperty('campus-park-water', 'fill-opacity', visible ? 0.28 : 0.96);
+  }
+  function setCampusBasemap(mode) {
+    const satellite = mode === 'satellite';
+    $('#campus-basemap-osm')?.setAttribute('aria-pressed', String(!satellite));
+    $('#campus-basemap-satellite')?.setAttribute('aria-pressed', String(satellite));
+    setCampusSatelliteVisible(satellite);
   }
   function loadCampusYandexApi() {
     if (window.ymaps?.Map) return new Promise((resolve) => window.ymaps.ready(() => resolve(window.ymaps)));
@@ -1110,6 +1128,13 @@
         attributionControl: true
       });
       campusOnlineMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+      // Restrict native touch handling to the map canvas. The dialog and directory
+      // retain their own scrolling surface outside the map container.
+      campusOnlineMap.dragRotate.enable({ around: 'center' });
+      if (window.matchMedia('(pointer: coarse)').matches) {
+        campusOnlineMap.dragPan.enable();
+        campusOnlineMap.touchZoomRotate.enable();
+      }
       let styleLoaded = false;
       campusOnlineMap.on('load', async () => {
         styleLoaded = true;
@@ -1356,6 +1381,8 @@
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
+    $('#campus-basemap-osm')?.addEventListener('click', () => setCampusBasemap('osm'));
+    $('#campus-basemap-satellite')?.addEventListener('click', () => setCampusBasemap('satellite'));
     $('#campus-mode-osm')?.addEventListener('click', () => {
       setCampusMapMode('online');
       if (campusOnlineMap) fitCampusMapToPark();
