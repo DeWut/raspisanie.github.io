@@ -198,7 +198,7 @@ fn parse_moscow_datetime(value: &str) -> Option<DateTime<Utc>> {
 }
 
 pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
-    let exams = matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam");
+    let exams = matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/exam_info" | "/delete_exam");
     let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no" | "/event_reminders_on" | "/event_reminders_off");
     if chat_id >= 0 || (!exams && !events) { return None; }
     let configured: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE)")
@@ -211,29 +211,54 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
     }
     match command {
         "/exams" => {
-            let rows = sqlx::query_as::<_, (i64,String,DateTime<Utc>,Option<String>)>(
-                "SELECT id,subject,exam_at,room FROM bot_exams WHERE chat_id=$1 AND status='active' AND exam_at>now()-interval '1 day' ORDER BY exam_at LIMIT 30"
+            let rows = sqlx::query_as::<_, (i64,String,DateTime<Utc>,Option<String>,Option<String>,Option<String>,Option<String>,Option<String>)>(
+                "SELECT id,subject,exam_at,room,format,topics,literature,details FROM bot_exams WHERE chat_id=$1 AND status='active' AND exam_at>now()-interval '1 day' ORDER BY exam_at LIMIT 30"
             ).bind(chat_id).fetch_all(db).await.unwrap_or_default();
-            if rows.is_empty() { return Some("📝 Экзаменов пока нет. Добавить: /add_exam Предмет | ДД.ММ.ГГГГ ЧЧ:ММ | аудитория".into()); }
+            if rows.is_empty() { return Some("📝 Экзаменов пока нет. Добавить: /add_exam Предмет | ДД.ММ.ГГГГ ЧЧ:ММ | аудитория | формат | темы | литература | описание".into()); }
             let mut out=String::from("📝 ЭКЗАМЕНЫ\n\n");
-            for (id,subject,at,room) in rows { out.push_str(&format!("#{id} · {subject}\n🕒 {} МСК\n{}\n\n",at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),room.unwrap_or_default())); }
+            for (id,subject,at,room,format,topics,literature,details) in rows {
+                let mut item=format!("#{id} · {subject}\n🕒 {} МСК\n",at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"));
+                for (label,value) in [("Аудитория",room),("Формат",format),("Темы",topics),("Литература",literature),("Описание",details)] {
+                    if let Some(value)=value.filter(|v| !v.trim().is_empty()) {
+                        let short:String=value.trim().chars().take(180).collect();
+                        item.push_str(&format!("{label}: {short}\n"));
+                    }
+                }
+                item.push('\n');
+                let remaining=3800usize.saturating_sub(out.chars().count());
+                if remaining==0 { break; }
+                out.extend(item.chars().take(remaining));
+                if out.chars().count()>=3800 { break; }
+            }
             Some(out)
         }
         "/add_exam" => {
-            let p:Vec<_>=argument.splitn(3,'|').map(str::trim).collect();
-            if p.len()<2 || p[0].is_empty() { return Some("Формат: /add_exam Предмет | ДД.ММ.ГГГГ ЧЧ:ММ | аудитория".into()); }
+            let p:Vec<_>=argument.splitn(7,'|').map(str::trim).collect();
+            if p.len()<2 || p[0].is_empty() { return Some("Формат: /add_exam Предмет | ДД.ММ.ГГГГ ЧЧ:ММ | аудитория | формат | темы | литература | описание".into()); }
             let Some(at)=parse_moscow_datetime(p[1]) else { return Some("Дата: завтра 09:30 или 15.12.2026 09:30".into()); };
-            let id:Option<i64>=sqlx::query_scalar("WITH n AS (UPDATE bot_chat_settings SET exam_next_id=exam_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING exam_next_id-1) INSERT INTO bot_exams(chat_id,id,subject,exam_at,room,created_by) SELECT $1,n.exam_next_id-1,$2,$3,$4,$5 FROM n RETURNING id")
-                .bind(chat_id).bind(p[0]).bind(at).bind(p.get(2).copied()).bind(actor).fetch_optional(db).await.ok().flatten();
-            Some(id.map(|v|format!("✅ Экзамен #{v} добавлен.")).unwrap_or_else(||"Не удалось добавить экзамен.".into()))
+            let field=|index:usize| p.get(index).copied().filter(|v| !v.is_empty() && *v!="-");
+            let id:Option<i64>=sqlx::query_scalar("WITH n AS (UPDATE bot_chat_settings SET exam_next_id=exam_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING exam_next_id-1) INSERT INTO bot_exams(chat_id,id,subject,exam_at,room,format,topics,literature,details,created_by) SELECT $1,n.exam_next_id-1,$2,$3,$4,$5,$6,$7,$8,$9 FROM n RETURNING id")
+                .bind(chat_id).bind(p[0]).bind(at).bind(field(2)).bind(field(3)).bind(field(4)).bind(field(5)).bind(field(6)).bind(actor).fetch_optional(db).await.ok().flatten();
+            Some(id.map(|v|format!("✅ Экзамен #{v} добавлен.\nПодробности: /exams")).unwrap_or_else(||"Не удалось добавить экзамен.".into()))
         }
         "/edit_exam" => {
-            let p:Vec<_>=argument.splitn(4,'|').map(str::trim).collect();
-            if p.len()<3 { return Some("Формат: /edit_exam ID | предмет | дата время | аудитория".into()); }
+            let p:Vec<_>=argument.splitn(8,'|').map(str::trim).collect();
+            if p.len()<3 || p[1].is_empty() { return Some("Формат: /edit_exam ID | предмет | дата время | аудитория | формат | темы | литература | описание".into()); }
             let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
+            if id<=0 { return Some("Некорректный ID.".into()); }
             let Some(at)=parse_moscow_datetime(p[2]) else { return Some("Дата: 15.12.2026 09:30".into()); };
-            let result=sqlx::query("UPDATE bot_exams SET subject=$3,exam_at=$4,room=$5,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).bind(p[1]).bind(at).bind(p.get(3).copied()).execute(db).await;
+            let result=sqlx::query("UPDATE bot_exams SET subject=$3,exam_at=$4,room=CASE WHEN $5::text IS NULL THEN room WHEN $5='-' THEN NULL ELSE NULLIF($5,'') END,format=CASE WHEN $6::text IS NULL THEN format WHEN $6='-' THEN NULL ELSE NULLIF($6,'') END,topics=CASE WHEN $7::text IS NULL THEN topics WHEN $7='-' THEN NULL ELSE NULLIF($7,'') END,literature=CASE WHEN $8::text IS NULL THEN literature WHEN $8='-' THEN NULL ELSE NULLIF($8,'') END,details=CASE WHEN $9::text IS NULL THEN details WHEN $9='-' THEN NULL ELSE NULLIF($9,'') END,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
+                .bind(chat_id).bind(id).bind(p[1]).bind(at).bind(p.get(3).copied()).bind(p.get(4).copied()).bind(p.get(5).copied()).bind(p.get(6).copied()).bind(p.get(7).copied()).execute(db).await;
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("✏️ Экзамен #{id} обновлён."),Ok(_)=>"Экзамен не найден.".into(),Err(_)=>"Ошибка обновления экзамена.".into() })
+        }
+        "/exam_info" => {
+            let p:Vec<_>=argument.splitn(5,'|').map(str::trim).collect();
+            if p.len()<2 { return Some("Формат: /exam_info ID | формат | темы | литература | описание (для очистки поля укажи -)".into()); }
+            let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
+            if id<=0 { return Some("Некорректный ID.".into()); }
+            let result=sqlx::query("UPDATE bot_exams SET format=CASE WHEN $3::text IS NULL THEN format WHEN $3='-' THEN NULL ELSE NULLIF($3,'') END,topics=CASE WHEN $4::text IS NULL THEN topics WHEN $4='-' THEN NULL ELSE NULLIF($4,'') END,literature=CASE WHEN $5::text IS NULL THEN literature WHEN $5='-' THEN NULL ELSE NULLIF($5,'') END,details=CASE WHEN $6::text IS NULL THEN details WHEN $6='-' THEN NULL ELSE NULLIF($6,'') END,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
+                .bind(chat_id).bind(id).bind(p.get(1).copied()).bind(p.get(2).copied()).bind(p.get(3).copied()).bind(p.get(4).copied()).execute(db).await;
+            Some(match result { Ok(r) if r.rows_affected()==1=>format!("📘 Подробности экзамена #{id} обновлены."),Ok(_)=>"Экзамен не найден.".into(),Err(_)=>"Не удалось обновить подробности экзамена.".into() })
         }
         "/delete_exam" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /delete_exam ID".into()); };
