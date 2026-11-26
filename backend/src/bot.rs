@@ -694,6 +694,15 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
+    if is_group_chat && matches!(command, "/search" | "/group_stats" | "/my_stats") {
+        if let Some(answer) = crate::services::group_content::handle_group_tools(
+            db, message.chat.id.0, telegram_id, command, argument
+        ).await {
+            reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
+            return Ok(());
+        }
+    }
+
     if is_group_chat && matches!(command, "/content_rights" | "/content_editor") {
         let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
         if let Some(answer) = crate::services::group_content::handle_content_admin(&bot, db, message.chat.id.0, telegram_id, command, argument).await {
@@ -773,7 +782,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .to_owned();
             if is_group_chat {
                 help.push_str(
-                    "\n\n📚 *Учебные материалы чата*\n/dz — домашние задания\n/add_dz Предмет | задание | срок — добавить ДЗ\n/edit_dz ID | предмет | задание | срок — изменить ДЗ\n/done ID — отметить ДЗ выполненным для себя\n/my_dz — мои невыполненные задания\n/priority_dz ID urgent|normal — приоритет\n/content_rights — права на разделы\n/content_editor — назначить редактора\n\n📝 *Экзамены и зачёты*\n/exams — список экзаменов\n/add_exam Предмет | дата время | аудитория | формат | темы | литература | описание\n/edit_exam ID | предмет | дата время | аудитория | формат | темы | литература | описание\n/exam_info ID | формат | темы | литература | описание\n/delete_exam ID — архивировать\n\n🎉 *Мероприятия*\n/events — список мероприятий\n/add_event Название | дата время | место | описание\n/join_event ID и /leave_event ID — запись и отмена\n/event_maybe ID и /event_no ID — изменить ответ\n/event_attendees ID — список участников\n/event_capacity ID число|off — лимит мест\n/event_waitlist ID on|off — лист ожидания\n/event_reminders_on ID и /event_reminders_off ID — личные напоминания\n/edit_event ID | название | дата время | место | описание\n/cancel_event ID — отменить мероприятие\n/export_calendar — получить календарь .ics\n/owner и /transfer_owner @username — владелец SMART CAMPUS\n\n📢 *Автоматизация учебного чата*\n/chat_settings — настройки\n/daily_on — расписание каждый день\n/daily_time 07:30 — время публикации (МСК)\n/chat_notify_on — уведомлять за 10 минут до пары\n/daily_off и /chat_notify_off — выключить функции\n/chat_topic — выбрать тему (отправить внутри темы)\n/chat_topic_off — публиковать в общий чат\n\n🛡 *Модераторам*\n/roles — роли и права\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
+                    "\n\n🔎 /search запрос — поиск по учебным материалам\n📊 /group_stats — статистика учебного чата\n📈 /my_stats — мой прогресс по ДЗ\n📚 *Учебные материалы чата*\n/dz — домашние задания\n/add_dz Предмет | задание | срок — добавить ДЗ\n/edit_dz ID | предмет | задание | срок — изменить ДЗ\n/done ID — отметить ДЗ выполненным для себя\n/my_dz — мои невыполненные задания\n/priority_dz ID urgent|normal — приоритет\n/content_rights — права на разделы\n/content_editor — назначить редактора\n\n📝 *Экзамены и зачёты*\n/exams — список экзаменов\n/add_exam Предмет | дата время | аудитория | формат | темы | литература | описание\n/edit_exam ID | предмет | дата время | аудитория | формат | темы | литература | описание\n/exam_info ID | формат | темы | литература | описание\n/delete_exam ID — архивировать\n\n🎉 *Мероприятия*\n/events — список мероприятий\n/add_event Название | дата время | место | описание\n/join_event ID и /leave_event ID — запись и отмена\n/event_maybe ID и /event_no ID — изменить ответ\n/event_attendees ID — список участников\n/event_capacity ID число|off — лимит мест\n/event_waitlist ID on|off — лист ожидания\n/event_reminders_on ID и /event_reminders_off ID — личные напоминания\n/edit_event ID | название | дата время | место | описание\n/cancel_event ID — отменить мероприятие\n/export_calendar — получить календарь .ics\n/owner и /transfer_owner @username — владелец SMART CAMPUS\n\n📢 *Автоматизация учебного чата*\n/chat_settings — настройки\n/daily_on — расписание каждый день\n/daily_time 07:30 — время публикации (МСК)\n/chat_notify_on — уведомлять за 10 минут до пары\n/daily_off и /chat_notify_off — выключить функции\n/chat_topic — выбрать тему (отправить внутри темы)\n/chat_topic_off — публиковать в общий чат\n\n🛡 *Модераторам*\n/roles — роли и права\nОтветом: /warn причина · /mute 30m причина · /unmute · /ban\nПо ID: /warnings ID · /unban ID",
                 );
             }
             if !is_group_chat
@@ -1963,6 +1972,9 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("week", "Расписание на 7 дней"),
         BotCommand::new("next", "Следующая пара"),
         BotCommand::new("group", "Выбрать личную учебную группу"),
+        BotCommand::new("search", "Поиск по материалам чата"),
+        BotCommand::new("group_stats", "Статистика учебного чата"),
+        BotCommand::new("my_stats", "Моя статистика по ДЗ"),
         BotCommand::new("homework", "Домашние задания"),
         BotCommand::new("remind_on", "Включить напоминания"),
         BotCommand::new("remind_off", "Выключить напоминания"),
