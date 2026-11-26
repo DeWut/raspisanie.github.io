@@ -8,7 +8,7 @@
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
     <link rel="manifest" href="../manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20261127-03" />
+    <link rel="stylesheet" href="./styles.css?v=20261127-04" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script defer src="./native-bridge.js"></script>
     <script defer src="./app.js?v=20261127-03"></script>
@@ -122,6 +122,7 @@
           <div class="campus-map-switch" role="group" aria-label="Источник карты">
             <button type="button" id="campus-mode-osm" aria-pressed="true">3D-парк</button>
             <button type="button" id="campus-mode-yandex" aria-pressed="false">Спутник Яндекса</button>
+            <button type="button" id="campus-mode-photorealistic" aria-pressed="false">Фотореалистичный 3D</button>
           </div>
           <div class="campus-map-switch campus-basemap-switch" role="group" aria-label="Подложка 3D-карты">
             <button type="button" id="campus-basemap-osm" aria-pressed="true">Схема</button>
@@ -129,6 +130,8 @@
           </div>
           <div id="campus-online-map" class="campus-online-map"></div>
           <div id="campus-yandex-map" class="campus-online-map campus-yandex-map" hidden></div>
+          <div id="campus-cesium-map" class="campus-online-map campus-cesium-map" hidden aria-label="Фотореалистичная трёхмерная карта кампуса"></div>
+          <div id="campus-cesium-credits" class="campus-cesium-credits" aria-live="polite"></div>
           <div class="campus-map-footer">
             <p id="campus-online-status" class="campus-online-status" role="status" aria-live="polite">Загрузка карты и зданий…</p>
             <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта ↗</a>
