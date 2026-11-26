@@ -523,3 +523,11 @@ button { font-family: inherit; }
   .maplibregl-popup-content { max-height: min(34dvh, 260px); }
   .campus-map-building-photo img { max-height: 112px; }
 }
+
+.campus-cesium-map { height: clamp(300px, 48dvh, 520px); min-height: 260px; background:#dce6dc; touch-action:none; }
+.campus-cesium-map[hidden] { display:none !important; }
+.campus-cesium-credits { min-height:0; max-height:52px; overflow:auto; padding:0 10px 5px; font-size:9px; color:var(--muted); }
+.campus-cesium-credits:empty { display:none; }
+.cesium-viewer-bottom { bottom:4px !important; left:8px !important; }
+.cesium-widget-credits { font-size:9px !important; }
+@media(max-width:520px) { .campus-cesium-map { height:clamp(260px, 44dvh, 420px); min-height:240px; } }
