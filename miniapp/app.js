@@ -860,11 +860,21 @@
       const properties = building.properties;
       const levels = Number(properties.levels);
       const height = Number(properties.heightMeters);
-      if (!Number.isFinite(levels) || levels < 2 || !Number.isFinite(height) || height < 7) return;
+      if (!properties.campusNumber || !Number.isFinite(levels) || levels < 2 || !Number.isFinite(height) || height < 7) return;
       const floorHeight = height / levels;
       const polygons = building.geometry.type === 'Polygon'
         ? [building.geometry.coordinates]
         : building.geometry.type === 'MultiPolygon' ? building.geometry.coordinates : [];
+      const estimatedColumns = polygons.reduce((sum, polygon) => {
+        const ring = polygon[0] || [];
+        return sum + ring.slice(1).reduce((edgeSum, point, index) => {
+          const previous = ring[index];
+          const latitude = (point[1] + previous[1]) / 2;
+          const length = Math.hypot((point[0] - previous[0]) * 111320 * Math.cos(latitude * Math.PI / 180), (point[1] - previous[1]) * 111320);
+          return edgeSum + Math.floor(length / 2.7);
+        }, 0);
+      }, 0);
+      const facadeDensity = estimatedColumns > 90 ? 90 / estimatedColumns : 1;
       polygons.forEach((polygon) => {
         const ring = polygon[0];
         if (!ring || ring.length < 4) return;
@@ -882,7 +892,7 @@
           const dy = end[1] - start[1];
           const length = Math.hypot(dx, dy);
           if (length < 5) continue;
-          const count = Math.floor(length / 2.7);
+          const count = Math.floor(Math.floor(length / 2.7) * facadeDensity);
           if (count < 1) continue;
           const tx = dx / length;
           const ty = dy / length;
