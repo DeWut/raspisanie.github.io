@@ -630,6 +630,57 @@
     }
   }
 
+  let campusRotation = { x: 54, z: -28 };
+  let campusZoom = 1;
+  let campusPointer = null;
+  function updateCampusCamera() {
+    const world = $('#campus-world');
+    if (!world) return;
+    world.style.transform = `rotateX(${campusRotation.x}deg) rotateZ(${campusRotation.z}deg) scale(${campusZoom})`;
+  }
+  function selectCampusBuilding(number) {
+    const selected = String(number);
+    document.querySelectorAll('.campus-building-model').forEach((node) => {
+      node.classList.toggle('selected', node.dataset.building === selected);
+    });
+    document.querySelectorAll('.campus-building-card').forEach((node) => {
+      node.classList.toggle('selected', node.dataset.building === selected);
+    });
+    const building = state.campus?.buildings?.find((item) => String(item.number) === selected);
+    $('#campus-map-caption').textContent = building ? `Корпус № ${selected} · ${building.description || building.name}` : 'Выбери корпус на модели или в поиске';
+    const card = document.querySelector(`.campus-building-card[data-building="${selected}"]`);
+    if (card && $('#campus-search')?.value) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function bindCampus3DControls() {
+    const viewport = $('#campus-viewport');
+    if (!viewport || viewport.dataset.bound) return;
+    viewport.dataset.bound = '1';
+    updateCampusCamera();
+    viewport.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('button')) return;
+      campusPointer = { id: event.pointerId, x: event.clientX, y: event.clientY, z: campusRotation.z, tilt: campusRotation.x };
+      viewport.setPointerCapture?.(event.pointerId);
+      viewport.classList.add('dragging');
+    });
+    viewport.addEventListener('pointermove', (event) => {
+      if (!campusPointer || campusPointer.id !== event.pointerId) return;
+      campusRotation.z = campusPointer.z + (event.clientX - campusPointer.x) * 0.42;
+      campusRotation.x = Math.max(25, Math.min(78, campusPointer.tilt - (event.clientY - campusPointer.y) * 0.24));
+      updateCampusCamera();
+    });
+    const stop = () => { campusPointer = null; viewport.classList.remove('dragging'); };
+    viewport.addEventListener('pointerup', stop);
+    viewport.addEventListener('pointercancel', stop);
+    $('#campus-zoom-in')?.addEventListener('click', () => { campusZoom = Math.min(1.65, campusZoom + 0.12); updateCampusCamera(); });
+    $('#campus-zoom-out')?.addEventListener('click', () => { campusZoom = Math.max(0.72, campusZoom - 0.12); updateCampusCamera(); });
+    $('#campus-reset-view')?.addEventListener('click', () => { campusRotation = { x: 54, z: -28 }; campusZoom = 1; updateCampusCamera(); });
+    $('#campus-top-view')?.addEventListener('click', () => { campusRotation = { x: 0, z: 0 }; updateCampusCamera(); });
+    document.querySelectorAll('.campus-building-model').forEach((node) => {
+      const choose = () => selectCampusBuilding(node.dataset.building);
+      node.addEventListener('click', choose);
+      node.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(); } });
+    });
+  }
   function renderCampusDirectory(query = '') {
     const target = $('#campus-buildings');
     if (!target) return;
@@ -644,14 +695,21 @@
         return !normalized || haystack.includes(normalized);
       });
       if (normalized && !units.length && !building.name.toLocaleLowerCase('ru').includes(normalized)) return '';
-      return `<article class="campus-building-card">
+      return `<article class="campus-building-card" data-building="${escapeHtml(building.number)}" tabindex="0" role="button" aria-label="Показать корпус ${escapeHtml(building.number)}">
         <div class="campus-building-head"><span class="campus-building-number">${escapeHtml(building.number)}</span><div><h3>${escapeHtml(building.name)}</h3>${building.description ? `<p>${escapeHtml(building.description)}</p>` : ''}</div></div>
         <ul>${units.length ? units.map((unit) => `<li><span>${escapeHtml(unit.name)}</span><strong>${escapeHtml(unit.room || 'без номера')}</strong></li>`).join('') : '<li class="campus-no-match">Нет совпадений по подразделениям</li>'}</ul>
       </article>`;
     }).join('');
     target.innerHTML = cards || '<p class="campus-empty">Ничего не найдено. Попробуй номер кабинета или название подразделения.</p>';
+    target.querySelectorAll('.campus-building-card').forEach((card) => {
+      const choose = () => selectCampusBuilding(card.dataset.building);
+      card.addEventListener('click', choose);
+      card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(); } });
+    });
+    bindCampus3DControls();
   }
   async function loadCampusDirectory() {
+    bindCampus3DControls();
     if (state.campus) {
       renderCampusDirectory($('#campus-search')?.value || '');
       return;
