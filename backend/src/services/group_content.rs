@@ -306,6 +306,13 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
                 Ok(tx)=>tx,
                 Err(_)=>return Some("Не удалось начать изменение мероприятия.".into()),
             };
+            // Acquire the event lock first, matching join/leave/capacity/cancel lock order.
+            let current=match sqlx::query_as::<_,(String,DateTime<Utc>,Option<String>,Option<String>)>(
+                "SELECT title,starts_at,location,description FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE"
+            ).bind(chat_id).bind(id).fetch_optional(&mut *tx).await {
+                Ok(Some(row))=>row,
+                _=>{let _=tx.rollback().await;return Some("Мероприятие не найдено.".into());}
+            };
             let recipients=match sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response IN ('going','maybe','waitlist') FOR UPDATE")
                 .bind(chat_id).bind(id).fetch_all(&mut *tx).await {
                 Ok(users)=>users,
@@ -316,13 +323,21 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
                 .bind(chat_id).bind(id).bind(p[1]).bind(at).bind(field(3)).bind(field(4)).execute(&mut *tx).await;
             if !matches!(updated,Ok(ref result) if result.rows_affected()==1) {
                 let _=tx.rollback().await;
-                return Some("Мероприятие не найдено или не удалось его обновить.".into());
+                return Some("Не удалось обновить мероприятие.".into());
             }
             if tx.commit().await.is_err() {
                 return Some("Не удалось сохранить изменение мероприятия.".into());
             }
-            let location=p.get(3).copied().filter(|v|*v!="-").unwrap_or("место уточняется");
-            let description=p.get(4).copied().filter(|v|*v!="-").unwrap_or("");
+            let location=match p.get(3).copied() {
+                None=>current.2.as_deref().unwrap_or("место уточняется"),
+                Some("-")|Some("")=>"место уточняется",
+                Some(value)=>value,
+            };
+            let description=match p.get(4).copied() {
+                None=>current.3.as_deref().unwrap_or(""),
+                Some("-")|Some("")=>"",
+                Some(value)=>value,
+            };
             let notice=format!("✏️ Мероприятие #{id} обновлено: {}\n🕒 {} МСК\n📍 {}{}",p[1],at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),location,if description.is_empty(){"".into()}else{format!("\nℹ️ {description}")});
             for user in recipients { if let Err(error)=bot.send_message(ChatId(user),notice.clone()).await { tracing::debug!("Could not notify event participant {}: {}",user,error); } }
             Some(format!("✏️ Мероприятие #{id} обновлено. Участники уведомлены в личных сообщениях."))
