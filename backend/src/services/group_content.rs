@@ -16,13 +16,21 @@ fn parse_due(value: &str) -> Option<DateTime<Utc>> {
         "завтра" => today.succ_opt()?,
         "послезавтра" => today.checked_add_days(chrono::Days::new(2))?,
         _ => {
-            let parsed = NaiveDate::parse_from_str(value, "%d.%m.%Y")
-                .or_else(|_| NaiveDate::parse_from_str(value, "%d.%m"))
-                .ok()?;
-            if parsed.year() == 0 { return None; }
-            if value.matches('.').count() == 1 {
-                parsed.with_year(if parsed < today { today.year() + 1 } else { today.year() })?
-            } else { parsed }
+            if let Ok(parsed) = NaiveDate::parse_from_str(value, "%d.%m.%Y") {
+                parsed
+            } else {
+                let mut parts = value.split('.');
+                let day = parts.next()?.parse::<u32>().ok()?;
+                let month = parts.next()?.parse::<u32>().ok()?;
+                if parts.next().is_some() { return None; }
+                let mut year = today.year();
+                let mut parsed = NaiveDate::from_ymd_opt(year, month, day)?;
+                if parsed < today {
+                    year += 1;
+                    parsed = NaiveDate::from_ymd_opt(year, month, day)?;
+                }
+                parsed
+            }
         }
     };
     let local = NaiveDateTime::new(date, NaiveTime::from_hms_opt(23, 59, 0)?);
@@ -36,9 +44,9 @@ async fn permitted(db: &PgPool, chat_id: i64, actor: i64, section: &str) -> bool
         "SELECT content_permissions->>$2 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
     ).bind(chat_id).bind(section).fetch_optional(db).await.ok().flatten();
     match mode.as_deref().unwrap_or("everyone") {
-        "admins" => crate::services::chat_roles::sync_member(
-            &teloxide::Bot::new(""), db, teloxide::types::ChatId(chat_id), actor, None
-        ).await.ok().flatten().is_some_and(|r| matches!(r.as_str(), "owner" | "admin")),
+        "admins" => sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status IN ('creator','administrator'))"
+        ).bind(chat_id).bind(actor).fetch_one(db).await.unwrap_or(false),
         "selected" => sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM bot_chat_content_editors WHERE chat_id=$1 AND section=$2 AND telegram_id=$3)"
         ).bind(chat_id).bind(section).bind(actor).fetch_one(db).await.unwrap_or(false),
