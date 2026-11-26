@@ -2063,6 +2063,7 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
             .bind(local_date)
             .execute(&state.db)
             .await;
+            }
         }
     }
 
