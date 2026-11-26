@@ -177,3 +177,11 @@ The data source/engine research is complete enough to choose CesiumJS, but actua
 - Cesium now prefers the refreshed OSM snapshot for building, path, green-area and water features while retaining the hand-curated tree/amenity details from the base scene. If the new snapshot is missing or unavailable, it falls back to the existing scene.
 - The workflow has been added but has not yet been run; until its first successful run, the Cesium viewer continues using the existing 35-building base snapshot. This is an intentional graceful fallback.
 - The script queries OSM only. The larger TerraLab Overture extraction (291 buildings, 841 road/path features, 32 waterways, 10 water areas, 112 land-use polygons) was identified, but its temporary download is not committed because the extraction tool did not expose raw file bytes to this GitHub integration. No claim is made that those Overture counts are already in the app.
+
+
+## 2GIS MapGL and Yandex map modes (2026-11-27)
+
+- Added a separate 2GIS MapGL JS API mode using the official browser library at `https://mapgl.2gis.com/api/js/v1`. The demo key supplied for this project is configured for the demo period; the viewer adds the four directory building markers. 2GIS base map geometry remains served/rendered through the official MapGL client; vector tiles are not extracted or republished as raw data.
+- Restored the previous Yandex Maps JS API 2.1 key from the earlier repository commit and re-enabled its satellite layer mode. The key is kept in the runtime map config for this project as requested.
+- 2GIS documentation: https://docs.2gis.com/mapgl/start/first-steps ; API overview: https://docs.2gis.com/maps/overview ; Raster Tiles API: https://docs.2gis.com/maps/others/rastertiles/overview . Demo keys are limited to one month and have request limits.
+- The 2GIS mode has been added to the UI but still requires a live browser run to confirm the demo key's service entitlements, quota, and the MapGL client behaviour in the target deployment.
