@@ -630,9 +630,6 @@
     }
   }
 
-  let campusRotation = { x: 54, z: -28 };
-  let campusZoom = 1;
-  let campusPointer = null;
   let campusOnlineMap = null;
   const campusMapMarkers = new Map();
   let campusMapLibraryPromise = null;
@@ -659,22 +656,54 @@
   function setCampusMapMode(mode) {
     const online = mode === 'online';
     const panel = $('#campus-online-panel');
-    const explorer = document.querySelector('.campus-explorer');
-    if (!panel || !explorer) return;
+    const offlinePanel = $('#campus-offline-panel');
+    if (!panel || !offlinePanel) return;
     panel.hidden = !online;
-    explorer.classList.toggle('online-active', online);
-    ['.campus-viewbar', '.campus-viewport', '.campus-map-actions'].forEach((selector) => {
-      const element = explorer.querySelector(selector);
-      if (element) element.hidden = online;
-    });
+    offlinePanel.hidden = online;
     requestAnimationFrame(() => campusOnlineMap?.resize());
+  }
+  function fitCampusMapToBuildings(duration = 500) {
+    if (!campusOnlineMap || !window.maplibregl) return;
+    const element = $('#campus-online-map');
+    const buildings = (state.campus?.buildings || []).filter((building) =>
+      Number.isFinite(building.longitude) && Number.isFinite(building.latitude));
+    if (!element || !buildings.length) return;
+    const bounds = new window.maplibregl.LngLatBounds();
+    buildings.forEach((building) => bounds.extend([building.longitude, building.latitude]));
+    requestAnimationFrame(() => {
+      if (!campusOnlineMap || !element.clientWidth || !element.clientHeight) return;
+      campusOnlineMap.resize();
+      const keepAllMarkersVisible = () => {
+        if (!campusOnlineMap || !$('#map-dialog')?.open) return;
+        const { width, height } = campusOnlineMap.getContainer().getBoundingClientRect();
+        let zoom = campusOnlineMap.getZoom();
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+          const allVisible = buildings.every((building) => {
+            const point = campusOnlineMap.project([building.longitude, building.latitude]);
+            return point.x >= 38 && point.x <= width - 38 && point.y >= 38 && point.y <= height - 38;
+          });
+          if (allVisible || zoom <= 11) break;
+          zoom = Math.max(11, zoom - 0.25);
+          campusOnlineMap.setZoom(zoom);
+        }
+      };
+      if (duration > 0) campusOnlineMap.once('moveend', keepAllMarkersVisible);
+      campusOnlineMap.fitBounds(bounds, {
+        padding: { top: 76, right: 68, bottom: 76, left: 68 },
+        maxZoom: 15,
+        pitch: 35,
+        duration
+      });
+      if (!duration) requestAnimationFrame(() => requestAnimationFrame(keepAllMarkersVisible));
+    });
   }
   async function openCampusOnlineMap() {
     const panel = $('#campus-online-panel');
     const status = $('#campus-online-status');
     if (!panel) return;
+    if (!state.campus) await loadCampusDirectory();
     setCampusMapMode('online');
-    if (campusOnlineMap) { campusOnlineMap.resize(); return; }
+    if (campusOnlineMap) { fitCampusMapToBuildings(); return; }
     status.textContent = 'Загружаем реальную карту и 3D-здания…';
     try {
       const maplibregl = await loadCampusMapLibrary();
@@ -683,9 +712,9 @@
         style: 'https://tiles.openfreemap.org/styles/liberty',
         center: state.campus?.map?.center || [30.3399, 59.99455],
         zoom: state.campus?.map?.zoom || 15.1,
-        pitch: 58,
-        bearing: -18,
-        maxPitch: 80,
+        pitch: 42,
+        bearing: -12,
+        maxPitch: 60,
         antialias: true,
         attributionControl: true
       });
@@ -707,15 +736,26 @@
             type: 'fill-extrusion',
             minzoom: 14,
             paint: {
-              'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 8], 0, '#d7dfd5', 24, '#a7bca8', 60, '#78977e'],
+              'fill-extrusion-color': [
+                'case',
+                ['has', 'building:colour'], ['to-color', ['get', 'building:colour']],
+                ['match', ['coalesce', ['get', 'building:facade:material'], ['get', 'building:material']],
+                  'brick', '#b97862', 'stone', '#b8a78a', 'sandstone', '#c8ad83', 'wood', '#927657',
+                  'glass', '#7e9ca1', 'metal', '#828d88', 'concrete', '#b3afa5',
+                  ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
+                    0, '#d4d0c2', 24, '#afa798', 60, '#8e847a']
+                ]
+              ],
               'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
               'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-              'fill-extrusion-opacity': 0.88
+              'fill-extrusion-opacity': 1,
+              'fill-extrusion-vertical-gradient': true
             }
           }, labelLayer?.id);
         }
-        const bounds = new maplibregl.LngLatBounds();
+        campusMapMarkers.clear();
         const buildings = state.campus?.buildings || [];
+        let markerCount = 0;
         buildings.forEach((building) => {
           if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
           const marker = document.createElement('button');
@@ -737,45 +777,49 @@
             .addTo(campusOnlineMap);
           campusMapMarkers.set(String(building.number), mapMarker);
           marker.addEventListener('click', () => selectCampusBuilding(building.number, { openPopup: false }));
-          bounds.extend([building.longitude, building.latitude]);
+          markerCount += 1;
         });
-        if (!bounds.isEmpty()) campusOnlineMap.fitBounds(bounds, { padding: { top: 45, right: 45, bottom: 45, left: 45 }, maxZoom: 16, duration: 700 });
-        status.textContent = 'Реальная карта OpenStreetMap. На карте отмечены все четыре учебных корпуса по адресам университета. Для 3D-зданий требуется интернет.';
+        status.textContent = markerCount === 4
+          ? 'На карте отмечены корпуса № 1, 2, 3 и 4. Формы и высота зданий зависят от OpenStreetMap.'
+          : `На карте отмечено корпусов: ${markerCount} из 4. Справочник ниже остаётся доступен.`;
+        const fitButton = $('#campus-fit-buildings');
+        if (fitButton) fitButton.disabled = markerCount === 0;
+        fitCampusMapToBuildings(0);
       });
       campusOnlineMap.on('error', (event) => {
         if (!styleLoaded && campusOnlineMap && event?.error) {
           console.warn('Campus map failed before style load:', event.error);
-          status.textContent = 'Онлайн-карта сейчас недоступна. Показываю офлайн-схему кампуса.';
+          status.textContent = 'Онлайн-карта сейчас недоступна. Справочник корпусов работает офлайн.';
           const failedMap = campusOnlineMap;
           campusOnlineMap = null;
+          campusMapMarkers.clear();
           failedMap.remove();
+          const fallbackStatus = $('#campus-offline-status');
+          if (fallbackStatus) fallbackStatus.textContent = 'Онлайн-карта сейчас недоступна. Проверь подключение и повтори попытку; справочник остаётся доступен ниже.';
           setCampusMapMode('offline');
+        } else if (styleLoaded && event?.error) {
+          console.warn('Campus map layer failed to load:', event.error);
+          status.textContent = 'Часть слоёв карты не загрузилась. Попробуй обновить карту или проверь подключение.';
         }
       });
     } catch (error) {
-      status.textContent = `${error.message}. Показываю офлайн-схему кампуса.`;
+      status.textContent = `${error.message}. Справочник корпусов работает офлайн.`;
       campusMapLibraryPromise = null;
       const failedMap = campusOnlineMap;
       campusOnlineMap = null;
+      campusMapMarkers.clear();
       failedMap?.remove();
+      const fallbackStatus = $('#campus-offline-status');
+      if (fallbackStatus) fallbackStatus.textContent = 'Не удалось загрузить онлайн-карту. Проверь подключение и повтори попытку; список корпусов остаётся доступен ниже.';
       setCampusMapMode('offline');
     }
   }
-  function updateCampusCamera() {
-    const world = $('#campus-world');
-    if (!world) return;
-    world.style.transform = `rotateX(${campusRotation.x}deg) rotateZ(${campusRotation.z}deg) scale(${campusZoom})`;
-  }
   function selectCampusBuilding(number, { openPopup = true } = {}) {
     const selected = String(number);
-    document.querySelectorAll('.campus-building-model').forEach((node) => {
-      node.classList.toggle('selected', node.dataset.building === selected);
-    });
     document.querySelectorAll('.campus-building-card').forEach((node) => {
       node.classList.toggle('selected', node.dataset.building === selected);
     });
     const building = state.campus?.buildings?.find((item) => String(item.number) === selected);
-    $('#campus-map-caption').textContent = building ? `Корпус № ${selected} · ${building.description || building.name}` : 'Выбери корпус на модели или в поиске';
     const mapMarker = campusMapMarkers.get(selected);
     if (building && campusOnlineMap && mapMarker) {
       campusOnlineMap.flyTo({ center: [building.longitude, building.latitude], zoom: Math.max(campusOnlineMap.getZoom(), 16), duration: 450 });
@@ -783,36 +827,6 @@
     }
     const card = document.querySelector(`.campus-building-card[data-building="${selected}"]`);
     if (card && $('#campus-search')?.value) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-  function bindCampus3DControls() {
-    const viewport = $('#campus-viewport');
-    if (!viewport || viewport.dataset.bound) return;
-    viewport.dataset.bound = '1';
-    updateCampusCamera();
-    viewport.addEventListener('pointerdown', (event) => {
-      if (event.target.closest('button')) return;
-      campusPointer = { id: event.pointerId, x: event.clientX, y: event.clientY, z: campusRotation.z, tilt: campusRotation.x };
-      viewport.setPointerCapture?.(event.pointerId);
-      viewport.classList.add('dragging');
-    });
-    viewport.addEventListener('pointermove', (event) => {
-      if (!campusPointer || campusPointer.id !== event.pointerId) return;
-      campusRotation.z = campusPointer.z + (event.clientX - campusPointer.x) * 0.42;
-      campusRotation.x = Math.max(25, Math.min(78, campusPointer.tilt - (event.clientY - campusPointer.y) * 0.24));
-      updateCampusCamera();
-    });
-    const stop = () => { campusPointer = null; viewport.classList.remove('dragging'); };
-    viewport.addEventListener('pointerup', stop);
-    viewport.addEventListener('pointercancel', stop);
-    $('#campus-zoom-in')?.addEventListener('click', () => { campusZoom = Math.min(1.65, campusZoom + 0.12); updateCampusCamera(); });
-    $('#campus-zoom-out')?.addEventListener('click', () => { campusZoom = Math.max(0.72, campusZoom - 0.12); updateCampusCamera(); });
-    $('#campus-reset-view')?.addEventListener('click', () => { campusRotation = { x: 54, z: -28 }; campusZoom = 1; updateCampusCamera(); });
-    $('#campus-top-view')?.addEventListener('click', () => { campusRotation = { x: 0, z: 0 }; updateCampusCamera(); });
-    document.querySelectorAll('.campus-building-model').forEach((node) => {
-      const choose = () => selectCampusBuilding(node.dataset.building);
-      node.addEventListener('click', choose);
-      node.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(); } });
-    });
   }
   function renderCampusDirectory(query = '') {
     const target = $('#campus-buildings');
@@ -839,10 +853,8 @@
       card.addEventListener('click', choose);
       card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(); } });
     });
-    bindCampus3DControls();
   }
   async function loadCampusDirectory() {
-    bindCampus3DControls();
     if (state.campus) {
       renderCampusDirectory($('#campus-search')?.value || '');
       return;
@@ -968,9 +980,7 @@
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
-    $('#campus-close-online')?.addEventListener('click', () => {
-      setCampusMapMode('offline');
-    });
+    $('#campus-fit-buildings')?.addEventListener('click', () => fitCampusMapToBuildings());
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));

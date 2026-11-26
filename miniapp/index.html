@@ -8,10 +8,10 @@
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
     <link rel="manifest" href="../manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20261126-26" />
+    <link rel="stylesheet" href="./styles.css?v=20261126-27" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script defer src="./native-bridge.js"></script>
-    <script defer src="./app.js?v=20261126-26"></script>
+    <script defer src="./app.js?v=20261126-27"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -109,52 +109,25 @@
     <dialog class="group-dialog utility-dialog" id="calendar-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">УЧЕБНЫЙ ГОД</p><h2>Календарь</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div class="calendar-controls"><button class="icon-button small" id="calendar-prev" type="button" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><strong id="calendar-month-name">—</strong><button class="icon-button small" id="calendar-next" type="button" aria-label="Следующий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-details" id="calendar-details">Выбери день, чтобы увидеть расписание.</div></dialog>
     <dialog class="group-dialog utility-dialog map-dialog" id="map-dialog">
       <form method="dialog" class="dialog-head"><div><p class="eyebrow">НАВИГАЦИЯ</p><h2>Карта и корпуса</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form>
-      <section class="campus-explorer" aria-label="Интерактивная 3D-карта кампуса">
-        <div class="campus-viewbar"><span class="campus-live-dot"></span><span>ОФЛАЙН-СХЕМА КАМПУСА</span><span class="campus-view-hint">Проведи пальцем, чтобы повернуть</span></div>
-        <div class="campus-viewport" id="campus-viewport">
-          <div class="campus-world" id="campus-world">
-            <svg class="campus-world-map" viewBox="0 0 800 560" role="img" aria-label="Объёмная схема парка и четырёх учебных корпусов по плану университета">
-              <defs>
-                <linearGradient id="campus-ground" x2="0" y2="1"><stop stop-color="#dce9d7"/><stop offset="1" stop-color="#b9d0b7"/></linearGradient>
-                <linearGradient id="campus-roof" x2="0" y2="1"><stop stop-color="#f3f5ee"/><stop offset="1" stop-color="#c5d2c4"/></linearGradient>
-                <pattern id="campus-grid" width="34" height="34" patternUnits="userSpaceOnUse"><path d="M34 0H0V34" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="1"/></pattern>
-                <filter id="campus-shadow" x="-30%" y="-30%" width="160%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>
-              </defs>
-              <path d="M35 70 665 25 770 425 145 535 35 70Z" fill="url(#campus-ground)" stroke="#a9c0a6" stroke-width="3"/>
-              <path d="M35 70 665 25 770 425 145 535Z" fill="url(#campus-grid)"/>
-              <path d="M20 92 674 42M138 540 785 425" stroke="#788f7c" stroke-width="24" opacity=".28"/>
-              <path d="M20 92 674 42M138 540 785 425" stroke="#f4f0df" stroke-width="15"/>
-              <path d="M62 116 702 66M157 508 750 402" stroke="#c2bda9" stroke-width="2" stroke-dasharray="8 7"/>
-              <path d="M235 132 510 91 620 355 350 420 235 132Z" fill="#86ad7a" stroke="#6c9667" stroke-width="3"/>
-              <path d="M265 155 492 121 586 341 366 391 265 155Z" fill="#a8c69b" stroke="#cfe0c6" stroke-width="3"/>
-              <path d="M287 185 490 151 555 325 377 367 287 185Z" fill="#b9d2a8" opacity=".8"/>
-              <g fill="none" stroke="#e8eadb" stroke-width="8" stroke-linecap="round"><path d="M300 340Q390 270 480 150"/><path d="M310 205Q420 280 545 300"/><path d="M370 375Q410 280 500 220"/></g>
-              <g fill="#477b4e" stroke="#d8e5d0" stroke-width="2">
-                <circle cx="300" cy="190" r="13"/><circle cx="338" cy="164" r="12"/><circle cx="390" cy="150" r="14"/><circle cx="448" cy="142" r="12"/><circle cx="510" cy="174" r="13"/><circle cx="545" cy="230" r="12"/><circle cx="555" cy="285" r="13"/><circle cx="500" cy="350" r="13"/><circle cx="440" cy="370" r="12"/><circle cx="355" cy="355" r="13"/><circle cx="275" cy="280" r="12"/>
-              </g>
-              <g fill="#8fb57e" opacity=".9"><circle cx="300" cy="190" r="7"/><circle cx="338" cy="164" r="7"/><circle cx="390" cy="150" r="8"/><circle cx="448" cy="142" r="7"/><circle cx="510" cy="174" r="7"/><circle cx="545" cy="230" r="7"/><circle cx="555" cy="285" r="7"/><circle cx="500" cy="350" r="7"/><circle cx="440" cy="370" r="7"/><circle cx="355" cy="355" r="7"/><circle cx="275" cy="280" r="7"/></g>
-              <g class="campus-building-model" data-building="3" tabindex="0" role="button" aria-label="Выбрать корпус 3">
-                <path d="M80 185 195 166 230 190 115 211Z" fill="#81998b"/><path d="M115 211 230 190 230 250 115 272Z" fill="#536f61"/><path d="M80 185 115 211 115 272 80 245Z" fill="#71897a"/><path d="M80 185 195 166 230 190 115 211Z" fill="url(#campus-roof)" stroke="#fff" stroke-width="2"/><path d="M100 191 192 176 210 190 118 205Z" fill="#c1d1c3"/><text x="145" y="234" class="campus-model-number">3</text>
-              </g>
-              <g class="campus-building-model" data-building="2" tabindex="0" role="button" aria-label="Выбрать корпус 2">
-                <path d="M590 90 690 75 730 98 630 116Z" fill="#81998b"/><path d="M630 116 730 98 730 163 630 183Z" fill="#536f61"/><path d="M590 90 630 116 630 183 590 157Z" fill="#71897a"/><path d="M590 90 690 75 730 98 630 116Z" fill="url(#campus-roof)" stroke="#fff" stroke-width="2"/><path d="M610 96 688 84 710 98 632 110Z" fill="#c1d1c3"/><text x="655" y="143" class="campus-model-number">2</text>
-              </g>
-              <g class="campus-building-model" data-building="4" tabindex="0" role="button" aria-label="Выбрать корпус 4">
-                <path d="M115 365 225 346 263 370 153 391Z" fill="#81998b"/><path d="M153 391 263 370 263 433 153 454Z" fill="#536f61"/><path d="M115 365 153 391 153 454 115 428Z" fill="#71897a"/><path d="M115 365 225 346 263 370 153 391Z" fill="url(#campus-roof)" stroke="#fff" stroke-width="2"/><path d="M136 371 222 356 244 370 157 385Z" fill="#c1d1c3"/><text x="183" y="419" class="campus-model-number">4</text>
-              </g>
-              <g class="campus-building-model" data-building="1" tabindex="0" role="button" aria-label="Выбрать корпус 1">
-                <path d="M600 330 695 312 735 335 640 354Z" fill="#81998b"/><path d="M640 354 735 335 735 398 640 418Z" fill="#536f61"/><path d="M600 330 640 354 640 418 600 394Z" fill="#71897a"/><path d="M600 330 695 312 735 335 640 354Z" fill="url(#campus-roof)" stroke="#fff" stroke-width="2"/><path d="M620 336 694 322 716 335 642 349Z" fill="#c1d1c3"/><text x="672" y="381" class="campus-model-number">1</text>
-              </g>
-              <g class="campus-ground-label"><text x="405" y="270">ПАРК ЛТА</text><text x="405" y="291">ДОРОЖКИ И ЗЕЛЁНЫЕ ЗОНЫ</text></g>
-            </svg>
-          </div>
-          <div class="campus-compass" aria-label="Север сверху">N<span>▲</span></div>
-          <div class="campus-zoom"><button type="button" id="campus-zoom-in" aria-label="Приблизить">+</button><button type="button" id="campus-zoom-out" aria-label="Отдалить">−</button><button type="button" id="campus-reset-view" aria-label="Сбросить вид">↺</button></div>
-          <div class="campus-map-caption" id="campus-map-caption">Выбери корпус на модели или в поиске</div>
+      <section class="campus-explorer" aria-label="Карта кампуса">
+        <div class="campus-offline-panel" id="campus-offline-panel">
+          <span class="campus-offline-kicker">СПРАВОЧНИК КАМПУСА</span>
+          <h3>Корпуса и аудитории</h3>
+          <p id="campus-offline-status">Список корпусов и помещений доступен после загрузки на устройство. Онлайн-карта и объёмные здания требуют сети.</p>
+          <button type="button" id="campus-open-online">Открыть онлайн-карту</button>
+          <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта университета ↗</a>
         </div>
-        <div class="campus-map-actions"><button type="button" id="campus-top-view">Вид сверху</button><button type="button" id="campus-open-online">Открыть 3D-карту местности</button><a href="https://spbftu.ru/public/index.php/map" target="_blank" rel="noopener">Официальная карта ↗</a></div><div id="campus-online-panel" class="campus-online-panel" hidden><div class="campus-online-head"><span>РЕАЛЬНАЯ КАРТА · 4 КОРПУСА</span><button type="button" id="campus-close-online" aria-label="Вернуться к офлайн-схеме">← Офлайн-схема</button></div><div id="campus-online-map" class="campus-online-map"></div><p id="campus-online-status" class="campus-online-status">Загрузка карты…</p></div>
+        <div id="campus-online-panel" class="campus-online-panel" hidden>
+          <div class="campus-online-head"><span>КАРТА КАМПУСА · OPENSTREETMAP</span></div>
+          <div id="campus-online-map" class="campus-online-map"></div>
+          <div class="campus-map-footer">
+            <p id="campus-online-status" class="campus-online-status" role="status" aria-live="polite">Загрузка карты и зданий…</p>
+            <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта ↗</a>
+            <button type="button" id="campus-fit-buildings" disabled>Показать все корпуса</button>
+          </div>
+        </div>
       </section>
-      <p class="campus-plan-note">Офлайн-схема построена по предоставленному плану и служит резервом без интернета. Геометрия и взаимное расположение корпусов ориентировочные; для точного положения используй онлайн-карту.</p>
+      <p class="campus-plan-note">Онлайн-карта строит здания по геометрии и данным OpenStreetMap. Фотореалистичные фасады требуют отдельных проверенных 3D-моделей.</p>
       <label class="search-box campus-search-box"><span>⌕</span><input id="campus-search" type="search" placeholder="Найти корпус, кафедру или кабинет…" autocomplete="off" /></label>
       <div class="campus-buildings" id="campus-buildings"><p class="campus-empty">Справочник корпусов будет загружен…</p></div>
     </dialog>
