@@ -692,12 +692,12 @@ pub async fn handle_group_tools(
             if !(2..=100).contains(&length) {
                 return Some("Укажи запрос длиной от 2 до 100 символов: /search линейная алгебра".into());
             }
-            let pattern = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
+            let pattern = format!("%{}%", query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
             let homework = match sqlx::query_as::<_, (i64,String,String,Option<DateTime<Utc>>)>(
                 r#"SELECT id,subject,left(description,180),due_at
                    FROM bot_homework
                    WHERE chat_id=$1 AND status='active'
-                     AND (subject ILIKE $2 ESCAPE '\\' OR description ILIKE $2 ESCAPE '\\')
+                     AND (subject ILIKE $2 ESCAPE '\' OR description ILIKE $2 ESCAPE '\')
                    ORDER BY due_at NULLS LAST,id DESC LIMIT 5"#
             )
             .bind(chat_id).bind(&pattern).fetch_all(db).await {
@@ -708,8 +708,8 @@ pub async fn handle_group_tools(
                 r#"SELECT id,subject,exam_at,format,topics
                    FROM bot_exams
                    WHERE chat_id=$1 AND status='active'
-                     AND (subject ILIKE $2 ESCAPE '\\' OR COALESCE(format,'') ILIKE $2 ESCAPE '\\'
-                          OR COALESCE(topics,'') ILIKE $2 ESCAPE '\\' OR COALESCE(details,'') ILIKE $2 ESCAPE '\\')
+                     AND (subject ILIKE $2 ESCAPE '\' OR COALESCE(format,'') ILIKE $2 ESCAPE '\'
+                          OR COALESCE(topics,'') ILIKE $2 ESCAPE '\' OR COALESCE(details,'') ILIKE $2 ESCAPE '\')
                    ORDER BY exam_at LIMIT 5"#
             )
             .bind(chat_id).bind(&pattern).fetch_all(db).await {
@@ -720,7 +720,7 @@ pub async fn handle_group_tools(
                 r#"SELECT id,title,starts_at,location
                    FROM bot_events
                    WHERE chat_id=$1 AND status='active'
-                     AND (title ILIKE $2 ESCAPE '\\' OR COALESCE(description,'') ILIKE $2 ESCAPE '\\')
+                     AND (title ILIKE $2 ESCAPE '\' OR COALESCE(description,'') ILIKE $2 ESCAPE '\')
                    ORDER BY starts_at LIMIT 5"#
             )
             .bind(chat_id).bind(&pattern).fetch_all(db).await {
