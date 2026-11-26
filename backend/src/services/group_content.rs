@@ -194,7 +194,7 @@ fn parse_moscow_datetime(value: &str) -> Option<DateTime<Utc>> {
 
 pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
     let exams = matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam");
-    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event");
+    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity");
     if chat_id >= 0 || (!exams && !events) { return None; }
     let configured: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE)")
         .bind(chat_id).fetch_one(db).await.unwrap_or(false);
@@ -265,15 +265,69 @@ pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command:
             let result=sqlx::query("UPDATE bot_events SET status='cancelled',updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).execute(db).await;
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("❌ Мероприятие #{id} отменено."),Ok(_)=>"Мероприятие не найдено.".into(),Err(_)=>"Ошибка отмены мероприятия.".into() })
         }
+        "/event_capacity" => {
+            let Some((id_text, capacity_text)) = argument.trim().split_once(' ') else {
+                return Some("Формат: /event_capacity ID ЧИСЛО|off".into());
+            };
+            let Ok(id) = id_text.trim().parse::<i64>() else { return Some("Некорректный ID мероприятия.".into()); };
+            let capacity = if capacity_text.trim().eq_ignore_ascii_case("off") { None } else {
+                match capacity_text.trim().parse::<i32>() {
+                    Ok(v) if (1..=10000).contains(&v) => Some(v),
+                    _ => return Some("Вместимость: число от 1 до 10000 или off.".into()),
+                }
+            };
+            let result=sqlx::query("UPDATE bot_events SET capacity=$3,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
+                .bind(chat_id).bind(id).bind(capacity).execute(db).await;
+            Some(match result {
+                Ok(r) if r.rows_affected()==1 => format!("✅ Вместимость мероприятия #{id} обновлена."),
+                Ok(_) => "Мероприятие не найдено.".into(),
+                Err(_) => "Не удалось изменить вместимость.".into()
+            })
+        }
         "/join_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /join_event ID".into()); };
-            let result=sqlx::query("INSERT INTO bot_event_participants(chat_id,event_id,telegram_id,response) SELECT e.chat_id,e.id,$3,CASE WHEN e.capacity IS NULL OR (SELECT count(*) FROM bot_event_participants p WHERE p.chat_id=e.chat_id AND p.event_id=e.id AND p.response='going')<e.capacity THEN 'going' ELSE CASE WHEN e.waitlist_enabled THEN 'waitlist' ELSE 'maybe' END END FROM bot_events e WHERE e.chat_id=$1 AND e.id=$2 AND e.status='active' ON CONFLICT(chat_id,event_id,telegram_id) DO UPDATE SET response=EXCLUDED.response,updated_at=now()").bind(chat_id).bind(id).bind(actor).execute(db).await;
-            Some(match result { Ok(r) if r.rows_affected()==1=>format!("✅ Ответ по мероприятию #{id} сохранён."),Ok(_)=>"Мероприятие не найдено.".into(),Err(_)=>"Ошибка записи на мероприятие.".into() })
+            let mut tx=match db.begin().await { Ok(tx)=>tx,Err(_)=>return Some("Не удалось начать запись.".into()) };
+            let event=sqlx::query_as::<_,(Option<i32>,bool)>("SELECT capacity,waitlist_enabled FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' FOR UPDATE")
+                .bind(chat_id).bind(id).fetch_optional(&mut *tx).await;
+            let Some((capacity,waitlist))=(match event { Ok(v)=>v,Err(_)=>None }) else {
+                let _=tx.rollback().await; return Some("Мероприятие не найдено.".into());
+            };
+            let current=sqlx::query_scalar::<_,String>("SELECT response FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3")
+                .bind(chat_id).bind(id).bind(actor).fetch_optional(&mut *tx).await.ok().flatten();
+            if current.as_deref()==Some("going") { let _=tx.rollback().await; return Some("Ты уже записан на это мероприятие.".into()); }
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='going'")
+                .bind(chat_id).bind(id).fetch_one(&mut *tx).await.unwrap_or(0);
+            let response=if capacity.map(|v|count<i64::from(v)).unwrap_or(true) {"going"} else if waitlist {"waitlist"} else {"maybe"};
+            let saved=sqlx::query("INSERT INTO bot_event_participants(chat_id,event_id,telegram_id,response) VALUES($1,$2,$3,$4) ON CONFLICT(chat_id,event_id,telegram_id) DO UPDATE SET response=EXCLUDED.response,updated_at=now()")
+                .bind(chat_id).bind(id).bind(actor).bind(response).execute(&mut *tx).await;
+            if saved.is_err() || tx.commit().await.is_err() { return Some("Ошибка записи на мероприятие.".into()); }
+            Some(match response {
+                "going"=>format!("✅ Ты записан на мероприятие #{id}."),
+                "waitlist"=>format!("🕒 Мест нет. Ты добавлен в лист ожидания мероприятия #{id}."),
+                _=>format!("ℹ️ Мест нет, лист ожидания отключён. Ответ «может быть» сохранён для мероприятия #{id}.")
+            })
         }
         "/leave_event" => {
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /leave_event ID".into()); };
-            let result=sqlx::query("DELETE FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3").bind(chat_id).bind(id).bind(actor).execute(db).await;
-            Some(match result { Ok(r) if r.rows_affected()==1=>format!("Запись на мероприятие #{id} отменена."),Ok(_)=>"Ты не записан на это мероприятие.".into(),Err(_)=>"Ошибка отмены записи.".into() })
+            let mut tx=match db.begin().await { Ok(tx)=>tx,Err(_)=>return Some("Не удалось отменить запись.".into()) };
+            let removed=sqlx::query("DELETE FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3 AND response='going'")
+                .bind(chat_id).bind(id).bind(actor).execute(&mut *tx).await;
+            let changed=match removed { Ok(r)=>r.rows_affected()==1,Err(_)=>{let _=tx.rollback().await;return Some("Ошибка отмены записи.".into());} };
+            if changed {
+                let next=sqlx::query_scalar::<_,i64>("SELECT telegram_id FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND response='waitlist' ORDER BY created_at,telegram_id LIMIT 1 FOR UPDATE")
+                    .bind(chat_id).bind(id).fetch_optional(&mut *tx).await.ok().flatten();
+                if let Some(next_id)=next {
+                    let _=sqlx::query("UPDATE bot_event_participants SET response='going',updated_at=now() WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3")
+                        .bind(chat_id).bind(id).bind(next_id).execute(&mut *tx).await;
+                }
+            } else {
+                let _=sqlx::query("DELETE FROM bot_event_participants WHERE chat_id=$1 AND event_id=$2 AND telegram_id=$3 AND response IN ('waitlist','maybe')")
+                    .bind(chat_id).bind(id).bind(actor).execute(&mut *tx).await;
+            }
+            if tx.commit().await.is_err(){return Some("Не удалось завершить отмену записи.".into());}
+            Some(if changed {
+                format!("Запись на мероприятие #{id} отменена. Первый участник из листа ожидания автоматически повышен, если он был.")
+            } else {"Твоя запись или заявка на лист ожидания отменена.".into()})
         }
         _ => None
     }
