@@ -1,24 +1,51 @@
 name: Check backend
 
 on:
+  push:
+    branches:
+      - main
+      - feature/smart-campus-step-1
+    paths:
+      - 'backend/**'
+      - '.github/workflows/check-backend.yml'
   pull_request:
     paths:
       - 'backend/**'
       - '.github/workflows/check-backend.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cargo-check:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust stable
+      - name: Install Rust stable with rustfmt
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
-      - name: Check backend
-        working-directory: backend
-        run: |
-          cargo check --all-targets
-          cargo test --all-targets
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Compile all targets
+        run: cargo check --all-targets --locked
+
+      - name: Run tests
+        run: cargo test --all-targets --locked
