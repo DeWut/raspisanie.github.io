@@ -633,6 +633,97 @@
   let campusOnlineMap = null;
   const campusMapMarkers = new Map();
   let campusMapLibraryPromise = null;
+  function addCampusFacadePatterns(map) {
+    const size = 64;
+    const makePattern = (paint) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      paint(ctx, size);
+      return canvas;
+    };
+    const patterns = {
+      'campus-facade-default': makePattern((ctx, s) => {
+        ctx.fillStyle = '#c9bea9'; ctx.fillRect(0, 0, s, s);
+        ctx.globalAlpha = 0.12; ctx.strokeStyle = '#8d816e'; ctx.lineWidth = 1;
+        for (let y = 8; y < s; y += 16) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(s, y); ctx.stroke(); }
+        ctx.globalAlpha = 0.08; ctx.fillStyle = '#6e665a';
+        for (let y = 4; y < s; y += 16) for (let x = 4; x < s; x += 16) ctx.fillRect(x, y, 2, 2);
+        ctx.globalAlpha = 1;
+      }),
+      'campus-facade-brick': makePattern((ctx, s) => {
+        ctx.fillStyle = '#b87561'; ctx.fillRect(0, 0, s, s);
+        ctx.strokeStyle = '#e0c2ad'; ctx.lineWidth = 2;
+        for (let row = 0; row < 4; row += 1) {
+          const y = row * 16;
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(s, y); ctx.stroke();
+          const offset = row % 2 ? 8 : 0;
+          for (let x = offset; x < s; x += 16) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 16); ctx.stroke(); }
+          ctx.fillStyle = row % 2 ? '#c3826b' : '#ad6b58';
+          for (let x = offset + 2; x < s; x += 16) ctx.fillRect(x, y + 2, 12, 12);
+          ctx.strokeStyle = '#e0c2ad';
+        }
+      }),
+      'campus-facade-stone': makePattern((ctx, s) => {
+        ctx.fillStyle = '#c5b8a1'; ctx.fillRect(0, 0, s, s);
+        ctx.strokeStyle = '#e9dfcf'; ctx.lineWidth = 2;
+        for (let row = 0; row < 4; row += 1) {
+          const y = row * 16, offset = row % 2 ? 16 : 0;
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(s, y); ctx.stroke();
+          for (let x = offset; x <= s; x += 32) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 16); ctx.stroke(); }
+        }
+      }),
+      'campus-facade-concrete': makePattern((ctx, s) => {
+        ctx.fillStyle = '#b9b5ac'; ctx.fillRect(0, 0, s, s);
+        ctx.globalAlpha = 0.2; ctx.strokeStyle = '#827f78'; ctx.lineWidth = 1;
+        for (let y = 0; y <= s; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(s, y); ctx.stroke(); }
+        ctx.globalAlpha = 0.18; ctx.fillStyle = '#6f6c66';
+        for (const [x, y] of [[8, 8], [40, 8], [24, 40], [56, 40]]) { ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = 1;
+      }),
+      'campus-facade-wood': makePattern((ctx, s) => {
+        ctx.fillStyle = '#92765b'; ctx.fillRect(0, 0, s, s);
+        for (let x = 0; x < s; x += 16) {
+          ctx.fillStyle = x % 32 ? '#a18466' : '#866a51'; ctx.fillRect(x + 1, 0, 14, s);
+          ctx.strokeStyle = '#594c3e'; ctx.globalAlpha = 0.34; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, s); ctx.moveTo(x + 6, 4); ctx.lineTo(x + 6, s - 4); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }),
+      'campus-facade-glass': makePattern((ctx, s) => {
+        ctx.fillStyle = '#829d9b'; ctx.fillRect(0, 0, s, s);
+        for (let y = 2; y < s; y += 16) for (let x = 2; x < s; x += 16) {
+          ctx.fillStyle = (x + y) % 32 ? '#9fb9b3' : '#66878a'; ctx.fillRect(x, y, 12, 12);
+          ctx.fillStyle = 'rgba(238,246,231,.34)'; ctx.fillRect(x + 2, y + 2, 2, 8);
+        }
+        ctx.strokeStyle = '#667c79'; ctx.lineWidth = 2;
+        for (let p = 0; p <= s; p += 16) { ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, s); ctx.moveTo(0, p); ctx.lineTo(s, p); ctx.stroke(); }
+      }),
+      'campus-facade-metal': makePattern((ctx, s) => {
+        ctx.fillStyle = '#87928d'; ctx.fillRect(0, 0, s, s);
+        for (let y = 0; y < s; y += 16) {
+          ctx.fillStyle = y % 32 ? '#939e98' : '#78847f'; ctx.fillRect(0, y + 1, s, 14);
+          ctx.strokeStyle = 'rgba(52,66,61,.45)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(s, y); ctx.stroke();
+        }
+      })
+    };
+    for (const [name, image] of Object.entries(patterns)) {
+      if (image && !map.hasImage(name)) map.addImage(name, image);
+    }
+  }
+  function campusFacadePatternExpression() {
+    return ['match', ['coalesce', ['get', 'building:facade:material'], ['get', 'building:material'], ''],
+      'brick', 'campus-facade-brick',
+      'stone', 'campus-facade-stone',
+      'sandstone', 'campus-facade-stone',
+      'concrete', 'campus-facade-concrete',
+      'wood', 'campus-facade-wood',
+      'glass', 'campus-facade-glass',
+      'metal', 'campus-facade-metal',
+      'campus-facade-default'];
+  }
   function loadCampusMapLibrary() {
     if (window.maplibregl) return Promise.resolve(window.maplibregl);
     if (campusMapLibraryPromise) return campusMapLibraryPromise;
@@ -712,7 +803,7 @@
         style: 'https://tiles.openfreemap.org/styles/liberty',
         center: state.campus?.map?.center || [30.3399, 59.99455],
         zoom: state.campus?.map?.zoom || 15.1,
-        pitch: 42,
+        pitch: 50,
         bearing: -12,
         maxPitch: 60,
         antialias: true,
@@ -724,34 +815,35 @@
         styleLoaded = true;
         const styleLayers = campusOnlineMap.getStyle().layers || [];
         const labelLayer = styleLayers.find((layer) => layer.type === 'symbol' && layer.layout?.['text-field']);
-        const sourceName = Object.keys(campusOnlineMap.getStyle().sources || {}).find((name) => {
+        const extrusionLayer = styleLayers.find((layer) => layer.type === 'fill-extrusion' && layer['source-layer'] === 'building');
+        const sourceName = extrusionLayer?.source || Object.keys(campusOnlineMap.getStyle().sources || {}).find((name) => {
           const source = campusOnlineMap.getStyle().sources[name];
           return source.type === 'vector';
         });
-        if (sourceName && !campusOnlineMap.getLayer('campus-3d-buildings')) {
-          campusOnlineMap.addLayer({
-            id: 'campus-3d-buildings',
-            source: sourceName,
-            'source-layer': 'building',
-            type: 'fill-extrusion',
-            minzoom: 14,
-            paint: {
-              'fill-extrusion-color': [
-                'case',
-                ['has', 'building:colour'], ['to-color', ['get', 'building:colour']],
-                ['match', ['coalesce', ['get', 'building:facade:material'], ['get', 'building:material']],
-                  'brick', '#b97862', 'stone', '#b8a78a', 'sandstone', '#c8ad83', 'wood', '#927657',
-                  'glass', '#7e9ca1', 'metal', '#828d88', 'concrete', '#b3afa5',
-                  ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
-                    0, '#d4d0c2', 24, '#afa798', 60, '#8e847a']
-                ]
-              ],
-              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
-              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-              'fill-extrusion-opacity': 1,
-              'fill-extrusion-vertical-gradient': true
-            }
-          }, labelLayer?.id);
+        if (sourceName) {
+          addCampusFacadePatterns(campusOnlineMap);
+          const layerId = extrusionLayer?.id || 'campus-3d-buildings';
+          if (!extrusionLayer && !campusOnlineMap.getLayer(layerId)) {
+            campusOnlineMap.addLayer({
+              id: layerId,
+              source: sourceName,
+              'source-layer': 'building',
+              type: 'fill-extrusion',
+              minzoom: 14,
+              filter: ['!', ['has', 'hide_3d']],
+              paint: {
+                'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
+                'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+                'fill-extrusion-opacity': 1,
+                'fill-extrusion-vertical-gradient': true
+              }
+            }, labelLayer?.id);
+          }
+          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-pattern', campusFacadePatternExpression());
+          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-height', ['coalesce', ['get', 'render_height'], ['get', 'height'], 8]);
+          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-base', ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]);
+          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-opacity', 1);
+          campusOnlineMap.setPaintProperty(layerId, 'fill-extrusion-vertical-gradient', true);
         }
         campusMapMarkers.clear();
         const buildings = state.campus?.buildings || [];
