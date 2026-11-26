@@ -1038,9 +1038,13 @@
     const roofLabels = { hipped: 'вальмовая крыша', gabled: 'двускатная крыша', flat: 'плоская крыша', mansard: 'мансардная крыша' };
     const levels = Number(building?.osm?.levels ?? properties.levels);
     const height = Number(building?.osm?.heightMeters ?? properties.heightMeters);
+    const heightSource = String(properties.heightSource || '');
     if (Number.isFinite(levels) && levels > 0) facts.push(`${levels} эт.`);
-    if (String(properties.heightSource || '').startsWith('visual default')) facts.push('высота показана условно: значение не указано в OSM');
-    else if (Number.isFinite(height) && height > 0) facts.push(`${height} м по OSM`);
+    if (heightSource.startsWith('unknown') || heightSource.startsWith('visual default')) {
+      facts.push('высота не указана в источнике');
+    } else if (Number.isFinite(height) && height > 0) {
+      facts.push(heightSource.includes('estimate') ? `около ${height} м · оценка по этажности` : `${height} м по данным OSM`);
+    }
     const cladding = building?.osm?.cladding || properties.cladding;
     const roofShape = building?.osm?.roofShape || properties.roofShape;
     const architecture = properties.architecturalStyle;
