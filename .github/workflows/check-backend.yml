@@ -7,10 +7,12 @@ on:
       - feature/smart-campus-step-1
     paths:
       - 'backend/**'
+      - '.gitattributes'
       - '.github/workflows/check-backend.yml'
   pull_request:
     paths:
       - 'backend/**'
+      - '.gitattributes'
       - '.github/workflows/check-backend.yml'
   workflow_dispatch:
 
@@ -38,6 +40,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
+
+      - name: Verify SQLx migration files use LF line endings
+        run: |
+          if grep -rIl $'\r' migrations; then
+            echo "SQLx migration files must use LF line endings."
+            exit 1
+          fi
 
       - name: Compile all targets
         run: cargo check --all-targets --locked
