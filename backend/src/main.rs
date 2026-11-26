@@ -23,7 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Применяем миграции. Данные расписания при этом не удаляются.
     sqlx::migrate!("./migrations").run(&state.db).await?;
 
-    // Первичная синхронизация запускается сразу в фоне, далее — раз в сутки.
+    // Worker использует sync_metadata: запускается сразу только при отсутствии истории синхронизации,
+    // а затем проверяет сохранённое время и обновляет расписание не чаще раза в 24 часа.
     match EiosSync::new("data/eios_cache", "1") {
         Ok(eios) => {
             let schedule_db = state.db.clone();
