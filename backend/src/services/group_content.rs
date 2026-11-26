@@ -194,13 +194,13 @@ fn parse_moscow_datetime(value: &str) -> Option<DateTime<Utc>> {
 
 pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command: &str, argument: &str) -> Option<String> {
     let exams = matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam");
-    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity");
+    let events = matches!(command, "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no");
     if chat_id >= 0 || (!exams && !events) { return None; }
     let configured: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE)")
         .bind(chat_id).fetch_one(db).await.unwrap_or(false);
     if !configured { return Some("Сначала привяжите учебную группу: /setgroup название".into()); }
     let section = if exams { "exams" } else { "events" };
-    let writes = !matches!(command, "/exams" | "/events" | "/join_event" | "/leave_event");
+    let writes = !matches!(command, "/exams" | "/events" | "/join_event" | "/leave_event" | "/event_attendees" | "/event_maybe" | "/event_no");
     if writes && !permitted(db, chat_id, actor, section).await {
         return Some("⛔ Недостаточно прав для управления этим разделом.".into());
     }
@@ -264,6 +264,29 @@ pub async fn handle_exams_events(db: &PgPool, chat_id: i64, actor: i64, command:
             let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /cancel_event ID".into()); };
             let result=sqlx::query("UPDATE bot_events SET status='cancelled',updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'").bind(chat_id).bind(id).execute(db).await;
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("❌ Мероприятие #{id} отменено."),Ok(_)=>"Мероприятие не найдено.".into(),Err(_)=>"Ошибка отмены мероприятия.".into() })
+        }
+        "/event_attendees" => {
+            let Ok(id)=argument.trim().parse::<i64>() else { return Some("Формат: /event_attendees ID".into()); };
+            let rows=sqlx::query_as::<_,(i64,String)>("SELECT p.telegram_id, p.response FROM bot_event_participants p JOIN bot_events e ON e.chat_id=p.chat_id AND e.id=p.event_id WHERE p.chat_id=$1 AND p.event_id=$2 AND e.status='active' ORDER BY CASE p.response WHEN 'going' THEN 0 WHEN 'maybe' THEN 1 WHEN 'waitlist' THEN 2 ELSE 3 END,p.joined_at")
+                .bind(chat_id).bind(id).fetch_all(db).await.unwrap_or_default();
+            if rows.is_empty(){return Some("Пока никто не ответил на это мероприятие.".into());}
+            let mut out=format!("👥 УЧАСТНИКИ МЕРОПРИЯТИЯ #{id}\n\n");
+            for (user,response) in rows {
+                let label=match response.as_str(){"going"=>"Иду","not_going"=>"Не иду","maybe"=>"Думаю","waitlist"=>"Лист ожидания",_=>"Ответ"};
+                out.push_str(&format!("• {user} — {label}\n"));
+            }
+            Some(out)
+        }
+        "/event_maybe" | "/event_no" => {
+            let Ok(id)=argument.trim().parse::<i64>() else { return Some(format!("Формат: {} ID",command)); };
+            let response=if command=="/event_maybe" {"maybe"} else {"not_going"};
+            let result=sqlx::query("INSERT INTO bot_event_participants(chat_id,event_id,telegram_id,response) SELECT chat_id,id,$3,$4 FROM bot_events WHERE chat_id=$1 AND id=$2 AND status='active' ON CONFLICT(chat_id,event_id,telegram_id) DO UPDATE SET response=EXCLUDED.response,updated_at=now()")
+                .bind(chat_id).bind(id).bind(actor).bind(response).execute(db).await;
+            Some(match result {
+                Ok(r) if r.rows_affected()==1=>if response=="maybe"{format!("🤔 Отмечено: ты думаешь насчёт мероприятия #{id}.")}else{format!("Отмечено: ты не идёшь на мероприятие #{id}.")},
+                Ok(_)=>"Мероприятие не найдено.".into(),
+                Err(_)=>"Не удалось сохранить ответ.".into()
+            })
         }
         "/event_capacity" => {
             let Some((id_text, capacity_text)) = argument.trim().split_once(' ') else {
