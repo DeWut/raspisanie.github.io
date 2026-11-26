@@ -2160,6 +2160,72 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
     }
 }
 
+/// Sends one group-level homework reminder roughly 24 hours before each deadline.
+/// A delivery key prevents duplicates when the 30-second worker ticks repeatedly.
+async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
+    let rows = sqlx::query_as::<_, (i64, i64, String, String, DateTime<Utc>, Option<i64>)>(
+        r#"
+        SELECT h.chat_id, h.id, h.subject, h.description, h.due_at, c.message_thread_id
+        FROM bot_homework h
+        JOIN bot_chat_settings c ON c.chat_id = h.chat_id
+        WHERE c.is_active = TRUE
+          AND h.status = 'active'
+          AND h.due_at BETWEEN now() + interval '23 hours'
+                           AND now() + interval '24 hours'
+          AND NOT EXISTS (
+              SELECT 1 FROM bot_group_reminder_deliveries d
+              WHERE d.chat_id = h.chat_id
+                AND d.record_type = 'homework'
+                AND d.record_id = h.id
+                AND d.telegram_id = 0
+                AND d.reminder_key = 'day_before'
+          )
+        ORDER BY h.due_at
+        "#
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_else(|error| {
+        tracing::error!("Could not load group homework reminders: {}", error);
+        Vec::new()
+    });
+
+    for (chat_id, homework_id, subject, description, due_at, thread_id) in rows {
+        let reserved = sqlx::query(
+            "INSERT INTO bot_group_reminder_deliveries (chat_id, record_type, record_id, telegram_id, reminder_key) VALUES ($1, 'homework', $2, 0, 'day_before') ON CONFLICT DO NOTHING"
+        )
+        .bind(chat_id)
+        .bind(homework_id)
+        .execute(&state.db)
+        .await;
+        if !matches!(reserved, Ok(ref result) if result.rows_affected() == 1) {
+            continue;
+        }
+
+        let message = format!(
+            "📚 Напоминание о домашнем задании\n\nПредмет: {}\nЗадание: {}\nСрок: {} МСК",
+            subject,
+            description,
+            moscow_time(due_at, "%d.%m.%Y в %H:%M")
+        );
+        let request = bot.send_message(ChatId(chat_id), message);
+        let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
+            Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
+            None => request,
+        };
+        if let Err(error) = request.await {
+            tracing::warn!("Could not send homework reminder to chat {}: {}", chat_id, error);
+            let _ = sqlx::query(
+                "DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type='homework' AND record_id=$2 AND telegram_id=0 AND reminder_key='day_before'"
+            )
+            .bind(chat_id)
+            .bind(homework_id)
+            .execute(&state.db)
+            .await;
+        }
+    }
+}
+
 async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
     let mut tick = tokio::time::interval(Duration::from_secs(30));
 
@@ -2170,7 +2236,7 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
             .execute(&state.db)
             .await;
 
-        group_chat_schedule_loop_tick(&bot, &state).await;
+        group_chat_schedule_loop_tick(&bot, &state).await;\n        group_homework_reminder_tick(&bot, &state).await;
 
         let rows = sqlx::query_as::<_, (i64, String, String, DateTime<Utc>)>(
             r#"
