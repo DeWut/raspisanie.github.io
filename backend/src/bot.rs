@@ -843,7 +843,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .as_deref(),
                 Some("owner" | "admin")
             ) {
-                "⛔ Менять учебную группу чата может только создатель или администратор Telegram."
+                "⛔ Менять учебную группу чата может только владелец SMART CAMPUS, создатель или администратор Telegram."
                     .into()
             } else if argument.is_empty() {
                 "Укажи группу: /setgroup ЛПб-ИСИТ-26-1".into()
