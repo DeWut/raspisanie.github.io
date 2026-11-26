@@ -1036,6 +1036,9 @@ function setCampusSatelliteVisible(visible) {
   }
   async function openCampusYandexMap() {
     const status = $('#campus-online-status');
+    // Claim the selected provider before awaiting shared data; otherwise the
+    // initial OSM request can finish later and silently switch the UI back.
+    setCampusMapMode('yandex');
     if (!state.campus) await loadCampusDirectory();
     if (!state.campus?.buildings?.length) {
       status.textContent = location.protocol === 'file:'
@@ -1072,6 +1075,10 @@ function setCampusSatelliteVisible(visible) {
         markerCount += 1;
       });
       fitCampusYandexMap();
+      // A provider selection can race with the initial OSM load. Reassert the
+      // chosen host after Yandex has finished constructing its map.
+      if (campusMapMode !== 'yandex') setCampusMapMode('yandex');
+      requestAnimationFrame(() => requestAnimationFrame(() => campusYandexMap?.container.fitToViewport()));
       status.textContent = markerCount === 4
         ? 'Спутниковая карта Яндекса загружена. На ней отмечены все четыре корпуса.'
         : `Карта Яндекса открылась, но удалось отметить только ${markerCount} из 4 корпусов. Проверь данные справочника.`;
@@ -1123,8 +1130,8 @@ function setCampusSatelliteVisible(visible) {
       campusOnlineMap.fitBounds(CAMPUS_PARK_BOUNDS, {
         padding: { top: 22, right: 22, bottom: 22, left: 22 },
         maxZoom: 14.2,
-        pitch: 58,
-        bearing: -18,
+        pitch: 32,
+        bearing: -12,
         duration
       });
     });
@@ -1465,6 +1472,9 @@ async function addCampusParkLayers(map) {
     const status = $('#campus-online-status');
     if (!panel) return;
     if (!state.campus) await loadCampusDirectory();
+    // The dialog starts loading OSM in the background. If the user has already
+    // chosen Yandex while the directory was loading, do not steal the active mode.
+    if (campusMapMode === 'yandex' || campusMapMode === 'cesium' || campusMapMode === 'dgis') return;
     setCampusMapMode('online');
     if (campusOnlineMap) { fitCampusMapToPark(); return; }
     status.textContent = 'Загружаем автономную 3D-карту парка…';
