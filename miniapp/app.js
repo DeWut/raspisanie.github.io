@@ -793,12 +793,61 @@
       });
     });
   }
+  function createCampusWoodlandTexture() {
+    const size = 96;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Не удалось создать текстуру леса');
+    let seed = 5622070;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    const crowns = Array.from({ length: 112 }, () => ({
+      x: random() * size,
+      y: random() * size,
+      radius: 1.5 + random() * 2.4,
+      tone: random()
+    }));
+    for (const crown of crowns) {
+      for (const xOffset of [-size, 0, size]) {
+        for (const yOffset of [-size, 0, size]) {
+          const x = crown.x + xOffset;
+          const y = crown.y + yOffset;
+          const radius = crown.radius;
+          context.fillStyle = 'rgba(35, 66, 42, 0.24)';
+          context.beginPath();
+          context.ellipse(x + radius * 0.35, y + radius * 0.55, radius * 1.18, radius * 0.88, 0, 0, Math.PI * 2);
+          context.fill();
+          const gradient = context.createRadialGradient(x - radius * 0.28, y - radius * 0.36, radius * 0.12, x, y, radius * 1.3);
+          gradient.addColorStop(0, crown.tone > 0.74 ? '#a8c477' : '#86ad68');
+          gradient.addColorStop(0.34, crown.tone > 0.48 ? '#6f9b5d' : '#5c8c54');
+          gradient.addColorStop(0.78, '#477749');
+          gradient.addColorStop(1, 'rgba(48, 89, 54, 0.88)');
+          context.fillStyle = gradient;
+          context.beginPath();
+          context.ellipse(x, y, radius, radius * (0.76 + crown.tone * 0.22), crown.tone * 0.4, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = 'rgba(192, 213, 139, 0.28)';
+          context.beginPath();
+          context.arc(x - radius * 0.32, y - radius * 0.3, Math.max(0.5, radius * 0.24), 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+    }
+    return context.getImageData(0, 0, size, size);
+  }
   async function addCampusParkLayers(map) {
     const dataUrl = new URL('../data/campus-park-scene.json', APP_SCRIPT_URL).href;
     const response = await fetch(dataUrl, { cache: 'force-cache' });
     if (!response.ok) throw new Error(`Геометрия парка: HTTP ${response.status}`);
     const scene = await response.json();
     if (campusOnlineMap !== map) return null;
+    if (!map.hasImage('campus-woodland-texture')) {
+      map.addImage('campus-woodland-texture', createCampusWoodlandTexture(), { pixelRatio: 1 });
+    }
     map.addSource('campus-park-scene', { type: 'geojson', data: scene });
     scene.features.filter((feature) => feature.properties?.kind === 'water' && feature.properties?.name).forEach((feature) => {
       const coordinates = feature.geometry.type === 'Polygon'
@@ -820,19 +869,15 @@
       id: 'campus-park-green-areas', type: 'fill', source: 'campus-park-scene',
       filter: ['==', ['get', 'kind'], 'green-area'],
       paint: {
-        'fill-color': ['match', ['get', 'areaType'], 'wood', '#57905d', '#8fbf78'],
+        'fill-color': ['match', ['get', 'areaType'], 'wood', '#77996c', '#9fc782'],
         'fill-opacity': 1,
-        'fill-outline-color': ['match', ['get', 'areaType'], 'wood', '#3e714d', '#77a968']
+        'fill-outline-color': ['match', ['get', 'areaType'], 'wood', '#55764e', '#83ae70']
       }
     });
     map.addLayer({
-      id: 'campus-park-canopy-relief', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
+      id: 'campus-park-woodland-texture', type: 'fill', source: 'campus-park-scene',
       filter: ['all', ['==', ['get', 'kind'], 'green-area'], ['==', ['get', 'areaType'], 'wood']],
-      paint: {
-        'fill-extrusion-color': '#477c4d', 'fill-extrusion-height': 2.2,
-        'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.96,
-        'fill-extrusion-vertical-gradient': true
-      }
+      paint: { 'fill-pattern': 'campus-woodland-texture', 'fill-opacity': 0.96 }
     });
     map.addLayer({
       id: 'campus-park-water', type: 'fill', source: 'campus-park-scene',
