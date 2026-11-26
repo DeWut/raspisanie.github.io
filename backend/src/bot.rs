@@ -702,7 +702,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
-    if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity") {
+    if is_group_chat && matches!(command, "/exams" | "/add_exam" | "/edit_exam" | "/delete_exam" | "/events" | "/add_event" | "/edit_event" | "/cancel_event" | "/join_event" | "/leave_event" | "/event_capacity" | "/event_attendees" | "/event_maybe" | "/event_no") {
         if matches!(command, "/add_exam" | "/edit_exam" | "/delete_exam" | "/add_event" | "/edit_event" | "/cancel_event" | "/event_capacity") {
             let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
         }
@@ -1970,6 +1970,9 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("join_event", "Записаться на мероприятие"),
         BotCommand::new("leave_event", "Отменить запись на мероприятие"),
         BotCommand::new("event_capacity", "Установить лимит участников мероприятия"),
+        BotCommand::new("event_attendees", "Посмотреть ответы участников мероприятия"),
+        BotCommand::new("event_maybe", "Возможно, пойду на мероприятие"),
+        BotCommand::new("event_no", "Отметить, что не иду на мероприятие"),
         BotCommand::new("settings", "Настройки учебного чата"),
         BotCommand::new("chat_settings", "Настройки расписания учебного чата"),
         BotCommand::new("roles", "Список ролей и прав модерации"),
