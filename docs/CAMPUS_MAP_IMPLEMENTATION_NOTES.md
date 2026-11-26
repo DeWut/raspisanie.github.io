@@ -133,3 +133,10 @@ The data source/engine research is complete enough to choose CesiumJS, but actua
 - The Cesium mode is an integration shell only until a valid browser-restricted key is supplied and the precise campus coverage is confirmed. Google tile loading has not yet been tested against a real project/key.
 - The Cesium scene is not yet carrying the university's OSM footprints, markers, search or building information popups as vector overlays. That remains the next code task after proving the photorealistic tiles load.
 - No local image or mesh has been derived from third-party map imagery. Google imagery/geometry stays remote and is only rendered in the authorised online viewer.
+
+## Final integration review (2026-11-27)
+- Confirmed the Cesium viewer host is a separate map surface and the Google layer is only requested when the user explicitly selects "Фотореалистичный 3D".
+- Corrected mode switching so switching from Cesium back to the local OSM/MapLibre mode destroys the Cesium viewer and resizes/repaints MapLibre after its host becomes visible.
+- The existing Yandex mode remains separate and unchanged.
+- No API key is committed. The current deployed configuration is intentionally blank and the Cesium mode explains the setup requirement. Real photorealistic imagery will not load until the site owner supplies an authorised browser key and confirms coverage for the campus.
+- UI controls and the local offline map remain available in the absence of the Google configuration.
