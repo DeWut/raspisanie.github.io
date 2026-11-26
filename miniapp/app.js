@@ -20,7 +20,7 @@
   const isWeekPage = document.body.dataset.page === 'week';
   const requestedDate = pageParams.get('date');
   const parsedRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? new Date(requestedDate + 'T12:00:00Z') : null;
-  const state = { groups: [], schedule: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear() };
+  const state = { groups: [], schedule: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
@@ -624,6 +624,44 @@
       $('#retry-load')?.addEventListener('click', () => loadData());
     }
   }
+
+  function renderCampusDirectory(query = '') {
+    const target = $('#campus-buildings');
+    if (!target) return;
+    const normalized = String(query).trim().toLocaleLowerCase('ru');
+    if (!state.campus?.buildings?.length) {
+      target.innerHTML = '<p class="campus-empty">Справочник корпусов пока не загружен.</p>';
+      return;
+    }
+    const cards = state.campus.buildings.map((building) => {
+      const units = (building.units || []).filter((unit) => {
+        const haystack = `${building.name} ${building.description || ''} ${unit.name} ${unit.room || ''}`.toLocaleLowerCase('ru');
+        return !normalized || haystack.includes(normalized);
+      });
+      if (normalized && !units.length && !building.name.toLocaleLowerCase('ru').includes(normalized)) return '';
+      return `<article class="campus-building-card">
+        <div class="campus-building-head"><span class="campus-building-number">${escapeHtml(building.number)}</span><div><h3>${escapeHtml(building.name)}</h3>${building.description ? `<p>${escapeHtml(building.description)}</p>` : ''}</div></div>
+        <ul>${units.length ? units.map((unit) => `<li><span>${escapeHtml(unit.name)}</span><strong>${escapeHtml(unit.room || 'без номера')}</strong></li>`).join('') : '<li class="campus-no-match">Нет совпадений по подразделениям</li>'}</ul>
+      </article>`;
+    }).join('');
+    target.innerHTML = cards || '<p class="campus-empty">Ничего не найдено. Попробуй номер кабинета или название подразделения.</p>';
+  }
+  async function loadCampusDirectory() {
+    if (state.campus) {
+      renderCampusDirectory($('#campus-search')?.value || '');
+      return;
+    }
+    const target = $('#campus-buildings');
+    if (target) target.innerHTML = '<p class="campus-empty">Загружаем справочник…</p>';
+    try {
+      const response = await fetchDataFile('campus.json');
+      state.campus = await response.json();
+      renderCampusDirectory($('#campus-search')?.value || '');
+    } catch {
+      if (target) target.innerHTML = '<p class="campus-empty">Справочник недоступен. Открой приложение с интернетом хотя бы один раз, чтобы сохранить его на устройстве.</p>';
+    }
+  }
+
   function switchView(view) {
     if (view !== 'today') return;
     location.href = './index.html';
@@ -726,7 +764,8 @@
     });
     $('#toggle-notifications')?.addEventListener('click', () => { closeQuickMenu(); toggleLessonReminders(); });
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
-    $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); });
+    $('#open-map').addEventListener('click', () => { closeQuickMenu(); $('#map-dialog').showModal(); loadCampusDirectory(); });
+    $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
