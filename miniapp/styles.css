@@ -415,7 +415,13 @@ button { font-family: inherit; }
 .campus-online-panel { overflow:hidden; border:1px solid var(--line); border-radius:16px; background:var(--surface,#fff); }
 .campus-online-panel[hidden] { display:none !important; }
 .campus-online-head { padding:11px 13px; color:var(--muted); font-size:9px; font-weight:850; letter-spacing:.08em; }
+.campus-map-switch { display:flex; gap:7px; padding:0 12px 9px; }
+.campus-map-switch button { min-height:34px; border:1px solid var(--line); border-radius:10px; padding:0 12px; background:var(--surface,#fff); color:var(--ink); font-size:10px; font-weight:800; cursor:pointer; }
+.campus-map-switch button[aria-pressed="true"] { border-color:var(--forest); background:var(--forest); color:#fff; }
+.campus-map-switch button:focus-visible { outline:3px solid #b8d77f; outline-offset:2px; }
 .campus-online-map { height:clamp(360px,56vh,580px); background:#dbe5d9; }
+.campus-online-map[hidden] { display:none !important; }
+.campus-yandex-map { background:#e8e8e4; }
 .campus-map-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 12px; }
 .campus-online-status { margin:0; color:var(--muted); font-size:10px; line-height:1.45; }
 .campus-map-footer button { flex:0 0 auto; }
@@ -429,5 +435,6 @@ button { font-family: inherit; }
  .campus-online-map { height:clamp(340px,56vh,520px); }
  .campus-map-footer { align-items:stretch; flex-direction:column; }
  .campus-map-footer button { justify-self:stretch; width:100%; }
+ .campus-map-switch button { flex:1; padding:0 7px; }
 }
 @media(prefers-reduced-motion:reduce) { .campus-building-card { transition:none; } }

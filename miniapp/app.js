@@ -631,6 +631,10 @@
   }
 
   let campusOnlineMap = null;
+  let campusYandexMap = null;
+  let campusMapMode = 'offline';
+  let campusYandexApiPromise = null;
+  const YANDEX_MAPS_API_KEY = '46171b6e-a2f6-4d81-8e7b-978252150eb7';
   const campusMapMarkers = new Map();
   let campusMapLibraryPromise = null;
   function loadCampusMapLibrary() {
@@ -654,13 +658,92 @@
     return campusMapLibraryPromise;
   }
   function setCampusMapMode(mode) {
-    const online = mode === 'online';
+    campusMapMode = mode;
+    const online = mode === 'online' || mode === 'yandex';
     const panel = $('#campus-online-panel');
     const offlinePanel = $('#campus-offline-panel');
     if (!panel || !offlinePanel) return;
     panel.hidden = !online;
     offlinePanel.hidden = online;
-    requestAnimationFrame(() => campusOnlineMap?.resize());
+    const osmMap = $('#campus-online-map');
+    const yandexMap = $('#campus-yandex-map');
+    if (osmMap) osmMap.hidden = mode !== 'online';
+    if (yandexMap) yandexMap.hidden = mode !== 'yandex';
+    $('#campus-mode-osm')?.setAttribute('aria-pressed', String(mode === 'online'));
+    $('#campus-mode-yandex')?.setAttribute('aria-pressed', String(mode === 'yandex'));
+    requestAnimationFrame(() => {
+      if (mode === 'online') campusOnlineMap?.resize();
+      if (mode === 'yandex') campusYandexMap?.container.fitToViewport();
+    });
+  }
+  function loadCampusYandexApi() {
+    if (window.ymaps?.Map) return new Promise((resolve) => window.ymaps.ready(() => resolve(window.ymaps)));
+    if (campusYandexApiPromise) return campusYandexApiPromise;
+    campusYandexApiPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(YANDEX_MAPS_API_KEY)}&lang=ru_RU`;
+      script.async = true;
+      script.onload = () => {
+        if (!window.ymaps?.ready) { reject(new Error('Яндекс.Карты не инициализировались')); return; }
+        window.ymaps.ready(() => resolve(window.ymaps));
+      };
+      script.onerror = () => reject(new Error('Не удалось загрузить API Яндекс.Карт'));
+      document.head.appendChild(script);
+    }).catch((error) => {
+      campusYandexApiPromise = null;
+      throw error;
+    });
+    return campusYandexApiPromise;
+  }
+  function fitCampusYandexMap() {
+    if (!campusYandexMap || !state.campus?.buildings?.length) return;
+    const buildings = state.campus.buildings.filter((building) =>
+      Number.isFinite(building.longitude) && Number.isFinite(building.latitude));
+    if (!buildings.length) return;
+    const bounds = [
+      [Math.min(...buildings.map((building) => building.latitude)), Math.min(...buildings.map((building) => building.longitude))],
+      [Math.max(...buildings.map((building) => building.latitude)), Math.max(...buildings.map((building) => building.longitude))]
+    ];
+    campusYandexMap.setBounds(bounds, { checkZoomRange: true, zoomMargin: 42 });
+  }
+  async function openCampusYandexMap() {
+    const status = $('#campus-online-status');
+    if (!state.campus) await loadCampusDirectory();
+    setCampusMapMode('yandex');
+    if (campusYandexMap) {
+      requestAnimationFrame(() => { campusYandexMap.container.fitToViewport(); fitCampusYandexMap(); });
+      return;
+    }
+    status.textContent = 'Подключаем спутниковую карту Яндекса…';
+    try {
+      const ymaps = await loadCampusYandexApi();
+      if (!$('#map-dialog')?.open) return;
+      campusYandexMap = new ymaps.Map('campus-yandex-map', {
+        center: [59.9931, 30.3405],
+        zoom: 15,
+        type: 'yandex#satellite',
+        controls: ['zoomControl', 'typeSelector']
+      });
+      let markerCount = 0;
+      (state.campus?.buildings || []).forEach((building) => {
+        if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
+        const placemark = new ymaps.Placemark([building.latitude, building.longitude], {
+          iconCaption: `Корпус ${building.number}`,
+          balloonContentHeader: escapeHtml(building.name),
+          balloonContentBody: escapeHtml(building.address || '')
+        }, { preset: 'islands#darkGreenCircleDotIconWithCaption' });
+        placemark.events.add('click', () => selectCampusBuilding(building.number, { openPopup: false }));
+        campusYandexMap.geoObjects.add(placemark);
+        markerCount += 1;
+      });
+      fitCampusYandexMap();
+      status.textContent = markerCount === 4
+        ? 'Спутниковая карта Яндекса загружена. На ней отмечены все четыре корпуса.'
+        : `Спутниковая карта Яндекса загружена; отмечено корпусов: ${markerCount} из 4.`;
+    } catch (error) {
+      console.warn('Campus Yandex map failed:', error);
+      status.textContent = `${error.message}. Проверь ключ и ограничение HTTP Referer.`;
+    }
   }
   function fitCampusMapToBuildings(duration = 500) {
     if (!campusOnlineMap || !window.maplibregl) return;
@@ -917,7 +1000,9 @@
     });
     const building = state.campus?.buildings?.find((item) => String(item.number) === selected);
     const mapMarker = campusMapMarkers.get(selected);
-    if (building && campusOnlineMap && mapMarker) {
+    if (building && campusMapMode === 'yandex' && campusYandexMap) {
+      campusYandexMap.setCenter([building.latitude, building.longitude], Math.max(campusYandexMap.getZoom(), 17), { duration: 350 });
+    } else if (building && campusOnlineMap && mapMarker) {
       campusOnlineMap.flyTo({ center: [building.longitude, building.latitude], zoom: Math.max(campusOnlineMap.getZoom(), 16), duration: 450 });
       if (openPopup) mapMarker.togglePopup();
     }
@@ -1076,7 +1161,13 @@
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', openCampusOnlineMap);
-    $('#campus-fit-buildings')?.addEventListener('click', () => fitCampusMapToBuildings());
+    $('#campus-mode-osm')?.addEventListener('click', () => {
+      setCampusMapMode('online');
+      if (campusOnlineMap) fitCampusMapToBuildings();
+      else openCampusOnlineMap();
+    });
+    $('#campus-mode-yandex')?.addEventListener('click', openCampusYandexMap);
+    $('#campus-fit-buildings')?.addEventListener('click', () => campusMapMode === 'yandex' ? fitCampusYandexMap() : fitCampusMapToBuildings());
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
