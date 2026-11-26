@@ -1690,6 +1690,49 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 }
             }
         }
+        "/chat_timezone" => {
+            if !is_group_chat {
+                "Часовой пояс настраивается только в учебном групповом чате.".into()
+            } else if argument.trim().is_empty() {
+                let current: Option<String> = sqlx::query_scalar(
+                    "SELECT timezone FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+                ).bind(message.chat.id.0).fetch_optional(db).await.ok().flatten();
+                current.map(|zone| format!("🌍 Часовой пояс учебного чата: {zone}\nИзменить: /chat_timezone Europe/Helsinki"))
+                    .unwrap_or_else(|| "Сначала привяжите учебную группу: /setgroup название".into())
+            } else {
+                let app_owner: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND owner_telegram_id=$2 AND is_active=TRUE)"
+                ).bind(message.chat.id.0).bind(telegram_id).fetch_one(db).await.unwrap_or(false);
+                let role = crate::services::chat_roles::sync_member(
+                    &bot, db, message.chat.id, telegram_id, None
+                ).await.ok().flatten();
+                if !app_owner && !matches!(role.as_deref(), Some("owner" | "admin")) {
+                    "⛔ Изменять часовой пояс может только владелец SMART CAMPUS или администратор Telegram.".into()
+                } else {
+                    let timezone = argument.trim();
+                    let valid: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)"
+                    ).bind(timezone).fetch_one(db).await.unwrap_or(false);
+                    if !valid {
+                        "Неизвестный часовой пояс. Укажи IANA-идентификатор, например Europe/Moscow, Europe/Helsinki или Asia/Tokyo.".into()
+                    } else {
+                        match sqlx::query(
+                            "UPDATE bot_chat_settings SET timezone=$2,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE"
+                        ).bind(message.chat.id.0).bind(timezone).execute(db).await {
+                            Ok(result) if result.rows_affected()==1 => format!(
+                                "✅ Часовой пояс учебного чата установлен: {timezone}.\nДаты ДЗ, экзаменов, мероприятий и ежедневные публикации теперь используют это время."
+                            ),
+                            Ok(_) => "Сначала привяжите учебную группу: /setgroup название".into(),
+                            Err(error) => {
+                                tracing::error!("Could not update group timezone: {}", error);
+                                "Не удалось сохранить часовой пояс.".into()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         "/daily_time" => {
             if !is_group_chat {
                 "Время публикации настраивается только в групповом чате.".into()
@@ -1711,7 +1754,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     .await
                     {
                         Ok(result) if result.rows_affected() == 1 => format!(
-                            "🕒 Время ежедневной публикации установлено: {} (московское время).",
+                            "🕒 Время ежедневной публикации установлено: {} (местное время учебного чата).",
                             time.format("%H:%M")
                         ),
                         Ok(_) => "Сначала привяжи группу командой /setgroup название.".into(),
@@ -1728,11 +1771,11 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             if !is_group_chat {
                 "Команда работает только в групповом чате.".into()
             } else {
-                match sqlx::query_as::<_, (String, bool, String, bool, bool, Option<i64>)>(
+                match sqlx::query_as::<_, (String, bool, String, bool, bool, Option<i64>, String)>(
                     r#"
                     SELECT g.name, c.daily_schedule_enabled,
                            to_char(c.daily_schedule_time, 'HH24:MI'),
-                           c.lesson_notifications_enabled, c.is_active, c.message_thread_id
+                            c.lesson_notifications_enabled, c.is_active, c.message_thread_id, c.timezone
                     FROM bot_chat_settings c
                     JOIN groups g ON g.id = c.group_id
                     WHERE c.chat_id = $1
@@ -1742,9 +1785,10 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 .fetch_optional(db)
                 .await
                 {
-                    Ok(Some((group, daily, time, notifications, active, thread_id))) => format!(
-                        "⚙️ Настройки учебного чата\nГруппа: {}\nАвтопубликация: {} (ежедневно в {})\nУведомления о парах: {}\nТема публикаций: {}\nИнтеграция: {}\n\nКоманды администратора:\n/chat_topic — выбрать текущую тему\n/chat_topic_off — публиковать в общий чат\n/daily_on — включить расписание каждый день\n/daily_off — выключить\n/daily_time ЧЧ:ММ — время публикации (МСК)\n/chat_notify_on — уведомлять за 10 минут до пары\n/chat_notify_off — выключить уведомления",
+                    Ok(Some((group, daily, time, notifications, active, thread_id, timezone))) => format!(
+                        "⚙️ Настройки учебного чата\nГруппа: {}\nЧасовой пояс: {}\nАвтопубликация: {} (ежедневно в {})\nУведомления о парах: {}\nТема публикаций: {}\nИнтеграция: {}\n\nКоманды администратора:\n/chat_timezone Europe/Helsinki — часовой пояс\n/chat_topic — выбрать текущую тему\n/chat_topic_off — публиковать в общий чат\n/daily_on — включить расписание каждый день\n/daily_off — выключить\n/daily_time ЧЧ:ММ — время публикации\n/chat_notify_on — уведомлять за 10 минут до пары\n/chat_notify_off — выключить уведомления",
                         group,
+                        timezone,
                         if daily { "включена" } else { "выключена" },
                         time,
                         if notifications { "включены" } else { "выключены" },
@@ -2033,10 +2077,11 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("transfer_owner", "Передать владение SMART CAMPUS участнику"),
         BotCommand::new("settings", "Настройки учебного чата"),
         BotCommand::new("chat_settings", "Настройки расписания учебного чата"),
+        BotCommand::new("chat_timezone", "Установить часовой пояс учебного чата"),
         BotCommand::new("roles", "Список ролей и прав модерации"),
         BotCommand::new("daily_on", "Ежедневно публиковать расписание в чате"),
         BotCommand::new("daily_off", "Отключить ежедневное расписание в чате"),
-        BotCommand::new("daily_time", "Установить время публикации ЧЧ:ММ (МСК)"),
+        BotCommand::new("daily_time", "Установить местное время публикации ЧЧ:ММ"),
         BotCommand::new("chat_notify_on", "Уведомлять о парах в чате"),
         BotCommand::new("chat_notify_off", "Отключить уведомления о парах в чате"),
         BotCommand::new("warn", "Выдать предупреждение участнику"),
@@ -2123,15 +2168,15 @@ pub async fn run(state: Arc<AppState>) {
 async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
     let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate, Option<i64>)>(
         r#"
-        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date, c.message_thread_id
+        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE c.timezone)::date, c.message_thread_id
         FROM bot_chat_settings c
         WHERE c.is_active = TRUE
           AND c.daily_schedule_enabled = TRUE
-          AND c.daily_schedule_time <= (now() AT TIME ZONE 'Europe/Moscow')::time
+          AND c.daily_schedule_time <= (now() AT TIME ZONE c.timezone)::time
           AND NOT EXISTS (
               SELECT 1 FROM bot_chat_daily_posts p
               WHERE p.chat_id = c.chat_id
-                AND p.local_date = (now() AT TIME ZONE 'Europe/Moscow')::date
+                 AND p.local_date = (now() AT TIME ZONE c.timezone)::date
                 AND p.delivered_at IS NOT NULL
           )
         "#
@@ -2255,9 +2300,9 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
 /// Sends one group-level homework reminder roughly 24 hours before each deadline.
 /// A delivery key prevents duplicates when the 30-second worker ticks repeatedly.
 async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
-    let rows = sqlx::query_as::<_, (i64, i64, String, String, DateTime<Utc>, Option<i64>)>(
+    let rows = sqlx::query_as::<_, (i64, i64, String, String, String, Option<i64>)>(
         r#"
-        SELECT h.chat_id, h.id, h.subject, h.description, h.due_at, c.message_thread_id
+        SELECT h.chat_id, h.id, h.subject, h.description, to_char(h.due_at AT TIME ZONE c.timezone, 'DD.MM.YYYY "в" HH24:MI') || ' (' || c.timezone || ')', c.message_thread_id
         FROM bot_homework h
         JOIN bot_chat_settings c ON c.chat_id = h.chat_id
         WHERE c.is_active = TRUE
@@ -2282,7 +2327,7 @@ async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         Vec::new()
     });
 
-    for (chat_id, homework_id, subject, description, due_at, thread_id) in rows {
+    for (chat_id, homework_id, subject, description, due_text, thread_id) in rows {
         let reserved = sqlx::query(
             "INSERT INTO bot_group_reminder_deliveries (chat_id, record_type, record_id, telegram_id, reminder_key) VALUES ($1, 'homework', $2, 0, 'day_before') ON CONFLICT DO NOTHING"
         )
@@ -2295,10 +2340,10 @@ async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         }
 
         let message = format!(
-            "📚 Напоминание о домашнем задании\n\nПредмет: {}\nЗадание: {}\nСрок: {} МСК",
+            "📚 Напоминание о домашнем задании\n\nПредмет: {}\nЗадание: {}\nСрок: {}",
             subject,
             description,
-            moscow_time(due_at, "%d.%m.%Y в %H:%M")
+            due_text
         );
         let request = bot.send_message(ChatId(chat_id), message);
         let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
@@ -2323,9 +2368,9 @@ async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
 async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
     // Exams are announced in the configured group; event reminders are private
     // and go only to participants who opted into reminders.
-    let rows = sqlx::query_as::<_, (i64, String, i64, String, DateTime<Utc>, String, Option<i64>, i64)>(
+    let rows = sqlx::query_as::<_, (i64, String, i64, String, String, String, Option<i64>, i64)>(
         r#"
-        SELECT c.chat_id, 'exam', e.id, e.subject, e.exam_at, r.key, c.message_thread_id, 0::bigint
+        SELECT c.chat_id, 'exam', e.id, e.subject, to_char(e.exam_at AT TIME ZONE c.timezone, 'DD.MM.YYYY HH24:MI') || ' (' || c.timezone || ')', r.key, c.message_thread_id, 0::bigint
         FROM bot_exams e
         JOIN bot_chat_settings c ON c.chat_id=e.chat_id
         CROSS JOIN (VALUES ('7d', interval '7 days'), ('3d', interval '3 days'), ('1d', interval '1 day')) AS r(key, lead)
@@ -2333,7 +2378,7 @@ async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
           AND e.exam_at BETWEEN now()+r.lead-interval '30 seconds' AND now()+r.lead
           AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='exam' AND d.record_id=e.id AND d.telegram_id=0 AND d.reminder_key=r.key)
         UNION ALL
-        SELECT c.chat_id, 'event', e.id, e.title, e.starts_at, r.key, NULL::bigint, p.telegram_id
+        SELECT c.chat_id, 'event', e.id, e.title, to_char(e.starts_at AT TIME ZONE c.timezone, 'DD.MM.YYYY HH24:MI') || ' (' || c.timezone || ')', r.key, NULL::bigint, p.telegram_id
         FROM bot_events e
         JOIN bot_chat_settings c ON c.chat_id=e.chat_id
         JOIN bot_event_participants p ON p.chat_id=e.chat_id AND p.event_id=e.id
@@ -2355,7 +2400,7 @@ async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         if !matches!(reserved,Ok(ref r) if r.rows_affected()==1) { continue; }
         let label=if kind=="exam" {"экзамен"} else {"мероприятие"};
         let lead=match key.as_str(){"7d"=>"7 дней","3d"=>"3 дня","1d"=>"1 день","2h"=>"2 часа",_=>"скоро"};
-        let message=format!("🔔 Напоминание: {} через {}\n\n{}\n🕒 {} МСК",label,lead,title,moscow_time(at,"%d.%m.%Y %H:%M"));
+        let message=format!("🔔 Напоминание: {} через {}\n\n{}\n🕒 {}",label,lead,title,at);
         let target=if kind=="event" {telegram_id} else {chat_id};
         let request=bot.send_message(ChatId(target),message);
         let request=if kind=="exam" {

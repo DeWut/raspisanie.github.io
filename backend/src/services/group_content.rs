@@ -39,6 +39,69 @@ fn parse_due(value: &str) -> Option<DateTime<Utc>> {
 }
 
 use chrono::Datelike;
+/// Reads the IANA timezone configured for this Telegram study chat.
+async fn chat_timezone(db: &PgPool, chat_id: i64) -> String {
+    sqlx::query_scalar::<_, String>(
+        "SELECT CASE WHEN EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=c.timezone) THEN c.timezone ELSE 'Europe/Moscow' END FROM bot_chat_settings c WHERE c.chat_id=$1 AND c.is_active=TRUE"
+    ).bind(chat_id).fetch_optional(db).await.ok().flatten()
+        .unwrap_or_else(|| "Europe/Moscow".to_string())
+}
+
+async fn chat_today(db: &PgPool, timezone: &str) -> Option<NaiveDate> {
+    sqlx::query_scalar("SELECT (now() AT TIME ZONE $1)::date")
+        .bind(timezone).fetch_one(db).await.ok()
+}
+
+fn parse_chat_date(value: &str, today: NaiveDate) -> Option<NaiveDate> {
+    match value.trim().to_lowercase().as_str() {
+        "сегодня" => Some(today),
+        "завтра" => today.succ_opt(),
+        "послезавтра" => today.checked_add_days(chrono::Days::new(2)),
+        _ => {
+            if let Ok(date) = NaiveDate::parse_from_str(value.trim(), "%d.%m.%Y") { return Some(date); }
+            let mut parts = value.trim().split('.');
+            let day = parts.next()?.parse::<u32>().ok()?;
+            let month = parts.next()?.parse::<u32>().ok()?;
+            if parts.next().is_some() { return None; }
+            let mut year = today.year();
+            let mut date = NaiveDate::from_ymd_opt(year, month, day)?;
+            if date < today { year = year.checked_add(1)?; date = NaiveDate::from_ymd_opt(year, month, day)?; }
+            Some(date)
+        }
+    }
+}
+
+async fn chat_local_to_utc(db: &PgPool, timezone: &str, local: NaiveDateTime) -> Option<DateTime<Utc>> {
+    sqlx::query_scalar("SELECT $1::timestamp AT TIME ZONE $2")
+        .bind(local).bind(timezone).fetch_optional(db).await.ok().flatten()
+}
+
+async fn parse_chat_due(db: &PgPool, chat_id: i64, value: &str) -> Option<DateTime<Utc>> {
+    let value = value.trim();
+    if value.is_empty() || value.eq_ignore_ascii_case("нет") || value.eq_ignore_ascii_case("без срока") { return None; }
+    let timezone = chat_timezone(db, chat_id).await;
+    let today = chat_today(db, &timezone).await?;
+    let date = parse_chat_date(value, today)?;
+    let local = NaiveDateTime::new(date, NaiveTime::from_hms_opt(23, 59, 0)?);
+    chat_local_to_utc(db, &timezone, local).await
+}
+
+async fn parse_chat_datetime(db: &PgPool, chat_id: i64, value: &str) -> Option<DateTime<Utc>> {
+    let (date_part, time_part) = value.trim().split_once(' ')?;
+    let time = NaiveTime::parse_from_str(time_part.trim(), "%H:%M").ok()?;
+    let timezone = chat_timezone(db, chat_id).await;
+    let today = chat_today(db, &timezone).await?;
+    let date = parse_chat_date(date_part, today)?;
+    chat_local_to_utc(db, &timezone, NaiveDateTime::new(date, time)).await
+}
+
+async fn format_chat_datetime(db: &PgPool, chat_id: i64, value: DateTime<Utc>, sql_format: &str, fallback_format: &str) -> String {
+    let formatted = sqlx::query_scalar::<_, String>(
+        "SELECT to_char($1::timestamptz AT TIME ZONE COALESCE((SELECT CASE WHEN EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=timezone) THEN timezone ELSE 'Europe/Moscow' END FROM bot_chat_settings WHERE chat_id=$2 AND is_active=TRUE), 'Europe/Moscow'), $3)"
+    ).bind(value).bind(chat_id).bind(sql_format).fetch_optional(db).await.ok().flatten();
+    formatted.unwrap_or_else(|| value.with_timezone(&moscow()).format(fallback_format).to_string())
+}
+
 
 async fn permitted(db: &PgPool, chat_id: i64, actor: i64, section: &str) -> bool {
     let is_owner: bool = sqlx::query_scalar(
@@ -88,7 +151,7 @@ pub async fn handle_homework(
             if rows.is_empty() { return Some("🎉 У тебя нет невыполненных заданий в этом чате.".into()); }
             let mut out=String::from("📌 МОИ НЕВЫПОЛНЕННЫЕ ЗАДАНИЯ\n\n");
             for (id,subject,description,due) in rows {
-                let due=due.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"срок не указан".into());
+                let due=match due { Some(value)=>format_chat_datetime(db,chat_id,value,"DD.MM HH24:MI","%d.%m %H:%M").await, None=>"срок не указан".into() };
                 out.push_str(&format!("#{id} · {subject}\n{description}\nСрок: {due}\n\n"));
             }
             Some(out)
@@ -107,7 +170,7 @@ pub async fn handle_homework(
             if rows.is_empty() { return Some("📚 Активных домашних заданий пока нет.\nДобавить: /add_dz Предмет | задание | срок".into()); }
             let mut out = String::from("📚 ДОМАШНИЕ ЗАДАНИЯ\n\n");
             for (id, subject, description, due, priority, status) in rows {
-                let due = due.map(|d| d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(|| "к следующей паре".into());
+                let due=match due { Some(value)=>format_chat_datetime(db,chat_id,value,"DD.MM HH24:MI","%d.%m %H:%M").await, None=>"к следующей паре".into() };
                 out.push_str(&format!("#{id} · {subject}{}\n{}\nСрок: {due} · {}\n\n",
                     if priority=="urgent" {" 🔥"} else {""}, description,
                     if status=="completed" {"✅ выполнено тобой"} else {"не отмечено"}));
@@ -121,7 +184,7 @@ pub async fn handle_homework(
             }
             let explicit_due = parts.get(2).copied().unwrap_or("");
             let no_due = matches!(explicit_due.to_lowercase().as_str(), "-" | "нет" | "без срока");
-            let due = if no_due { None } else { parse_due(explicit_due) };
+            let due = if no_due { None } else { parse_chat_due(db, chat_id, explicit_due).await };
             if !explicit_due.is_empty() && !no_due && due.is_none() {
                 return Some("Не понял срок. Используй: завтра, послезавтра, ДД.ММ или «без срока».".into());
             }
@@ -144,8 +207,13 @@ pub async fn handle_homework(
              .bind(next_lesson.as_ref().map(|(id,_)| *id))
              .bind(next_lesson.as_ref().map(|(_,at)| *at))
              .bind(actor).fetch_optional(db).await.ok().flatten();
+                let deadline_text = match deadline {
+                    Some(value) => format_chat_datetime(db, chat_id, value, "DD.MM HH24:MI", "%d.%m %H:%M").await,
+                    None if no_due => "не указан".into(),
+                    None => "не удалось найти следующую пару по этому предмету — укажи срок вручную".into(),
+                };
             match id {
-                Some(id) => Some(format!("✅ Домашнее задание добавлено!\n#{id} · {}\n{}\nСрок: {}",parts[0],parts[1],deadline.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||if no_due {"не указан".into()}else{"не удалось найти следующую пару по этому предмету — укажи срок вручную".into()}))),
+                Some(id) => Some(format!("✅ Домашнее задание добавлено!\n#{id} · {}\n{}\nСрок: {}",parts[0],parts[1],deadline_text)),
                 None => Some("Не удалось добавить задание. Проверь, что группа настроена.".into())
             }
         }
@@ -155,7 +223,7 @@ pub async fn handle_homework(
             let id=match parts[0].parse::<i64>() { Ok(v) if v>0=>v,_=>return Some("Укажи корректный ID задания.".into()) };
             let due_text=parts.get(3).copied().unwrap_or("");
             let clear_due=matches!(due_text.to_lowercase().as_str(), "-" | "нет" | "без срока");
-            let due=if due_text.is_empty() || clear_due {None}else{parse_due(due_text)};
+            let due=if due_text.is_empty() || clear_due {None}else{parse_chat_due(db, chat_id, due_text).await};
             if !due_text.is_empty() && !clear_due && due.is_none() { return Some("Не понял срок. Используй: завтра, послезавтра, ДД.ММ или «без срока».".into()); }
             let result=sqlx::query("UPDATE bot_homework SET subject=$3,description=$4,due_at=CASE WHEN $6::boolean THEN NULL WHEN $5::timestamptz IS NOT NULL THEN $5 ELSE due_at END,due_lesson_id=CASE WHEN $6::boolean OR $5::timestamptz IS NOT NULL THEN NULL ELSE due_lesson_id END,due_lesson_at=CASE WHEN $6::boolean OR $5::timestamptz IS NOT NULL THEN NULL ELSE due_lesson_at END,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
                 .bind(chat_id).bind(id).bind(parts[1]).bind(parts[2]).bind(due).bind(clear_due).execute(db).await;
@@ -221,7 +289,8 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             if rows.is_empty() { return Some("📝 Экзаменов пока нет. Добавить: /add_exam Предмет | ДД.ММ.ГГГГ ЧЧ:ММ | аудитория | формат | темы | литература | описание".into()); }
             let mut out=String::from("📝 ЭКЗАМЕНЫ\n\n");
             for (id,subject,at,room,format,topics,literature,details) in rows {
-                let mut item=format!("#{id} · {subject}\n🕒 {} МСК\n",at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"));
+                let local_at=format_chat_datetime(db,chat_id,at,"DD.MM.YYYY HH24:MI","%d.%m.%Y %H:%M").await;
+                let mut item=format!("#{id} · {subject}\n🕒 {local_at} (время чата)\n");
                 for (label,value) in [("Аудитория",room),("Формат",format),("Темы",topics),("Литература",literature),("Описание",details)] {
                     if let Some(value)=value.filter(|v| !v.trim().is_empty()) {
                         let short:String=value.trim().chars().take(180).collect();
@@ -239,7 +308,7 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
         "/add_exam" => {
             let p:Vec<_>=argument.splitn(7,'|').map(str::trim).collect();
             if p.len()<2 || p[0].is_empty() { return Some("Формат: /add_exam Предмет | ДД.ММ.ГГГГ ЧЧ:ММ | аудитория | формат | темы | литература | описание".into()); }
-            let Some(at)=parse_moscow_datetime(p[1]) else { return Some("Дата: завтра 09:30 или 15.12.2026 09:30".into()); };
+            let Some(at)=parse_chat_datetime(db, chat_id, p[1]).await else { return Some("Не удалось разобрать дату в часовом поясе этого чата. Пример: завтра 09:30 или 15.12.2026 09:30".into()); };
             let field=|index:usize| p.get(index).copied().filter(|v| !v.is_empty() && *v!="-");
             let id:Option<i64>=sqlx::query_scalar("WITH n AS (UPDATE bot_chat_settings SET exam_next_id=exam_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING exam_next_id-1) INSERT INTO bot_exams(chat_id,id,subject,exam_at,room,format,topics,literature,details,created_by) SELECT $1,n.exam_next_id-1,$2,$3,$4,$5,$6,$7,$8,$9 FROM n RETURNING id")
                 .bind(chat_id).bind(p[0]).bind(at).bind(field(2)).bind(field(3)).bind(field(4)).bind(field(5)).bind(field(6)).bind(actor).fetch_optional(db).await.ok().flatten();
@@ -250,7 +319,7 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             if p.len()<3 || p[1].is_empty() { return Some("Формат: /edit_exam ID | предмет | дата время | аудитория | формат | темы | литература | описание".into()); }
             let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
             if id<=0 { return Some("Некорректный ID.".into()); }
-            let Some(at)=parse_moscow_datetime(p[2]) else { return Some("Дата: 15.12.2026 09:30".into()); };
+            let Some(at)=parse_chat_datetime(db, chat_id, p[2]).await else { return Some("Не удалось разобрать дату в часовом поясе этого чата. Пример: 15.12.2026 09:30".into()); };
             let result=sqlx::query("UPDATE bot_exams SET subject=$3,exam_at=$4,room=CASE WHEN $5::text IS NULL THEN room WHEN $5='-' THEN NULL ELSE NULLIF($5,'') END,format=CASE WHEN $6::text IS NULL THEN format WHEN $6='-' THEN NULL ELSE NULLIF($6,'') END,topics=CASE WHEN $7::text IS NULL THEN topics WHEN $7='-' THEN NULL ELSE NULLIF($7,'') END,literature=CASE WHEN $8::text IS NULL THEN literature WHEN $8='-' THEN NULL ELSE NULLIF($8,'') END,details=CASE WHEN $9::text IS NULL THEN details WHEN $9='-' THEN NULL ELSE NULLIF($9,'') END,updated_at=now() WHERE chat_id=$1 AND id=$2 AND status='active'")
                 .bind(chat_id).bind(id).bind(p[1]).bind(at).bind(p.get(3).copied()).bind(p.get(4).copied()).bind(p.get(5).copied()).bind(p.get(6).copied()).bind(p.get(7).copied()).execute(db).await;
             Some(match result { Ok(r) if r.rows_affected()==1=>format!("✏️ Экзамен #{id} обновлён."),Ok(_)=>"Экзамен не найден.".into(),Err(_)=>"Ошибка обновления экзамена.".into() })
@@ -278,7 +347,8 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             for (id,title,at,location,description,capacity,waitlist_enabled,going,waiting) in rows {
                 let capacity_text=capacity.map(|limit|format!("{going}/{limit} мест занято")).unwrap_or_else(||format!("{going} записались"));
                 let queue_text=if waitlist_enabled {format!(" · очередь: {waiting}")} else {" · очередь отключена".into()};
-                let mut item=format!("#{id} · {title}\n🕒 {} МСК\n📍 {}\n👥 {capacity_text}{queue_text}\n",at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),location.unwrap_or_else(||"Место уточняется".into()));
+                let local_at=format_chat_datetime(db,chat_id,at,"DD.MM.YYYY HH24:MI","%d.%m.%Y %H:%M").await;
+                let mut item=format!("#{id} · {title}\n🕒 {local_at} (время чата)\n📍 {}\n👥 {capacity_text}{queue_text}\n",location.unwrap_or_else(||"Место уточняется".into()));
                 if let Some(description)=description.filter(|v|!v.trim().is_empty()) {
                     let short:String=description.trim().chars().take(220).collect();
                     item.push_str(&format!("ℹ️ {short}\n"));
@@ -294,7 +364,7 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
         "/add_event" => {
             let p:Vec<_>=argument.splitn(4,'|').map(str::trim).collect();
             if p.len()<2 || p[0].is_empty() { return Some("Формат: /add_event Название | ДД.ММ.ГГГГ ЧЧ:ММ | место | описание".into()); }
-            let Some(at)=parse_moscow_datetime(p[1]) else { return Some("Дата: завтра 18:00 или 20.12.2026 18:00".into()); };
+            let Some(at)=parse_chat_datetime(db, chat_id, p[1]).await else { return Some("Не удалось разобрать дату в часовом поясе этого чата. Пример: завтра 18:00 или 20.12.2026 18:00".into()); };
             let field=|index:usize|p.get(index).copied().filter(|v|!v.is_empty()&&*v!="-");
             let id:Option<i64>=sqlx::query_scalar("WITH n AS (UPDATE bot_chat_settings SET event_next_id=event_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING event_next_id-1) INSERT INTO bot_events(chat_id,id,title,starts_at,location,description,created_by) SELECT $1,n.event_next_id-1,$2,$3,$4,$5,$6 FROM n RETURNING id")
                 .bind(chat_id).bind(p[0]).bind(at).bind(field(2)).bind(field(3)).bind(actor).fetch_optional(db).await.ok().flatten();
@@ -305,7 +375,7 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
             if p.len()<3 || p[1].is_empty() { return Some("Формат: /edit_event ID | название | дата время | место | описание".into()); }
             let Ok(id)=p[0].parse::<i64>() else { return Some("Некорректный ID.".into()); };
             if id<=0 { return Some("Некорректный ID.".into()); }
-            let Some(at)=parse_moscow_datetime(p[2]) else { return Some("Дата: 20.12.2026 18:00".into()); };
+            let Some(at)=parse_chat_datetime(db, chat_id, p[2]).await else { return Some("Не удалось разобрать дату в часовом поясе этого чата. Пример: 20.12.2026 18:00".into()); };
             let mut tx=match db.begin().await {
                 Ok(tx)=>tx,
                 Err(_)=>return Some("Не удалось начать изменение мероприятия.".into()),
@@ -342,7 +412,9 @@ pub async fn handle_exams_events(bot: &Bot, db: &PgPool, chat_id: i64, actor: i6
                 Some("-")|Some("")=>"",
                 Some(value)=>value,
             };
-            let notice=format!("✏️ Мероприятие #{id} обновлено: {}\n🕒 {} МСК\n📍 {}{}",p[1],at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),location,if description.is_empty(){"".into()}else{format!("\nℹ️ {description}")});
+            let local_at=format_chat_datetime(db,chat_id,at,"DD.MM.YYYY HH24:MI","%d.%m.%Y %H:%M").await;
+            let timezone=chat_timezone(db,chat_id).await;
+            let notice=format!("✏️ Мероприятие #{id} обновлено: {}\n🕒 {} ({})\n📍 {}{}",p[1],local_at,timezone,location,if description.is_empty(){"".into()}else{format!("\nℹ️ {description}")});
             let mut notified=0usize;
             let mut failed=0usize;
             for user in recipients {
@@ -765,7 +837,7 @@ pub async fn handle_group_tools(
             if !homework.is_empty() {
                 out.push_str("📚 ДОМАШНИЕ ЗАДАНИЯ\n");
                 for (id,subject,description,due) in homework {
-                    let due=due.map(|v|v.with_timezone(&moscow()).format("%d.%m.%Y %H:%M").to_string()).unwrap_or_else(||"без срока".into());
+                    let due=match due { Some(value)=>format_chat_datetime(db,chat_id,value,"DD.MM.YYYY HH24:MI","%d.%m.%Y %H:%M").await, None=>"без срока".into() };
                     out.push_str(&format!("#{id} · {subject}\n{description}\nСрок: {due}\n\n"));
                 }
             }
@@ -785,8 +857,9 @@ pub async fn handle_group_tools(
             if !exams.is_empty() {
                 out.push_str("📝 ЭКЗАМЕНЫ\n");
                 for (id,subject,at,format,topics) in exams {
-                    out.push_str(&format!("#{id} · {subject}\n{} МСК{}{}\n\n",
-                        at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),
+                    let local_at=format_chat_datetime(db,chat_id,at,"DD.MM.YYYY HH24:MI","%d.%m.%Y %H:%M").await;
+                    out.push_str(&format!("#{id} · {subject}\n{} (время чата){}{}\n\n",
+                        local_at,
                         format.map(|v|format!(" · {v}")).unwrap_or_default(),
                         topics.map(|v|format!("\nТемы: {}",v.chars().take(120).collect::<String>())).unwrap_or_default()));
                 }
@@ -794,8 +867,9 @@ pub async fn handle_group_tools(
             if !events.is_empty() {
                 out.push_str("🎉 МЕРОПРИЯТИЯ\n");
                 for (id,title,at,location) in events {
-                    out.push_str(&format!("#{id} · {title}\n{} МСК · {}\n\n",
-                        at.with_timezone(&moscow()).format("%d.%m.%Y %H:%M"),
+                    let local_at=format_chat_datetime(db,chat_id,at,"DD.MM.YYYY HH24:MI","%d.%m.%Y %H:%M").await;
+                    out.push_str(&format!("#{id} · {title}\n{} (время чата) · {}\n\n",
+                        local_at,
                         location.unwrap_or_else(||"место уточняется".into())));
                 }
             }
