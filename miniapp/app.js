@@ -846,12 +846,92 @@
     }
     return context.getImageData(0, 0, size, size);
   }
+  function createCampusFacadeDetails(scene) {
+    const features = [];
+    const toMeters = (point, referenceLat) => [
+      point[0] * 111320 * Math.cos(referenceLat * Math.PI / 180),
+      point[1] * 111320
+    ];
+    const toLngLat = (point, referenceLat) => [
+      point[0] / (111320 * Math.cos(referenceLat * Math.PI / 180)),
+      point[1] / 111320
+    ];
+    scene.features.filter((feature) => feature.properties?.kind === 'building').forEach((building) => {
+      const properties = building.properties;
+      const levels = Number(properties.levels);
+      const height = Number(properties.heightMeters);
+      if (!Number.isFinite(levels) || levels < 2 || !Number.isFinite(height) || height < 7) return;
+      const floorHeight = height / levels;
+      const polygons = building.geometry.type === 'Polygon'
+        ? [building.geometry.coordinates]
+        : building.geometry.type === 'MultiPolygon' ? building.geometry.coordinates : [];
+      polygons.forEach((polygon) => {
+        const ring = polygon[0];
+        if (!ring || ring.length < 4) return;
+        const latitude = ring.reduce((sum, point) => sum + point[1], 0) / ring.length;
+        const points = ring.map((point) => toMeters(point, latitude));
+        let area = 0;
+        for (let index = 0; index < points.length - 1; index += 1) {
+          area += points[index][0] * points[index + 1][1] - points[index + 1][0] * points[index][1];
+        }
+        const orientation = Math.sign(area) || 1;
+        for (let index = 0; index < points.length - 1; index += 1) {
+          const start = points[index];
+          const end = points[index + 1];
+          const dx = end[0] - start[0];
+          const dy = end[1] - start[1];
+          const length = Math.hypot(dx, dy);
+          if (length < 5) continue;
+          const count = Math.floor(length / 2.7);
+          if (count < 1) continue;
+          const tx = dx / length;
+          const ty = dy / length;
+          const nx = orientation > 0 ? ty : -ty;
+          const ny = orientation > 0 ? -tx : tx;
+          for (let column = 0; column < count; column += 1) {
+            const centerAlong = ((column + 0.5) / count) * length;
+            const center = [start[0] + tx * centerAlong, start[1] + ty * centerAlong];
+            for (let floor = 0; floor < Math.min(5, levels); floor += 1) {
+              const bottom = floor * floorHeight + Math.min(0.55, floorHeight * 0.18);
+              const top = Math.min(height - 0.3, bottom + Math.min(1.35, floorHeight * 0.56));
+              if (top <= bottom + 0.35) continue;
+              const makePanel = (width, depth, outset) => {
+                const half = width / 2;
+                const outer = [
+                  [center[0] - tx * half + nx * outset, center[1] - ty * half + ny * outset],
+                  [center[0] + tx * half + nx * outset, center[1] + ty * half + ny * outset],
+                  [center[0] + tx * half + nx * (outset + depth), center[1] + ty * half + ny * (outset + depth)],
+                  [center[0] - tx * half + nx * (outset + depth), center[1] - ty * half + ny * (outset + depth)]
+                ].map((point) => {
+                  const lngLat = toLngLat(point, latitude);
+                  return [lngLat[0], lngLat[1]];
+                });
+                outer.push(outer[0]);
+                return outer;
+              };
+              const id = `${properties.osmId}-${index}-${column}-${floor}`;
+              const paneColor = properties.cladding === 'brick' ? '#49666a' : '#526d72';
+              features.push({ type: 'Feature', id: `frame-${id}`, properties: {
+                kind: 'facade-frame', heightMeters: top + 0.06, baseMeters: bottom - 0.05,
+                color: properties.cladding === 'brick' ? '#d7b69a' : '#e7ddc8'
+              }, geometry: { type: 'Polygon', coordinates: [makePanel(1.15, 0.08, 0.02)] } });
+              features.push({ type: 'Feature', id: `pane-${id}`, properties: {
+                kind: 'facade-pane', heightMeters: top, baseMeters: bottom, color: paneColor
+              }, geometry: { type: 'Polygon', coordinates: [makePanel(0.86, 0.1, 0.105)] } });
+            }
+          }
+        }
+      });
+    });
+    return { type: 'FeatureCollection', features };
+  }
   async function addCampusParkLayers(map) {
     const dataUrl = new URL('../data/campus-park-scene.json', APP_SCRIPT_URL).href;
     const response = await fetch(dataUrl, { cache: 'force-cache' });
     if (!response.ok) throw new Error(`Геометрия парка: HTTP ${response.status}`);
     const scene = await response.json();
     if (campusOnlineMap !== map) return null;
+    const facadeDetails = createCampusFacadeDetails(scene);
     if (!map.hasImage('campus-woodland-texture')) {
       map.addImage('campus-woodland-texture', createCampusWoodlandTexture(), { pixelRatio: 1 });
     }
@@ -928,6 +1008,29 @@
         'fill-extrusion-vertical-gradient': false
       }
     });
+    if (facadeDetails.features.length) {
+      map.addSource('campus-facade-details', { type: 'geojson', data: facadeDetails });
+      map.addLayer({
+        id: 'campus-facade-frames', type: 'fill-extrusion', source: 'campus-facade-details', minzoom: 15,
+        filter: ['==', ['get', 'kind'], 'facade-frame'],
+        paint: {
+          'fill-extrusion-color': ['get', 'color'],
+          'fill-extrusion-height': ['get', 'heightMeters'],
+          'fill-extrusion-base': ['get', 'baseMeters'],
+          'fill-extrusion-vertical-gradient': false
+        }
+      });
+      map.addLayer({
+        id: 'campus-facade-panes', type: 'fill-extrusion', source: 'campus-facade-details', minzoom: 15,
+        filter: ['==', ['get', 'kind'], 'facade-pane'],
+        paint: {
+          'fill-extrusion-color': ['get', 'color'],
+          'fill-extrusion-height': ['get', 'heightMeters'],
+          'fill-extrusion-base': ['get', 'baseMeters'],
+          'fill-extrusion-vertical-gradient': false
+        }
+      });
+    }
     map.addLayer({
       id: 'campus-park-tree-trunks', type: 'fill-extrusion', source: 'campus-park-scene', minzoom: 13,
       filter: ['==', ['get', 'kind'], 'tree-trunk'],
