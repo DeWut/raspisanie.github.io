@@ -160,3 +160,11 @@ The data source/engine research is complete enough to choose CesiumJS, but actua
 - Research references: https://yandex.com/maps-api/docs/tiles-api/index.html ; https://yandex.ru/legal/maps_api/ru/ ; https://cesium.com/platform/cesiumjs/ .
 - Next data task: import and validate the broader Overture/OSM extraction (256 building footprints, 715 road/path lines, 32 waterways, 10 water areas, 89 land-use polygons in the current extract). Keep the source and licence metadata with the data. The extract has not yet been committed in this change.
 - Current Cesium scene still uses the existing 294-feature local snapshot (35 buildings). This commit changes provider behaviour and truthful UI wording; it does not claim the larger extraction has been integrated.
+
+
+## Yandex satellite mode and key handling (2026-11-27)
+
+- The separate Yandex satellite map remains available as a 2D map mode using the official Yandex Maps JavaScript API 2.1. It is not used as a Cesium imagery provider and Yandex panorama imagery is not embedded into third-party map surfaces.
+- The previously hard-coded Yandex API key was removed because keys committed to a public repository must be treated as exposed. The app now reads an optional `yandexMapsApiKey` from `window.CAMPUS_MAP_CONFIG`; the checked-in config keeps it empty. A replacement key must be created/rotated by the project owner and restricted to the deployed HTTP referrer before use.
+- Yandex's current terms require an API key; panorama display is only permitted within the Yandex Maps JS API/Panorama Player service, with a stated 100 panorama requests/day free limit. Yandex JS API v3 does not include satellite imagery by default; the current separate mode intentionally uses v2.1's documented satellite type.
+- Sources: https://yandex.ru/legal/maps_api/ru/ ; https://yandex.com/maps-api/docs/js-api/quickstart.html ; https://yandex.ru/dev/jsapi-v2-1/doc/ru/v2-1/dg/concepts/panoramas/yandex-panoramas .
