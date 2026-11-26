@@ -684,15 +684,19 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         }
     }
 
-    if is_group_chat && matches!(command, "/dz" | "/homework" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done") {
-        if matches!(command, "/add_dz" | "/edit_dz" | "/delete_dz") {
-            let _ = crate::services::chat_roles::sync_member(
-                &bot, db, message.chat.id, telegram_id, None
-            ).await;
+    if is_group_chat && matches!(command, "/dz" | "/homework" | "/add_dz" | "/edit_dz" | "/delete_dz" | "/done" | "/my_dz" | "/priority_dz") {
+        if matches!(command, "/add_dz" | "/edit_dz" | "/delete_dz" | "/priority_dz") {
+            let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
         }
-        if let Some(answer) = crate::services::group_content::handle_homework(
-            db, message.chat.id.0, telegram_id, command, argument
-        ).await {
+        if let Some(answer) = crate::services::group_content::handle_homework(db, message.chat.id.0, telegram_id, command, argument).await {
+            reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
+            return Ok(());
+        }
+    }
+
+    if is_group_chat && matches!(command, "/content_rights" | "/content_editor") {
+        let _ = crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await;
+        if let Some(answer) = crate::services::group_content::handle_content_admin(db, message.chat.id.0, telegram_id, command, argument).await {
             reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
             return Ok(());
         }
@@ -1951,6 +1955,10 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("edit_dz", "Изменить ДЗ по ID"),
         BotCommand::new("delete_dz", "Убрать ДЗ по ID"),
         BotCommand::new("done", "Отметить ДЗ выполненным для себя"),
+        BotCommand::new("my_dz", "Мои невыполненные задания"),
+        BotCommand::new("priority_dz", "Изменить приоритет ДЗ"),
+        BotCommand::new("content_rights", "Настроить права разделов"),
+        BotCommand::new("content_editor", "Назначить редактора раздела"),
         BotCommand::new("exams", "Список экзаменов и зачётов"),
         BotCommand::new("add_exam", "Добавить экзамен"),
         BotCommand::new("edit_exam", "Изменить экзамен"),
