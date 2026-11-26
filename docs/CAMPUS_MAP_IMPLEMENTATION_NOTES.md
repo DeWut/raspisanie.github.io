@@ -140,3 +140,11 @@ The data source/engine research is complete enough to choose CesiumJS, but actua
 - The existing Yandex mode remains separate and unchanged.
 - No API key is committed. The current deployed configuration is intentionally blank and the Cesium mode explains the setup requirement. Real photorealistic imagery will not load until the site owner supplies an authorised browser key and confirms coverage for the campus.
 - UI controls and the local offline map remain available in the absence of the Google configuration.
+
+## Cesium local campus scene and directory overlay implemented (2026-11-27)
+- CesiumJS now renders the repository's existing `data/campus-park-scene.json` as a real georeferenced local 3D scene when no Google API key is configured. This is not labelled as photorealistic.
+- The scene styles existing OSM-derived building footprints/extrusions, park boundary, green areas, water, paths, tree trunks and illustrative tree crowns. Building heights are extruded only where the source scene marks them as known; unknown footprints remain low, neutral geometry.
+- Four directory markers are placed from `data/campus.json`; clicking a marker selects the matching campus building, and selecting a directory card moves the Cesium camera to that building.
+- When a valid Google key is configured, the app requests Google Photorealistic 3D Tiles and draws a subdued OSM geometry overlay and the four directory markers above it. If the tile request fails, the local Cesium scene stays visible rather than blanking the map.
+- Updated CesiumJS distribution reference to 1.138, the HTML asset query version and the Service Worker shell cache.
+- Data limitations: the Cesium local overlay uses the 35 building geometries already committed in the campus scene. The separate TerraLab extraction found 291 building footprints, but the full extracted GeoJSON is not yet committed into this repository. It remains a later data integration task. The 291 footprints are not photogrammetric models.
