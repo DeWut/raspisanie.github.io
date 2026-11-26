@@ -19,10 +19,6 @@ pub async fn sync_member(
     .await
     .map_err(|e| e.to_string())?;
 
-    if !configured {
-        return Ok(None);
-    }
-
     let user_id = u64::try_from(telegram_id).map_err(|e| e.to_string())?;
     let member = bot
         .get_chat_member(chat_id, UserId(user_id))
@@ -40,8 +36,6 @@ pub async fn sync_member(
         }
     }
 
-    remember_member_identity(db, chat_id, telegram_id, actual_username).await?;
-
     let (status, telegram_role) = if member.kind.is_owner() {
         ("creator", Some("owner"))
     } else if member.kind.is_administrator() {
@@ -55,6 +49,20 @@ pub async fn sync_member(
     } else {
         ("member", None)
     };
+
+    // During first-time setup there is no bot_chat_settings row yet, so
+    // bot_chat_members cannot be written (it has a foreign key to settings).
+    // Still return Telegram's verified creator/admin role so /setgroup can
+    // authorize and create the initial settings row.
+    if !configured {
+        return Ok(match telegram_role {
+            Some("owner") => Some("owner".to_owned()),
+            Some("admin") => Some("admin".to_owned()),
+            _ => None,
+        });
+    }
+
+    remember_member_identity(db, chat_id, telegram_id, actual_username).await?;
 
     let mut tx = db.begin().await.map_err(|e| e.to_string())?;
 
