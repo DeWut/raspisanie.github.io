@@ -5,9 +5,11 @@ on:
     branches:
       - main
       - feature/smart-campus-step-1
+      - feature/campus-map-realism-scroll
   pull_request:
     branches:
       - main
+      - feature/smart-campus-step-1
 
 permissions:
   contents: read
@@ -29,6 +31,7 @@ jobs:
       - name: Check Mini App and offline scripts
         run: |
           node --check miniapp/app.js
+          node --check miniapp/campus-map-config.js
           node --check service-worker.js
           node --check scripts/prepare-mobile.mjs
 

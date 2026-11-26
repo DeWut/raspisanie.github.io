@@ -1,0 +1,38 @@
+name: Refresh campus OSM geometry
+on:
+  push:
+    branches: [feature/campus-map-realism-scroll]
+    paths:
+      - "scripts/update-campus-osm.py"
+      - ".github/workflows/refresh-campus-osm.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 1 * *"
+permissions:
+  contents: write
+concurrency:
+  group: campus-osm-refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/campus-map-realism-scroll
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download and build OSM campus snapshot
+        run: python scripts/update-campus-osm.py
+      - name: Commit updated geometry when changed
+        run: |
+          if git diff --quiet -- data/campus-open-data.geojson; then
+            echo "Campus geometry is unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/campus-open-data.geojson
+          git commit -m "Refresh campus OSM geometry"
+          git push origin HEAD:feature/campus-map-realism-scroll

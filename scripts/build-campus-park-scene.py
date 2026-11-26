@@ -63,17 +63,19 @@ def stitch_role_rings(relation: ET.Element, role: str, ways: dict[str, ET.Elemen
     return rings
 
 
-def height_for(tags: dict[str, str]) -> tuple[float, str]:
+def height_for(tags: dict[str, str]) -> tuple[float | None, str]:
+    """Return only sourced heights; unknown heights stay unknown, never a fake extrusion."""
     match = re.search(r"\d+(?:[.,]\d+)?", tags.get("height", ""))
     if match:
-        return max(3.5, min(70.0, float(match.group().replace(",", ".")))), "OSM height"
+        return max(1.0, min(100.0, float(match.group().replace(",", ".")))), "OSM height"
     levels = re.search(r"\d+", tags.get("building:levels", tags.get("levels", "")))
     if levels:
-        return max(3.5, min(70.0, int(levels.group()) * 3.4)), "OSM levels × 3.4 m"
-    return 8.0, "visual default; height not mapped in OSM"
+        return max(1.0, min(100.0, int(levels.group()) * 3.4)), "OSM levels × 3.4 m (estimate)"
+    return None, "unknown; height not mapped in OSM"
 
 
-def display_building_colour(tags: dict[str, str], object_id: str) -> str:
+def display_building_colour(tags: dict[str, str], object_id: str) -> str | None:
+    """Return a facade colour only when the source explicitly tags one."""
     explicit = tags.get("building:colour", tags.get("colour", "")).strip().lower()
     if re.fullmatch(r"#[0-9a-f]{6}", explicit):
         return explicit
@@ -83,20 +85,7 @@ def display_building_colour(tags: dict[str, str], object_id: str) -> str:
         "brown": "#89634c", "green": "#7d9978", "blue": "#758c98",
         "grey": "#aaa69d", "gray": "#aaa69d", "grayish": "#aaa69d",
     }
-    if explicit in named_colours:
-        return named_colours[explicit]
-
-    material = tags.get("building:material", tags.get("building:cladding", tags.get("cladding", ""))).split(";")[0].strip().lower()
-    material_colours = {
-        "brick": "#ae7159", "masonry": "#bca88e", "stone": "#c8b99f",
-        "plaster": "#ded2bf", "stucco": "#d9cdb8", "wood": "#927052",
-        "concrete": "#aaa89f", "glass": "#718b8c", "metal": "#92958e",
-    }
-    if material in material_colours:
-        return material_colours[material]
-
-    palette = ["#dfcba8", "#c98768", "#e5d9bf", "#b98568", "#d5bd96"]
-    return palette[sum(ord(char) for char in object_id) % len(palette)]
+    return named_colours.get(explicit)
 
 
 def make_multipolygon(outer_rings: list[list[list[float]]], inner_rings: list[list[list[float]]]) -> list[list[list[list[float]]]]:
@@ -204,7 +193,7 @@ def main() -> None:
         properties = {"kind": "building", "osmId": building_id,
                       "name": building_tags.get("name:ru") or building_tags.get("name", ""),
                       "osmBuilding": building_tags.get("building", ""), "levels": building_tags.get("building:levels", ""),
-                      "heightMeters": height, "heightSource": height_source,
+                      "heightMeters": height, "heightSource": height_source, "heightKnown": height is not None,
                       "styleColor": display_building_colour(building_tags, building_id),
                       "cladding": building_tags.get("building:material", building_tags.get("building:cladding", building_tags.get("cladding", ""))),
                       "roofShape": building_tags.get("roof:shape", ""),
@@ -276,7 +265,7 @@ def main() -> None:
             properties = {"kind": kind, "osmId": osm_id, "name": tags.get("name:ru") or tags.get("name", ""),
                           "osmBuilding": tags.get("building", ""), "levels": tags.get("building:levels", tags.get("levels", "")),
                           "surface": tags.get("surface", ""), "colour": tags.get("building:colour", tags.get("colour", "")),
-                          "heightMeters": height_for(tags)[0], "heightSource": height_for(tags)[1]}
+                          "heightMeters": height_for(tags)[0], "heightSource": height_for(tags)[1], "heightKnown": height_for(tags)[0] is not None}
             properties["styleColor"] = display_building_colour(tags, osm_id)
             properties["cladding"] = tags.get("building:material", tags.get("building:cladding", tags.get("cladding", "")))
             properties["roofShape"] = tags.get("roof:shape", "")
@@ -302,7 +291,7 @@ def main() -> None:
                      "retrieved": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "license": "ODbL-1.0",
                      "attribution": "© OpenStreetMap contributors", "copyrightUrl": "https://www.openstreetmap.org/copyright",
                      "bounds": bounds, "counts": counts,
-                     "note": "Park geometry is from OSM. The four directory campus buildings are included even where they fall just outside the mapped park relation. Buildings without mapped heights and trees are illustrative."},
+                     "note": "Park geometry is from OSM. The four directory campus buildings are included even where they fall just outside the mapped park relation. Buildings with unknown heights are left unextruded; tree crowns remain illustrative where OSM maps only a tree point."},
         "features": features,
     }
     OUT.write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
