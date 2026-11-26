@@ -714,14 +714,19 @@
     }
   }
   function campusFacadePatternExpression() {
-    return ['match', ['coalesce', ['get', 'building:facade:material'], ['get', 'building:material'], ''],
-      'brick', 'campus-facade-brick',
-      'stone', 'campus-facade-stone',
-      'sandstone', 'campus-facade-stone',
-      'concrete', 'campus-facade-concrete',
-      'wood', 'campus-facade-wood',
-      'glass', 'campus-facade-glass',
-      'metal', 'campus-facade-metal',
+    // OpenFreeMap's OpenMapTiles building layer exposes derived `colour`, not raw OSM material tags.
+    const colour = ['downcase', ['to-string', ['coalesce', ['get', 'colour'], '']]];
+    return ['match', colour,
+      '#bd8161', 'campus-facade-brick',
+      '#d48741', 'campus-facade-wood',
+      '#d3c2b0', 'campus-facade-concrete',
+      '#6a7880', 'campus-facade-concrete',
+      '#b4a995', 'campus-facade-stone',
+      '#9d8b75', 'campus-facade-stone',
+      '#5a81a0', 'campus-facade-glass',
+      '#b7b1a6', 'campus-facade-metal',
+      '#dadbdb', 'campus-facade-default',
+      '#b3b0a9', 'campus-facade-metal',
       'campus-facade-default'];
   }
   function loadCampusMapLibrary() {
