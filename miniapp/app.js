@@ -697,6 +697,52 @@
       if (!duration) requestAnimationFrame(() => requestAnimationFrame(keepAllMarkersVisible));
     });
   }
+  function loadCampusTextureImage(map) {
+    const imageUrl = new URL('./assets/campus-main-facade-512.jpg', APP_SCRIPT_URL).href;
+    return fetch(imageUrl, { cache: 'force-cache' }).then(async (response) => {
+      if (!response.ok) throw new Error(`Текстура фасада: HTTP ${response.status}`);
+      const blob = await response.blob();
+      if (typeof createImageBitmap === 'function') return createImageBitmap(blob);
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Браузер не смог декодировать текстуру фасада'));
+        image.src = URL.createObjectURL(blob);
+      });
+    });
+  }
+  async function addCampusMainBuildingModel(maplibregl, beforeLayerId) {
+    const map = campusOnlineMap;
+    if (!map) return false;
+    const dataUrl = new URL('../data/campus-main-building.json', APP_SCRIPT_URL).href;
+    const [response, image] = await Promise.all([
+      fetch(dataUrl),
+      loadCampusTextureImage(map)
+    ]);
+    if (!response.ok) throw new Error(`Контур главного корпуса недоступен: HTTP ${response.status}`);
+    const geometry = await response.json();
+    if (campusOnlineMap !== map) return false;
+    if (!map.hasImage('campus-main-facade')) map.addImage('campus-main-facade', image, { pixelRatio: 1 });
+    if (!map.getSource('campus-main-building-source')) {
+      map.addSource('campus-main-building-source', { type: 'geojson', data: geometry });
+    }
+    if (!map.getLayer('campus-main-building-textured')) {
+      map.addLayer({
+        id: 'campus-main-building-textured',
+        type: 'fill-extrusion',
+        source: 'campus-main-building-source',
+        minzoom: 14,
+        paint: {
+          'fill-extrusion-height': ['get', 'heightMeters'],
+          'fill-extrusion-base': 0,
+          'fill-extrusion-pattern': 'campus-main-facade',
+          'fill-extrusion-opacity': 1,
+          'fill-extrusion-vertical-gradient': true
+        }
+      }, beforeLayerId);
+    }
+    return true;
+  }
   async function openCampusOnlineMap() {
     const panel = $('#campus-online-panel');
     const status = $('#campus-online-status');
@@ -724,6 +770,10 @@
         styleLoaded = true;
         const styleLayers = campusOnlineMap.getStyle().layers || [];
         const labelLayer = styleLayers.find((layer) => layer.type === 'symbol' && layer.layout?.['text-field']);
+        const texturedModel = addCampusMainBuildingModel(maplibregl, labelLayer?.id).then(() => true).catch((error) => {
+          console.warn('Campus textured 3D model failed:', error);
+          return error instanceof Error ? error.message : 'ошибка загрузки';
+        });
         const extrusionLayer = styleLayers.find((layer) => layer.type === 'fill-extrusion' && layer['source-layer'] === 'building');
         const sourceName = extrusionLayer?.source || Object.keys(campusOnlineMap.getStyle().sources || {}).find((name) => {
           const source = campusOnlineMap.getStyle().sources[name];
@@ -802,6 +852,14 @@
             source.textContent = 'Данные и контур в OpenStreetMap';
             popup.append(source);
           }
+          if (String(building.number) === '1') {
+            const panorama = document.createElement('a');
+            panorama.href = 'https://yandex.ru/maps/org/spbgltu_im_s_m_kirova_aspirantura/98448509917/?l=stv%2Csta&ll=30.343612%2C59.992531&panorama%5Bdirection%5D=48.801822%2C17.418881&panorama%5Bfull%5D=true&panorama%5Bpoint%5D=30.343210%2C59.992557&panorama%5Bspan%5D=117.625646%2C60.000000&z=18.78';
+            panorama.target = '_blank';
+            panorama.rel = 'noopener noreferrer';
+            panorama.textContent = 'Посмотреть фасад в панораме Яндекса ↗';
+            popup.append(panorama);
+          }
           const mapMarker = new maplibregl.Marker({ element: marker, anchor: 'bottom' })
             .setLngLat([building.longitude, building.latitude])
             .setPopup(new maplibregl.Popup({ offset: 22 }).setDOMContent(popup))
@@ -811,8 +869,15 @@
           markerCount += 1;
         });
         status.textContent = markerCount === 4
-          ? 'На карте отмечены корпуса № 1, 2, 3 и 4. Формы и высота зданий зависят от OpenStreetMap.'
+          ? 'На карте отмечены все четыре корпуса. Загружаем текстурный слой главного корпуса…'
           : `На карте отмечено корпусов: ${markerCount} из 4. Справочник ниже остаётся доступен.`;
+        texturedModel.then((result) => {
+          if (campusOnlineMap && $('#map-dialog')?.open && result === true) {
+            status.textContent = 'Главный корпус № 1 показан текстурной 3D-моделью по контуру и высоте OpenStreetMap.';
+          } else if (campusOnlineMap && $('#map-dialog')?.open) {
+            status.textContent = `Текстурный слой корпуса № 1 не загрузился (${result}); объём карты OpenStreetMap остаётся доступен.`;
+          }
+        });
         const fitButton = $('#campus-fit-buildings');
         if (fitButton) fitButton.disabled = markerCount === 0;
         fitCampusMapToBuildings(0);
