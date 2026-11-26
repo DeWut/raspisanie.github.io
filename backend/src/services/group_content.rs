@@ -81,10 +81,10 @@ pub async fn handle_homework(
                 "SELECT h.id,h.subject,h.description,h.due_at FROM bot_homework h LEFT JOIN bot_homework_progress p ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2 WHERE h.chat_id=$1 AND h.status='active' AND p.completed_at IS NULL ORDER BY h.due_at NULLS LAST,h.id DESC LIMIT 50"
             ).bind(chat_id).bind(actor).fetch_all(db).await.unwrap_or_default();
             if rows.is_empty() { return Some("🎉 У тебя нет невыполненных заданий в этом чате.".into()); }
-            let mut out=String::from("📌 МОИ НЕВЫПОЛНЕННЫЕ ЗАДАНИЯ\\n\\n");
+            let mut out=String::from("📌 МОИ НЕВЫПОЛНЕННЫЕ ЗАДАНИЯ\n\n");
             for (id,subject,description,due) in rows {
                 let due=due.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"срок не указан".into());
-                out.push_str(&format!("#{id} · {subject}\\n{description}\\nСрок: {due}\\n\\n"));
+                out.push_str(&format!("#{id} · {subject}\n{description}\nСрок: {due}\n\n"));
             }
             Some(out)
         }
@@ -137,7 +137,7 @@ pub async fn handle_homework(
              .bind(next_lesson.as_ref().map(|(_,at)| *at))
              .bind(actor).fetch_optional(db).await.ok().flatten();
             match id {
-                Some(id) => Some(format!("✅ Домашнее задание добавлено!\\n#{id} · {}\\n{}\\nСрок: {}",parts[0],parts[1],deadline.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"не удалось найти следующую пару по этому предмету — укажи срок вручную".into()))),
+                Some(id) => Some(format!("✅ Домашнее задание добавлено!\n#{id} · {}\n{}\nСрок: {}",parts[0],parts[1],deadline.map(|d|d.with_timezone(&moscow()).format("%d.%m %H:%M").to_string()).unwrap_or_else(||"не удалось найти следующую пару по этому предмету — укажи срок вручную".into()))),
                 None => Some("Не удалось добавить задание. Проверь, что группа настроена.".into())
             }
         }
