@@ -23,27 +23,88 @@ const ODD_WEEK_ANCHOR: (i32, u32, u32) = (2026, 11, 23);
 
 const SOURCE: &str = "eios";
 
-/// Запускает синхронизацию сразу, а затем повторяет её каждые 24 часа.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SyncReport {
+    pub groups_total: usize,
+    pub groups_successful: usize,
+    pub groups_failed: usize,
+    pub lessons_imported: usize,
+}
+
+fn remaining_sync_delay(last_synced_at: DateTime<Utc>, now: DateTime<Utc>) -> Duration {
+    let elapsed = now
+        .signed_duration_since(last_synced_at)
+        .to_std()
+        .unwrap_or(Duration::ZERO);
+    SYNC_INTERVAL.saturating_sub(elapsed)
+}
+
+/// Runs immediately only when no previous sync exists, then follows the persisted 24-hour interval.
 pub async fn run_daily_sync(pool: sqlx::PgPool, eios: EiosSync) {
-    tracing::info!("Daily EIOS sync worker started; running initial sync now");
+    tracing::info!("Persistent EIOS schedule sync worker started");
 
     loop {
-        tracing::info!("Starting daily EIOS schedule synchronization");
-
-        match sync_all_groups(&pool, &eios).await {
-            Ok(()) => {
-                tracing::info!("EIOS schedule synchronization finished");
-            }
+        let delay = match next_sync_delay(&pool).await {
+            Ok(delay) => delay,
             Err(error) => {
-                tracing::error!("EIOS schedule synchronization failed: {}", error);
+                tracing::error!("Could not check EIOS sync history: {}", error);
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                continue;
             }
+        };
+
+        match delay {
+            Some(delay) if !delay.is_zero() => {
+                tracing::info!(
+                    "EIOS schedule was recently synchronized; next automatic run in {} seconds",
+                    delay.as_secs()
+                );
+                tokio::time::sleep(delay).await;
+                continue;
+            }
+            None => tracing::info!(
+                "No previous EIOS schedule sync found; running the initial synchronization"
+            ),
+            _ => tracing::info!("The 24-hour EIOS sync interval has elapsed"),
         }
 
-        tokio::time::sleep(SYNC_INTERVAL).await;
+        tracing::info!("Starting automatic EIOS schedule synchronization");
+
+        match sync_all_groups(&pool, &eios).await {
+            Ok(report) => {
+                tracing::info!(
+                    "Automatic EIOS sync finished: {}/{} groups successful, {} failed, {} lessons imported",
+                    report.groups_successful,
+                    report.groups_total,
+                    report.groups_failed,
+                    report.lessons_imported
+                );
+            }
+            Err(error) => {
+                tracing::error!("Automatic EIOS schedule synchronization failed: {}", error);
+            }
+        }
     }
 }
 
-pub async fn sync_all_groups(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<(), String> {
+async fn next_sync_delay(pool: &sqlx::PgPool) -> Result<Option<Duration>, String> {
+    let last_synced_at = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+        "SELECT last_synced_at FROM sync_metadata WHERE source = 'eios_schedule'",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|error| error.to_string())?
+    .flatten();
+
+    Ok(last_synced_at.map(|last_synced_at| {
+        remaining_sync_delay(last_synced_at, Utc::now())
+    }))
+}
+
+pub async fn sync_all_groups(
+    pool: &sqlx::PgPool,
+    eios: &EiosSync,
+) -> Result<SyncReport, String> {
     let _guard = SYNC_LOCK
         .try_lock()
         .map_err(|_| "Синхронизация уже выполняется".to_owned())?;
@@ -51,7 +112,10 @@ pub async fn sync_all_groups(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<(),
     sync_all_groups_inner(pool, eios).await
 }
 
-async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<(), String> {
+async fn sync_all_groups_inner(
+    pool: &sqlx::PgPool,
+    eios: &EiosSync,
+) -> Result<SyncReport, String> {
     sqlx::query(
         r#"
         INSERT INTO sync_metadata (
@@ -188,7 +252,12 @@ async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<(
         imported_lessons
     );
 
-    Ok(())
+    Ok(SyncReport {
+        groups_total: successful + failed,
+        groups_successful: successful,
+        groups_failed: failed,
+        lessons_imported: imported_lessons,
+    })
 }
 
 async fn import_group_schedule(
@@ -528,4 +597,27 @@ fn stable_id(prefix: &str, parts: &[&str]) -> String {
         .collect::<String>();
 
     format!("eios:{prefix}:{hex}")
+}
+
+
+#[cfg(test)]
+mod sync_worker_tests {
+    use super::*;
+
+    #[test]
+    fn automatic_sync_waits_for_the_persisted_24_hour_interval() {
+        let now = Utc.with_ymd_and_hms(2026, 11, 26, 12, 0, 0).unwrap();
+        let last_sync = now - ChronoDuration::hours(23);
+        assert_eq!(
+            remaining_sync_delay(last_sync, now),
+            Duration::from_secs(60 * 60)
+        );
+    }
+
+    #[test]
+    fn automatic_sync_runs_when_the_interval_has_elapsed() {
+        let now = Utc.with_ymd_and_hms(2026, 11, 26, 12, 0, 0).unwrap();
+        let last_sync = now - ChronoDuration::hours(25);
+        assert_eq!(remaining_sync_delay(last_sync, now), Duration::ZERO);
+    }
 }
