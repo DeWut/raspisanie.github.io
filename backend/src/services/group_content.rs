@@ -78,7 +78,7 @@ pub async fn handle_homework(
     match command {
         "/dz" => {
             let rows = sqlx::query_as::<_, (i64, String, String, Option<DateTime<Utc>>, String, String)>(
-                "SELECT h.id,h.subject,h.description,h.due_at,h.priority,COALESCE(p.status,'not_started') FROM bot_homework h LEFT JOIN bot_homework_progress p ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2 WHERE h.chat_id=$1 AND h.status='active' ORDER BY h.due_at NULLS LAST,h.id DESC LIMIT 30"
+                "SELECT h.id,h.subject,h.description,h.due_at,h.priority,CASE WHEN p.completed_at IS NOT NULL THEN 'completed' ELSE 'not_started' END FROM bot_homework h LEFT JOIN bot_homework_progress p ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2 WHERE h.chat_id=$1 AND h.status='active' ORDER BY h.due_at NULLS LAST,h.id DESC LIMIT 30"
             ).bind(chat_id).bind(actor).fetch_all(db).await.unwrap_or_default();
             if rows.is_empty() { return Some("📚 Активных домашних заданий пока нет.\nДобавить: /add_dz Предмет | задание | срок".into()); }
             let mut out = String::from("📚 ДОМАШНИЕ ЗАДАНИЯ\n\n");
