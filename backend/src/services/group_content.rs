@@ -41,6 +41,10 @@ fn parse_due(value: &str) -> Option<DateTime<Utc>> {
 use chrono::Datelike;
 
 async fn permitted(db: &PgPool, chat_id: i64, actor: i64, section: &str) -> bool {
+    let is_owner: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND owner_telegram_id=$2 AND is_active=TRUE)"
+    ).bind(chat_id).bind(actor).fetch_one(db).await.unwrap_or(false);
+    if is_owner { return true; }
     let mode: Option<String> = sqlx::query_scalar(
         "SELECT content_permissions->>$2 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
     ).bind(chat_id).bind(section).fetch_optional(db).await.ok().flatten();
