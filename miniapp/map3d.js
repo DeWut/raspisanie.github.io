@@ -776,7 +776,9 @@
     var box = $('campus-search-results');
     if (!box) return;
     box.innerHTML = '';
-    var value = String(query || '').trim().toLocaleLowerCase('ru');
+    var rawValue = String(query || '').trim();
+    var value = rawValue.toLocaleLowerCase('ru');
+    var normalizedValue = normalizeRoom(rawValue);
     if (value.length < 1) { box.hidden = true; return; }
     var results = [];
     ((campusData && campusData.buildings) || []).forEach(function (building) {
@@ -786,7 +788,8 @@
       }
       (building.units || []).forEach(function (unit) {
         var text = [unit.room, unit.name].join(' ').toLocaleLowerCase('ru');
-        if (text.indexOf(value) !== -1) {
+        var roomMatches = normalizedValue && normalizeRoom(unit.room).indexOf(normalizedValue) !== -1;
+        if (roomMatches || text.indexOf(value) !== -1 || String(unit.name || '').toLocaleLowerCase('ru').indexOf(value) !== -1) {
           results.push({ building: building, room: unit.room || '', title: (unit.room ? 'Аудитория ' + unit.room : unit.name), subtitle: unit.name || building.name });
         }
       });
