@@ -148,7 +148,18 @@
     return ll;
   }
   function polyFeature(rings, P, props) {
-    return { type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: rings.map(function (r) { return closeLL(r, P); }) } };
+    // GeoJSON / MapLibre require the exterior ring to be counter-clockwise
+    // and interior rings (courtyards/holes) clockwise. OSM multipolygon
+    // relations do not guarantee that input order, so normalize every
+    // generated extrusion, window, tree and highlight polygon here.
+    var normalized = rings.map(function (ring, index) {
+      var clean = stripClose(ring);
+      var area = signedArea(clean);
+      var shouldBePositive = index === 0;
+      if ((area > 0) !== shouldBePositive) clean.reverse();
+      return closeLL(clean, P);
+    });
+    return { type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: normalized } };
   }
   function allFinite(rings) {
     return rings.every(function (r) { return r.length >= 3 && r.every(function (p) { return isFinite(p[0]) && isFinite(p[1]); }); });
