@@ -521,10 +521,17 @@
     const metaLabel = metaDate && !Number.isNaN(metaDate.getTime())
       ? metaDate.toLocaleString('ru-RU', { timeZone: TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : state.schedule.updated;
-    const metaCount = Number.isFinite(Number(meta?.groups_updated)) ? ` · групп обновлено: ${meta.groups_updated}/${meta.groups_total}` : '';
-    const metaStatus = meta?.status === 'partial' ? ' · частичное обновление' : '';
+    const websiteCount = Number.isFinite(Number(meta?.groups_updated))
+      ? ` · сайт: ${meta.groups_updated}/${meta.groups_total} групп`
+      : '';
+    const databaseCount = Number.isFinite(Number(meta?.database_groups_updated))
+      ? ` · БД: ${meta.database_groups_updated}/${meta.database_groups_total} групп`
+      : '';
+    const metaStatus = meta?.status === 'partial' || meta?.database_status === 'partial'
+      ? ' · частичное обновление'
+      : '';
     $('#updated-note').textContent = metaLabel
-      ? `Расписание обновлено ${metaLabel}${metaCount}${metaStatus}`
+      ? `Расписание обновлено ${metaLabel}${websiteCount}${databaseCount}${metaStatus}`
       : 'Источник: расписание СПбГЛТУ';
     const isToday = dateKey(state.selectedDate) === dateKey(startOfDay(new Date()));
     let remainingSlots = slots;
