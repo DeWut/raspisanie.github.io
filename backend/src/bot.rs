@@ -3603,6 +3603,15 @@ pub async fn run(state: Arc<AppState>) {
     };
 
     let bot = Bot::new(token);
+    // This dispatcher uses getUpdates (long polling). Remove a webhook left by
+    // an earlier deployment, but preserve pending updates in Telegram.
+    if let Err(error) = bot.delete_webhook().await {
+        tracing::error!(
+            "Could not remove the previous Telegram webhook; polling will not start: {}",
+            error
+        );
+        return;
+    }
     register_bot_commands(&bot).await;
 
     let reminder_bot = bot.clone();
