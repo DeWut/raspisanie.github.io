@@ -154,7 +154,7 @@
     buildings3D = !!on;
     var btn = $('btn-3d');
     if (btn) {
-      btn.textContent = buildings3D ? 'Объёмы: Вкл' : 'Объёмы: Выкл';
+      btn.textContent = buildings3D ? '3D-здания: вкл.' : '3D-здания: выкл.';
       btn.setAttribute('aria-pressed', buildings3D ? 'true' : 'false');
     }
     if (map && map.getLayer('bld')) {
@@ -690,7 +690,7 @@
       html += '<div class="floor-toolbar"><span>' + esc(plan.title) + '</span><div><button type="button" data-floor-zoom="-1" aria-label="Уменьшить схему">−</button><output data-floor-zoom-value aria-live="polite">100%</output><button type="button" data-floor-zoom="1" aria-label="Увеличить схему">+</button><button type="button" data-floor-zoom="reset">Вписать</button></div></div>';
       html += '<div class="floorplan-viewport" aria-label="План этажа"><div class="floorplan-drawing" style="width:100%">' + plan.svg + '</div></div>';
       html += '<div id="room-selection" class="room-selection" aria-live="polite" hidden></div>';
-      html += '<section class="floor-units"><h4>Кабинеты этого этажа</h4>';
+      if (assigned.length) html += '<section class="floor-units"><h4>Кабинеты этого этажа</h4>';
       if (assigned.length) {
         html += '<div class="room-grid">';
         assigned.forEach(function (unit) {
@@ -699,7 +699,7 @@
         html += '</div>';
       }
       if (assigned.length) html += '</section>';
-      html += '<p class="floor-note">Схема по предоставленному плану. Размеры условные.</p>';
+      html += '<p class="floor-note">Схема по предоставленному плану; размеры условные.</p>';
       content.innerHTML = html;
       fitFloorPlanDrawing();
       if (selectedFloorRoom) selectRoomInPlan(selectedFloorRoom);
