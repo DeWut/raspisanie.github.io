@@ -782,14 +782,19 @@ async fn handle_ui_callback(
     // Telegram's callback spinner is always dismissed before editing the screen.
     bot.answer_callback_query(query.id.clone()).await?;
     let keyboard = ui_keyboard(screen, reminders_enabled, reminder_minutes);
+    // The regular edit endpoint returns Message, while the inline edit
+    // endpoint returns True. Normalize both successful responses to () so the
+    // branches have the same Result type.
     let edit_result = if let Some(message) = message {
         bot.edit_message_text(message.chat.id, message.id, text)
             .reply_markup(keyboard)
             .await
+            .map(|_| ())
     } else if let Some(inline_message_id) = inline_message_id.as_deref() {
         bot.edit_message_text_inline(inline_message_id, text)
             .reply_markup(keyboard)
             .await
+            .map(|_| ())
     } else {
         return Ok(());
     };
