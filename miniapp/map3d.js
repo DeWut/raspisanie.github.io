@@ -274,6 +274,43 @@
     return null;
   }
 
+  function ringCentroid(ring) {
+    if (!Array.isArray(ring) || ring.length < 4) return null;
+    var area = 0, x = 0, y = 0;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var p = ring[j], q = ring[i];
+      var cross = p[0] * q[1] - q[0] * p[1];
+      area += cross; x += (p[0] + q[0]) * cross; y += (p[1] + q[1]) * cross;
+    }
+    if (Math.abs(area) < 1e-12) return null;
+    return [x / (3 * area), y / (3 * area)];
+  }
+
+  function buildingAnchor(building) {
+    var features = scene && scene.features ? scene.features : [];
+    var feature = features.find(function (item) {
+      var props = item.properties || {};
+      return props.kind === 'building' && String(props.campusNumber || '') === String(building.number);
+    });
+    if (!feature || !feature.geometry) return [Number(building.longitude), Number(building.latitude)];
+    var geometry = feature.geometry, rings = [];
+    if (geometry.type === 'Polygon') rings = geometry.coordinates || [];
+    else if (geometry.type === 'MultiPolygon') {
+      var polygons = geometry.coordinates || [];
+      polygons.forEach(function (polygon) { if (polygon && polygon[0]) rings.push(polygon[0]); });
+    }
+    var best = null, bestArea = 0;
+    rings.forEach(function (ring) {
+      var point = ringCentroid(ring);
+      if (!point) return;
+      var area = Math.abs(ring.reduce(function (sum, p, i) {
+        var q = ring[(i + 1) % ring.length]; return sum + p[0] * q[1] - q[0] * p[1];
+      }, 0));
+      if (area > bestArea) { bestArea = area; best = point; }
+    });
+    return best || [Number(building.longitude), Number(building.latitude)];
+  }
+
   function buildCampusMarkers() {
     campusMarkers.forEach(function (marker) { marker.remove(); });
     campusMarkers = [];
@@ -293,12 +330,13 @@
         event.preventDefault();
         event.stopPropagation();
         setOrbit(false);
-        var coordinate = [Number(building.longitude), Number(building.latitude)];
+        var coordinate = buildingAnchor(building);
         map.flyTo({ center: coordinate, zoom: 18.4, pitch: 58, bearing: map.getBearing(), duration: 900 });
         window.setTimeout(function () { selectCampusBuilding(building, coordinate); }, 650);
       });
-      var marker = new maplibregl.Marker({ element: markerButton, anchor: 'bottom' })
-        .setLngLat([Number(building.longitude), Number(building.latitude)])
+      var anchor = buildingAnchor(building);
+      var marker = new maplibregl.Marker({ element: markerButton, anchor: 'center', offset: [0, 0] })
+        .setLngLat(anchor)
         .addTo(map);
       marker.getElement().style.zIndex = '12';
       campusMarkers.push(marker);
@@ -392,32 +430,22 @@
         images.forEach(function (item) {
           var card = document.createElement('div');
           card.className = 'commons-item';
-          var link = document.createElement('a');
-          link.className = 'commons-image-link';
-          link.href = item.page;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          link.setAttribute('aria-label', 'Открыть фотографию на Wikimedia Commons');
           var image = document.createElement('img');
           image.src = item.thumb;
           image.alt = item.title.replace(/^File:/, '');
           image.loading = 'lazy';
           image.decoding = 'async';
           image.onerror = function () { card.remove(); };
-          link.appendChild(image);
-          card.appendChild(link);
+          card.appendChild(image);
           var caption = document.createElement('span');
           caption.className = 'commons-caption';
           caption.textContent = item.author || 'Wikimedia Commons';
           card.appendChild(caption);
           if (item.license && item.licenseUrl && /^https:\/\//.test(item.licenseUrl)) {
-            var licenseLink = document.createElement('a');
-            licenseLink.className = 'commons-license';
-            licenseLink.href = item.licenseUrl;
-            licenseLink.target = '_blank';
-            licenseLink.rel = 'noopener noreferrer';
-            licenseLink.textContent = item.license;
-            card.appendChild(licenseLink);
+            var licenseText = document.createElement('span');
+            licenseText.className = 'commons-license';
+            licenseText.textContent = item.license;
+            card.appendChild(licenseText);
           } else if (item.license) {
             var licenseText = document.createElement('span');
             licenseText.className = 'commons-caption';
@@ -462,16 +490,14 @@
           var photoUrl = null;
           try { photoUrl = new URL(photo.src, location.href).href; } catch (e) { photoUrl = null; }
           if (photoUrl && /^https?:/.test(photoUrl)) {
-            html += '<figure class="campus-photo"><a class="campus-photo-link" href="' + esc(photo.sourceUrl || heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async" data-campus-fallback-photo></a><figcaption>' + esc(photo.credit || 'Wikimedia Commons');
-            if (photo.licenseUrl && /^https:\/\/creativecommons\.org\//.test(photo.licenseUrl)) html += ' · <a href="' + esc(photo.licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(photo.license || 'лицензия') + '</a>';
+            html += '<figure class="campus-photo"><img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async" data-campus-fallback-photo><figcaption>' + esc(photo.credit || 'Wikimedia Commons');
+            if (photo.license) html += ' · ' + esc(photo.license);
             html += '</figcaption></figure>';
           }
         }
-        html += '</div><a class="commons-more" href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Открыть Wikimedia Commons</a></section>';
+        html += '</div></section>';
       }
-      if (heritage.historySourceUrl && /^https?:\/\//.test(heritage.historySourceUrl)) {
-        html += '<p><a href="' + esc(heritage.historySourceUrl) + '" target="_blank" rel="noopener noreferrer">Подробнее об истории</a></p>';
-      }
+
     }
 
     if (camp && camp.units && camp.units.length) {
@@ -484,13 +510,7 @@
     if (camp && ['1', '2'].indexOf(String(camp.number)) !== -1) {
       html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей</button></p>';
     }
-    if (camp && camp.officialSource && /^https?:\/\//.test(camp.officialSource)) {
-      html += '<p class="muted"><a href="' + esc(camp.officialSource) + '" target="_blank" rel="noopener noreferrer">На официальной карте университета</a></p>';
-    }
-    if (p.src && /^https:\/\/www\.openstreetmap\.org\//.test(p.src)) {
-      html += '<p class="muted"><a href="' + esc(p.src) + '" target="_blank" rel="noopener">Объект на OpenStreetMap</a></p>';
-    }
-    return html + '</div>';
+external map links    return html + '</div>';
   }
 
   function clearSelection() {
@@ -708,6 +728,10 @@
     // Keep the modal at the document root so map gestures and popup stacking cannot intercept it. This is
     // important in Android WebView, where map popups can otherwise cover it.
     if (panel.parentNode !== document.body) document.body.appendChild(panel);
+    panel.hidden = false;
+    panel.removeAttribute('hidden');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.style.cssText = 'position:fixed;z-index:2147483000;inset:0;display:grid;place-items:center;padding:12px;background:rgba(13,24,19,.72);overflow:auto;pointer-events:auto;visibility:visible;opacity:1;';
     title.textContent = building.name + ' · ' + (building.address || '');
     var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
     var availableFloors = custom && custom.floors ? Object.keys(custom.floors).map(Number) : [];
@@ -723,7 +747,11 @@
     try {
       renderFloorPlan(building, floor, requestedRoom || '');
       panel.hidden = false;
+      panel.removeAttribute('hidden');
       panel.style.display = 'grid';
+      panel.style.visibility = 'visible';
+      panel.style.opacity = '1';
+      panel.style.pointerEvents = 'auto';
       panel.setAttribute('aria-hidden', 'false');
       if (!window.CAMPUS_FLOORPLANS || !window.CAMPUS_FLOORPLANS[String(building.number)]) {
         setStatus('Для корпуса № ' + normalizedNumber + ' нет графического плана этажей.', true);
@@ -738,7 +766,7 @@
 
   function closeFloorPlan() {
     var panel = $('floorplan');
-    if (panel) { panel.hidden = true; panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true'); }
+    if (panel) { panel.hidden = true; panel.setAttribute('hidden', ''); panel.style.display = 'none'; panel.style.visibility = 'hidden'; panel.style.pointerEvents = 'none'; panel.setAttribute('aria-hidden', 'true'); }
     activeFloorBuilding = null;
     selectedFloorRoom = '';
     floorPlanSearchQuery = '';
