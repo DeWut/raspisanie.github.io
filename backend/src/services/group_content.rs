@@ -205,6 +205,7 @@ pub async fn handle_homework(
     if command != "/dz"
         && command != "/homework"
         && command != "/done"
+        && command != "/my_dz"
         && !permitted(db, chat_id, actor, "homework").await
     {
         return Some("⛔ Добавлять и изменять домашние задания в этом чате могут только пользователи с соответствующими правами.".into());
@@ -335,7 +336,7 @@ pub async fn handle_homework(
                 }
                 None if no_due => "не указан".into(),
                 None => {
-                    "не удалось найти следующую пару по этому предмету — укажи срок вручную".into()
+                    "не указан (следующая пара по этому предмету не найдена)".into()
                 }
             };
             match id {
