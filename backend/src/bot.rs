@@ -38,6 +38,10 @@ fn main_keyboard(webapp_url: &str, is_private: bool) -> KeyboardMarkup {
             KeyboardButton::new("⏰ Дедлайны"),
         ],
         vec![
+            KeyboardButton::new("🏫 Аудитории"),
+            KeyboardButton::new("👨‍🏫 Преподаватель"),
+        ],
+        vec![
             KeyboardButton::new("⚙️ Настройки"),
             KeyboardButton::new("❓ Помощь"),
         ],
@@ -1397,6 +1401,8 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "📚 ДЗ" => "/homework",
         "🗓 Расписание" => "/today",
         "⏰ Дедлайны" => "/deadlines",
+        "🏫 Аудитории" => "/free_rooms",
+        "👨‍🏫 Преподаватель" => "/teacher",
         "❓ Помощь" => "/help",
         "📅 Сегодня" => "/today",
         "📅 Завтра" => "/tomorrow",
