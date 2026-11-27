@@ -66,6 +66,42 @@ fn main_keyboard(webapp_url: &str, is_private: bool) -> KeyboardMarkup {
         .input_field_placeholder("Выбери раздел")
 }
 
+fn is_main_menu_button(text: &str) -> bool {
+    matches!(
+        text.trim(),
+        "📚 ДЗ"
+            | "🗓 Расписание"
+            | "⏰ Дедлайны"
+            | "🏫 Аудитории"
+            | "👨‍🏫 Преподаватель"
+            | "⚙️ Настройки"
+            | "❓ Помощь"
+            | "👤 Кабинет"
+            | "💚 Знакомства"
+            | "📅 Сегодня"
+            | "📅 Завтра"
+            | "🗓 Неделя"
+            | "⏭ Следующая пара"
+            | "📚 Задания"
+            | "🔔 Напоминания"
+            | "🏠 Меню"
+    )
+}
+
+/// Reply-keyboard labels are actions, not command arguments.
+/// Without this guard, pressing "📚 ДЗ" was parsed as "/homework ДЗ"
+/// and the bot attempted to add a homework item named "ДЗ".
+fn message_argument(text: &str) -> &str {
+    if is_main_menu_button(text) {
+        ""
+    } else {
+        text.splitn(2, char::is_whitespace)
+            .nth(1)
+            .unwrap_or("")
+            .trim()
+    }
+}
+
 fn ui_button(label: &str, action: &str) -> InlineKeyboardButton {
     InlineKeyboardButton::callback(label, action)
 }
@@ -1497,11 +1533,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             .unwrap_or(""),
     };
 
-    let argument = normalized_text
-        .splitn(2, char::is_whitespace)
-        .nth(1)
-        .unwrap_or("")
-        .trim();
+    let argument = message_argument(normalized_text);
 
     let is_group_chat = message.chat.id.0 < 0;
 
@@ -2136,6 +2168,16 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
             return Ok(());
         }
+    }
+
+    if command == "/group" && !is_group_chat && argument.is_empty() {
+        crate::services::student_social::open_group_picker(
+            &bot,
+            db,
+            message.chat.id,
+        )
+        .await?;
+        return Ok(());
     }
 
     let answer = match command {
@@ -4195,6 +4237,26 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reply_keyboard_labels_are_not_treated_as_command_arguments() {
+        for label in [
+            "📚 ДЗ",
+            "🗓 Расписание",
+            "⏰ Дедлайны",
+            "🏫 Аудитории",
+            "👨‍🏫 Преподаватель",
+            "⚙️ Настройки",
+            "❓ Помощь",
+            "👤 Кабинет",
+            "💚 Знакомства",
+            "📚 Задания",
+        ] {
+            assert_eq!(message_argument(label), "", "label: {label}");
+        }
+        assert_eq!(message_argument("/group ЛПб-ИСИТ-26-1"), "ЛПб-ИСИТ-26-1");
+        assert_eq!(message_argument("/teacher Иванов"), "Иванов");
+    }
 
     #[test]
     fn command_list_is_contextual_and_has_common_commands() {
