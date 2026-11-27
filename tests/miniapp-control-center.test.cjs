@@ -24,6 +24,9 @@ const requiredIds = [
   'chat-setting-daily-schedule',
   'chat-setting-digest',
   'chat-setting-lesson-notifications',
+  'chat-setting-homework-reminders',
+  'chat-setting-exam-reminders',
+  'chat-setting-event-reminders',
   'chat-setting-autodz',
   'chat-setting-approver',
   'chat-setting-permission-homework',
@@ -84,6 +87,18 @@ assert.match(api, /bot_user_assistant_messages/);
 assert.match(bot, /bot_chat_daily_deliveries/);
 assert.match(bot, /group_daily_digest/);
 assert.match(bot, /personal_daily_digest/);
+assert.match(bot, /group_homework_reminder/);
+assert.match(bot, /group_exam_reminder/);
+assert.match(bot, /personal_event_reminder/);
+assert.match(bot, /homework_reminders_enabled/);
+assert.match(bot, /exam_reminders_enabled/);
+assert.match(bot, /event_reminders_enabled/);
+assert.match(api, /homework_reminders_enabled/);
+assert.match(api, /exam_reminders_enabled/);
+assert.match(api, /event_reminders_enabled/);
+assert.match(migration, /homework_reminders_enabled/);
+assert.match(migration, /exam_reminders_enabled/);
+assert.match(migration, /event_reminders_enabled/);
 assert.match(bot, /last_tick_at/);
 assert.match(bot, /last_error/);
 assert.match(migration, /bot_notification_delivery_log/);
