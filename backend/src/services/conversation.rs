@@ -43,44 +43,64 @@ fn time_in(text: &str) -> Option<String> {
 
 pub fn detect(text: &str) -> Option<Intent> {
     let text = normalize(text);
-    if text.trim().is_empty() { return None; }
+    if text.trim().is_empty() {
+        return None;
+    }
 
-    if has_any(&text, &["аудитор", "ауд.", "свободн", "корпус"])
-        && has_any(&text, &["аудитор", "ауд.", "свободн"])
+    if has_any(&text, &["аудитор", "свободн", "свободна аудитория", "свободные кабинеты"])
+        && has_any(&text, &["аудитор", "свободн", "кабинет"])
     {
         return Some(Intent::FreeRooms(time_in(&text)));
     }
-    if has_any(&text, &["дедлайн", "срок сдач", "когда сда", "что сдать", "надо сдать"])
-        || (text.contains("сдать") && has_any(&text, &["когда", "что", "срок"]))
+
+    if has_any(&text, &["преподавател", "препод", "кто ведет", "когда у"])
+        && text.split_whitespace().count() >= 2
     {
+        let query = text
+            .split_whitespace()
+            .filter(|word| {
+                ![
+                    "найди", "расписание", "преподаватель", "преподавателя",
+                    "препод", "когда", "у", "занятия", "занятие", "ведет",
+                    "кто", "пары", "пара", "расписание",
+                ]
+                .contains(word)
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        if query.chars().count() >= 3 {
+            return Some(Intent::Teacher(query));
+        }
+    }
+
+    if has_any(&text, &["дедлайн", "срок сдач", "когда сда", "что сдать", "надо сдать", "сроки"]) {
         return Some(Intent::Deadlines);
     }
     if has_any(&text, &["домашн", "дз", "задали", "задание", "задания", "домашка"])
-        && has_any(&text, &["какое", "какие", "покажи", "есть", "задан", "дз", "домашн"])
+        && has_any(&text, &["какое", "какие", "покажи", "есть", "задан", "дз", "домашн", "что"])
     {
         return Some(Intent::Homework);
     }
-    if has_any(&text, &["завтра", "на завтра"]) { return Some(Intent::Tomorrow); }
-    if has_any(&text, &["недел", "7 дней", "семь дней"]) { return Some(Intent::Week); }
+    if has_any(&text, &["завтра", "на завтра"]) {
+        return Some(Intent::Tomorrow);
+    }
+    if has_any(&text, &["недел", "7 дней", "семь дней"]) {
+        return Some(Intent::Week);
+    }
     if has_any(&text, &["следующ", "ближайш", "после этого", "дальше"])
         && has_any(&text, &["пар", "занят", "урок", "что"])
-    { return Some(Intent::NextLesson); }
-    if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия"])
-    { return Some(Intent::Today); }
-
-    if has_any(&text, &["преподавател", "препод", "кто ведет", "кто ведет", "когда у"])
-        && text.split_whitespace().count() >= 2
     {
-        let query = text.split_whitespace()
-            .filter(|word| !["найди", "расписание", "преподаватель", "преподавателя", "препод", "когда", "у", "занятия", "ведет", "ведёт"].contains(word))
-            .collect::<Vec<_>>().join(" ");
-        if query.chars().count() >= 3 { return Some(Intent::Teacher(query)); }
+        return Some(Intent::NextLesson);
+    }
+    if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия"]) {
+        return Some(Intent::Today);
     }
     if has_any(&text, &["привет", "здравствуй", "здаров", "барни", "барней", "спбфту"]) {
         return Some(Intent::Greeting);
     }
-    if has_any(&text, &["помощь", "что умеешь", "что можешь", "как пользоваться", "команды", "меню"])
-    { return Some(Intent::Help); }
+    if has_any(&text, &["помощь", "что умеешь", "что можешь", "как пользоваться", "команды", "меню"]) {
+        return Some(Intent::Help);
+    }
     None
 }
 
@@ -94,5 +114,8 @@ mod tests {
         assert_eq!(detect("какое дз задали?"), Some(Intent::Homework));
         assert_eq!(detect("свободные аудитории на 20:00"), Some(Intent::FreeRooms(Some("20:00".into()))));
         assert_eq!(detect("найди преподавателя Иванов"), Some(Intent::Teacher("иванов".into())));
+        assert_eq!(detect("когда у Иванова пары?"), Some(Intent::Teacher("иванова".into())));
+        assert_eq!(detect("что у нас завтра?"), Some(Intent::Tomorrow));
+        assert_eq!(detect("Барни, привет!"), Some(Intent::Greeting));
     }
 }
