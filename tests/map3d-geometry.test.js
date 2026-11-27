@@ -1,5 +1,5 @@
 'use strict';
-// Run from the repository root: node --test tests/
+// Run from the repository root: node --test tests/map3d-geometry.test.js
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
@@ -8,9 +8,11 @@ const G = require(path.join(__dirname, '..', 'miniapp', 'map3d-geometry.js'));
 const LON0 = 30.3399, LAT0 = 59.99455;
 const KX = 111320 * Math.cos(LAT0 * Math.PI / 180), KY = 111320;
 const ll = (x, y) => [LON0 + x / KX, LAT0 + y / KY];
+const toM = p => [(p[0] - LON0) * KX, (p[1] - LAT0) * KY];
 const ring = pts => { const r = pts.map(p => ll(p[0], p[1])); r.push(r[0]); return r; };
 const rect = (x, y, w, h) => ring([[x, y], [x + w, y], [x + w, y + h], [x, y + h]]);
-const circlePts = (cx, cy, r) => Array.from({ length: 12 }, (_, i) => [cx + Math.cos(i * Math.PI / 6) * r, cy + Math.sin(i * Math.PI / 6) * r]);
+const circlePts = (cx, cy, r, n = 12) => Array.from({ length: n }, (_, i) => [cx + Math.cos(i * 2 * Math.PI / n) * r, cy + Math.sin(i * 2 * Math.PI / n) * r]);
+const areaOf = r => r.slice(0, -1).reduce((s, p, i, pts) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) / 2;
 
 function sampleScene() {
   return {
@@ -29,8 +31,35 @@ function sampleScene() {
 }
 const campus = { buildings: [{ number: '3', osm: { id: 2 } }] };
 
+// Courtyard building shaped like the main corpus: outer ring with a courtyard,
+// stored in the "wrong" winding on purpose (OSM does not guarantee it).
+const COURT_OUTER = [[0, 0], [0, 90], [140, 90], [140, 0]];            // clockwise
+const COURT_HOLE = [[25, 20], [115, 20], [115, 70], [25, 70]];         // counter-clockwise
+function courtyardScene(extraProps) {
+  return {
+    features: [{
+      id: 'relation/2045600',
+      properties: Object.assign({ kind: 'building', osmId: '2045600', heightKnown: true, heightMeters: 16, levels: '3', campusNumber: '1' }, extraProps || {}),
+      geometry: { type: 'MultiPolygon', coordinates: [[ring(COURT_OUTER), ring(COURT_HOLE)]] }
+    }]
+  };
+}
+const empireCampus = { buildings: [{ number: '1', osm: { id: 2045600 }, heritage: { style: 'Ампир' } }] };
+
 function allFeatures(out) {
   return [].concat(out.solid, out.windows, out.windowFrames, out.trees, out.shadows, ...Object.values(out.highlight));
+}
+function centroidLL(f) {
+  const r = f.geometry.coordinates[0].slice(0, -1);
+  return toM([r.reduce((s, p) => s + p[0], 0) / r.length, r.reduce((s, p) => s + p[1], 0) / r.length]);
+}
+function inRing(pt, r) {
+  let inside = false;
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+    const a = r[i], b = r[j];
+    if ((a[1] > pt[1]) !== (b[1] > pt[1]) && pt[0] < (b[0] - a[0]) * (pt[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
 }
 
 test('height quality is classified from OSM data', () => {
@@ -47,31 +76,137 @@ test('campus directory link is resolved by OSM id', () => {
   assert.strictEqual(out.index['2'].campus, '3');
 });
 
-test('ground features are passed through and trees are built', () => {
+test('REGRESSION: every polygon, including window frames, is finite, closed and has z1 > z0', () => {
   const out = G.buildScene(sampleScene(), campus);
-  assert.strictEqual(out.ground.length, 2);
-  assert.strictEqual(out.stats.trees, 1);
-  assert.strictEqual(out.trees.length, 4); // trunk + 3 crown tiers
-});
-
-test('every generated polygon is closed, finite and has a valid vertical range', () => {
-  const out = G.buildScene(sampleScene(), campus);
+  assert.ok(out.windowFrames.length > 0, 'frames must be generated');
+  assert.deepStrictEqual(G.validateScene(out), []);
+  assert.strictEqual(out.stats.dropped, 0, 'nothing should be dropped on valid input');
   for (const f of allFeatures(out)) {
     for (const r of f.geometry.coordinates) {
       assert.ok(r.length >= 4);
       assert.deepStrictEqual(r[0], r[r.length - 1]);
-      r.forEach(p => assert.ok(isFinite(p[0]) && isFinite(p[1])));
+      r.forEach(p => assert.ok(isFinite(p[0]) && isFinite(p[1]), 'NaN / null coordinate'));
     }
     const p = f.properties;
-    if (p.z1 !== undefined) { assert.ok(p.z1 > p.z0, 'z1 must be above z0'); }
-    if (p.col !== undefined) { assert.match(p.col, /^#[0-9a-f]{6}$/); }
+    if (p.z1 !== undefined) assert.ok(p.z1 > p.z0);
+    if (p.col !== undefined) assert.match(p.col, /^#[0-9a-f]{6}$/);
   }
 });
 
-test('courtyard buildings are not capped over the hole', () => {
+test('REGRESSION: a ring that mixes numbers and points (the old frame bug) is rejected, not emitted', () => {
+  const P = G.makeProjector(LON0, LAT0);
+  const outer = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  const broken = [0.2, 0.2, 0.8, 0.2, [0.8, 0.8], [0.2, 0.8]];   // what b7085a0 built for the frame hole
+  assert.strictEqual(G._internals.polyFeature([outer, broken], P, {}), null);
+  assert.strictEqual(G._internals.polyFeature([outer, [[0.2, 0.2], [NaN, 0.2], [0.8, 0.8]]], P, {}), null);
+  assert.ok(G._internals.polyFeature([outer], P, {}));
+});
+
+test('windows and frames are simple rectangles, one frame per glass pane', () => {
   const out = G.buildScene(sampleScene(), campus);
-  const parts = out.solid.filter(f => f.properties.pid === '3');
-  assert.ok(parts.every(f => f.geometry.coordinates.length === 2), 'every part keeps the courtyard ring');
+  assert.strictEqual(out.windows.length, out.windowFrames.length);
+  for (const f of out.windows.concat(out.windowFrames)) {
+    assert.strictEqual(f.geometry.coordinates.length, 1, 'no holes in window geometry');
+    assert.strictEqual(f.geometry.coordinates[0].length, 5);
+  }
+});
+
+test('windows sit on the facade outside the wall volume, never inside it', () => {
+  const out = G.buildScene(courtyardScene(), null);
+  const outer = COURT_OUTER, hole = COURT_HOLE;
+  assert.ok(out.windows.length > 100);
+  for (const f of out.windows) {
+    const c = centroidLL(f);
+    const insideSolid = inRing(c, outer) && !inRing(c, hole);
+    assert.ok(!insideSolid, 'window centre must be outside the solid footprint');
+  }
+  assert.ok(out.windows.some(f => inRing(centroidLL(f), hole)), 'courtyard facades also get windows');
+});
+
+test('courtyard building (reversed winding): walls and roof keep the courtyard hole', () => {
+  const out = G.buildScene(courtyardScene(), null);
+  const body = out.solid.find(f => f.properties.z0 === 0 && f.properties.z1 === 16);
+  assert.ok(body, 'solid wall volume exists');
+  assert.strictEqual(body.geometry.coordinates.length, 2, 'courtyard is a real hole');
+  assert.ok(areaOf(body.geometry.coordinates[0]) > 0, 'outer ring counter-clockwise');
+  assert.ok(areaOf(body.geometry.coordinates[1]) < 0, 'hole clockwise');
+  const roof = out.solid.find(f => Math.abs(f.properties.z0 - 16.35) < 1e-9 && Math.abs(f.properties.z1 - 16.5) < 1e-9);
+  assert.ok(roof && roof.geometry.coordinates.length === 2, 'flat roof plate keeps the hole');
+  const cornice = out.solid.find(f => Math.abs(f.properties.z0 - 15.7) < 1e-9);
+  assert.ok(cornice && cornice.geometry.coordinates.length === 2, 'cornice keeps the hole');
+});
+
+test('no part of a building extends beyond its footprint by more than a trim width', () => {
+  const out = G.buildScene(courtyardScene(), empireCampus);
+  const maxOut = 0.6;      // plinth 0.12, ledge 0.07, cornice 0.25, highlight 0.4, windows 0.12
+  const xs = COURT_OUTER.map(p => p[0]), ys = COURT_OUTER.map(p => p[1]);
+  const x0 = Math.min(...xs) - maxOut, x1 = Math.max(...xs) + maxOut, y0 = Math.min(...ys) - maxOut, y1 = Math.max(...ys) + maxOut;
+  const parts = out.solid.concat(out.windows, out.windowFrames, out.highlight['2045600']);
+  assert.ok(parts.length > 0);
+  for (const f of parts) {
+    for (const p of f.geometry.coordinates[0]) {
+      const m = toM(p);
+      assert.ok(m[0] >= x0 && m[0] <= x1 && m[1] >= y0 && m[1] <= y1, 'part escapes the footprint bbox: ' + JSON.stringify(m));
+    }
+  }
+});
+
+test('floor ledges and cornice are rings around the facade, not slabs across the courtyard', () => {
+  const out = G.buildScene(courtyardScene(), null);
+  const bands = out.solid.filter(f => f.properties.z1 - f.properties.z0 < 0.8 && f.properties.z0 > 1.2);
+  assert.ok(bands.length >= 3);
+  assert.ok(bands.every(f => f.geometry.coordinates.length === 2), 'every horizontal band keeps the courtyard hole');
+});
+
+test('mitred offset moves every edge by the same distance', () => {
+  const r = [[0, 0], [40, 0], [40, 20], [0, 20]];
+  const grown = G._internals.offsetRing(r, 0.5, false);
+  assert.ok(Math.abs(Math.abs(G._internals.signedArea(grown)) - 41 * 21) < 1e-6);
+  const lshape = [[0, 0], [40, 0], [40, 10], [10, 10], [10, 30], [0, 30]];
+  const off = G._internals.offsetRing(lshape, 0.3, false);
+  const dist = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy))); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
+  for (const p of off) {
+    const d = Math.min(...lshape.map((a, i) => dist(p, a, lshape[(i + 1) % lshape.length])));
+    assert.ok(d > 0.25 && d < 0.5, 'vertex should be ~0.3-0.42 m from the original outline, got ' + d);
+  }
+});
+
+test('insets that would collapse a thin wing are skipped instead of producing junk', () => {
+  assert.strictEqual(G._internals.offsetRings([[[0, 0], [30, 0], [30, 1.5], [0, 1.5]]], -0.5), null);
+  const thin = { features: [{ id: 'way/thin', properties: { kind: 'building', osmId: 'thin', heightKnown: true, heightMeters: 6 }, geometry: { type: 'Polygon', coordinates: [rect(0, 0, 30, 1.5)] } }] };
+  const out = G.buildScene(thin, null);
+  assert.deepStrictEqual(G.validateScene(out), []);
+  assert.ok(out.solid.length > 0);
+});
+
+test('tagged convex hipped roof is stepped; unknown roofs stay flat', () => {
+  const out = G.buildScene(sampleScene(), campus);
+  const hipped = out.solid.filter(f => f.properties.pid === '2' && f.properties.z0 >= 10.35 - 1e-9);
+  assert.strictEqual(hipped.length, 4);
+  const flat = out.solid.filter(f => f.properties.pid === '1' && f.properties.z0 >= 18.85 - 1e-9);
+  assert.strictEqual(flat.length, 1);
+});
+
+test('historic building gets pilasters between windows, other buildings do not', () => {
+  const historic = G.buildScene(courtyardScene(), empireCampus);
+  const plain = G.buildScene(courtyardScene(), null);
+  const pilasters = o => o.solid.filter(f => f.properties.z0 === 0.9);
+  assert.ok(pilasters(historic).length > 4);
+  assert.strictEqual(pilasters(plain).length, 0);
+});
+
+test('oversized or corrupted geometry is dropped by the sanitize gate', () => {
+  const huge = { features: [{ id: 'way/huge', properties: { kind: 'building', osmId: 'huge', heightKnown: true, heightMeters: 10 }, geometry: { type: 'Polygon', coordinates: [rect(0, 0, 5000, 5000)] } }] };
+  const out = G.buildScene(huge, null);
+  assert.strictEqual(out.solid.length, 0, 'a 5 km "building" must not reach the map');
+  assert.ok(out.stats.dropped > 0);
+});
+
+test('ground features are passed through and trees are built', () => {
+  const out = G.buildScene(sampleScene(), campus);
+  assert.strictEqual(out.ground.length, 2);
+  assert.strictEqual(out.stats.trees, 1);
+  assert.strictEqual(out.trees.length, 4);
 });
 
 test('named arboretum polygons generate clustered trees while respecting paths', () => {
@@ -87,113 +222,38 @@ test('named arboretum polygons generate clustered trees while respecting paths',
     }]
   };
   const out = G.buildScene(garden, null);
-  assert.ok(out.stats.trees >= 20, 'garden should have a visible cluster of illustrative trees');
-  assert.ok(out.trees.length >= out.stats.trees * 3, 'each generated tree should have layered canopy geometry');
+  assert.ok(out.stats.trees >= 20);
+  assert.ok(out.trees.length >= out.stats.trees * 3);
+  const pathY = 0;
+  for (const f of out.trees) {
+    if (f.properties.z0 === 0) {   // trunks mark the planting point
+      const c = centroidLL(f);
+      assert.ok(Math.abs(c[1] - pathY) >= 2.9, 'trees must not stand on the path');
+    }
+  }
+  assert.deepStrictEqual(G.validateScene(out), []);
 });
 
 test('ground polygons are normalized even when OSM rings have mixed winding', () => {
-  const reversedOuter = ring([[0,0],[0,20],[20,20],[20,0]]);
-  const reversedHole = ring([[5,5],[15,5],[15,15],[5,15]]).reverse();
   const scene = { features: [{
     id: 'relation/ground',
     properties: { kind: 'green-area', areaType: 'wood' },
-    geometry: { type: 'Polygon', coordinates: [reversedOuter, reversedHole] }
+    geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0, 20], [20, 20], [20, 0]]), ring([[5, 5], [15, 5], [15, 15], [5, 15]]).reverse()] }
   }] };
   const out = G.buildScene(scene, null);
   const polygon = out.ground[0].geometry.coordinates;
-  const area = r => r.slice(0, -1).reduce((sum, p, i, pts) => {
-    const q = pts[(i + 1) % pts.length];
-    return sum + p[0] * q[1] - q[0] * p[1];
-  }, 0) / 2;
-  assert.ok(area(polygon[0]) > 0);
-  assert.ok(area(polygon[1]) < 0);
-});
-
-test('building facades are narrow wall strips, not a solid full-footprint cap', () => {
-  const scene = { features: [{
-    id: 'way/facade',
-    properties: { kind: 'building', osmId: 'facade', heightKnown: true, heightMeters: 12, levels: '4' },
-    geometry: { type: 'Polygon', coordinates: [rect(0, 0, 40, 20)] }
-  }] };
-  const out = G.buildScene(scene, null);
-  const wallFeatures = out.solid.filter(f => f.properties.pid === 'facade' &&
-    f.properties.z0 === 0 && f.properties.z1 === 12);
-  assert.strictEqual(wallFeatures.length, 4, 'rectangle should produce four separate facade strips');
-  for (const f of wallFeatures) {
-    const r = f.geometry.coordinates[0];
-    const area = Math.abs(r.slice(0, -1).reduce((sum, p, i, pts) => {
-      const q = pts[(i + 1) % pts.length];
-      return sum + p[0] * q[1] - q[0] * p[1];
-    }, 0) / 2);
-    assert.ok(area < 0.00001, 'wall strip must remain narrow in geographic footprint');
-  }
-});
-
-test('building floors do not create full-footprint horizontal slabs', () => {
-  const scene = { features: [{
-    id: 'way/slabs',
-    properties: { kind: 'building', osmId: 'slabs', heightKnown: true, heightMeters: 15, levels: '5' },
-    geometry: { type: 'Polygon', coordinates: [rect(0, 0, 40, 20)] }
-  }] };
-  const out = G.buildScene(scene, null);
-  const bands = out.solid.filter(f => f.properties.pid === 'slabs' &&
-    f.properties.z1 - f.properties.z0 < 0.3 &&
-    f.properties.z0 > 0 && f.properties.z1 < 15);
-  assert.strictEqual(bands.length, 0, 'floor bands must not be extruded as full-footprint slabs');
-  assert.ok(out.solid.some(f => f.properties.pid === 'slabs' && f.properties.z0 === 0 && f.properties.z1 === 15),
-    'main wall volume must remain');
-});
-
-test('GeoJSON polygon winding preserves courtyard holes for 3D extrusions', () => {
-  const outer = ring([[0,0],[0,50],[50,50],[50,0]]); // deliberately clockwise
-  const hole = ring([[15,15],[35,15],[35,35],[15,35]]); // deliberately counter-clockwise
-  const scene = { features: [{
-    id: 'relation/courtyard',
-    properties: { kind: 'building', osmId: 'courtyard', heightKnown: true, heightMeters: 9, levels: '3' },
-    geometry: { type: 'Polygon', coordinates: [outer, hole] }
-  }] };
-  const out = G.buildScene(scene, null);
-  const roof = out.solid.find(f => f.properties.z0 === 9 && f.properties.z1 === 9.18);
-  assert.ok(roof, 'flat roof should be generated');
-  const area = ringCoords => ringCoords.slice(0, -1).reduce((sum, p, i, pts) => {
-    const q = pts[(i + 1) % pts.length];
-    return sum + p[0] * q[1] - q[0] * p[1];
-  }, 0) / 2;
-  assert.ok(area(roof.geometry.coordinates[0]) > 0, 'outer ring must be counter-clockwise');
-  assert.ok(area(roof.geometry.coordinates[1]) < 0, 'courtyard hole must be clockwise');
-  assert.strictEqual(roof.geometry.coordinates.length, 2, 'courtyard must remain a real hole');
-});
-
-test('flat roof and facade geometry preserve the original concave footprint', () => {
-  const historic = {
-    buildings: [{
-      number: '1', osm: { id: 77 },
-      heritage: { style: 'Ампир' }
-    }]
-  };
-  const footprint = ring([[0,0],[40,0],[40,12],[25,12],[25,28],[15,28],[15,12],[0,12]]);
-  const scene = { features: [{
-    id: 'way/77',
-    properties: { kind: 'building', osmId: '77', heightKnown: true, heightMeters: 12, levels: '3' },
-    geometry: { type: 'Polygon', coordinates: [footprint] }
-  }] };
-  const out = G.buildScene(scene, historic);
-  const roofs = out.solid.filter(f => f.properties.z0 === 12 && f.properties.z1 === 12.18);
-  assert.strictEqual(roofs.length, 1, 'unknown roof shape should remain a single flat roof');
-  const normalizedFootprint = footprint.map(p => p.map(v => Math.round(v * 1e7) / 1e7));
-  assert.deepStrictEqual(roofs[0].geometry.coordinates[0], normalizedFootprint);
-  const pilasters = out.solid.filter(f => f.properties.z0 === 0.8 && f.properties.z1 === 11.75);
-  assert.ok(pilasters.length > 0, 'historic facade should receive restrained vertical details');
+  assert.ok(areaOf(polygon[0]) > 0);
+  assert.ok(areaOf(polygon[1]) < 0);
 });
 
 test('window budget is respected', () => {
   const out = G.buildScene(sampleScene(), campus, { maxWindows: 50 });
   assert.ok(out.windows.length <= 50);
   assert.ok(out.windowFrames.length <= 50);
-  assert.ok(out.windowFrames.length > 0, 'window frames should be generated alongside glazing');
+  assert.ok(out.windowFrames.length > 0);
 });
 
-test('degenerate and random input does not throw or produce NaN', () => {
+test('degenerate and random input does not throw, and the output always validates', () => {
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const features = [];
@@ -205,9 +265,9 @@ test('degenerate and random input does not throw or produce NaN', () => {
   features.push({ id: 'way/line', properties: { kind: 'building', osmId: 'line' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [10, 0], [20, 0]])] } });
   features.push({ id: 'way/tiny', properties: { kind: 'building', osmId: 'tiny' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]])] } });
   features.push({ id: 'way/pt', properties: { kind: 'building', osmId: 'pt' }, geometry: { type: 'Point', coordinates: ll(0, 0) } });
+  features.push({ id: 'way/dup', properties: { kind: 'building', osmId: 'dup', heightKnown: true, heightMeters: 12 }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0, 0], [30, 0], [30, 0], [30, 20], [0, 20]])] } });
   const out = G.buildScene({ features }, null);
-  for (const f of allFeatures(out)) {
-    JSON.stringify(f.geometry.coordinates).split(/[\[\],]+/).filter(Boolean).forEach(v => assert.ok(isFinite(Number(v))));
-  }
+  assert.deepStrictEqual(G.validateScene(out), []);
   assert.ok(!out.index['line'] && !out.index['tiny'] && !out.index['pt']);
+  assert.ok(out.index['dup'], 'duplicate vertices must not break a building');
 });
