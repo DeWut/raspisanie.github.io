@@ -107,7 +107,8 @@ test('flat roof and facade geometry preserve the original concave footprint', ()
   const out = G.buildScene(scene, historic);
   const roofs = out.solid.filter(f => f.properties.z0 === 12 && f.properties.z1 === 12.18);
   assert.strictEqual(roofs.length, 1, 'unknown roof shape should remain a single flat roof');
-  assert.deepStrictEqual(roofs[0].geometry.coordinates[0], footprint);
+  const normalizedFootprint = footprint.map(p => p.map(v => Math.round(v * 1e7) / 1e7));
+  assert.deepStrictEqual(roofs[0].geometry.coordinates[0], normalizedFootprint);
   const pilasters = out.solid.filter(f => f.properties.z0 === 0.8 && f.properties.z1 === 11.75);
   assert.ok(pilasters.length > 0, 'historic facade should receive restrained vertical details');
 });
