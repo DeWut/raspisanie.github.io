@@ -58,5 +58,5 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(request, SHELL_CACHE, true)); return;
   }
-  if (/\.(?:js|css|html|webmanifest|png|jpe?g|svg|ico)$/i.test(url.pathname)) event.respondWith(networkFirst(request, SHELL_CACHE));
+  if (/\.(?:js|css|html|webmanifest|png|jpe?g|webp|svg|ico)$/i.test(url.pathname)) event.respondWith(networkFirst(request, SHELL_CACHE));
 });
