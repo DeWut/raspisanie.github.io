@@ -94,8 +94,8 @@ jobs:
               for number, script in enumerate(parser.parts, 1):
                   Path(f"/tmp/{page.replace(chr(47), chr(95))}.{number}.js").write_text(script, encoding="utf-8")
           PY
-          for file in /tmp/index.html.*.js; do
-            [ -f "$file" ] && node --check "$file"
+          for file in /tmp/index.html.*.js /tmp/miniapp_index.html.*.js /tmp/miniapp_map3d.html.*.js; do
+            if [ -f "$file" ]; then node --check "$file"; fi
           done
 
       - name: Check Python parser syntax
