@@ -38,6 +38,13 @@ assert.match(social, /start=dating_edit/);
 assert.match(social, /InlineKeyboardButton::url\("✏️ Открыть редактор", url\)/);
 assert.match(social, /pub async fn open_dating_editor/);
 assert.match(bot, /argument == "dating_edit"/);
+assert.match(bot, /argument == "dating_home"/);
+assert.match(social, /render_tracked_dating_screen/);
+assert.match(social, /Описание: \{\}/);
+assert.match(social, /Фото: \{\}/);
+assert.match(social, /message to edit not found/);
+assert.doesNotMatch(social, /edit_message_text\(chat_id, message_id, "💚 МОЯ АНКЕТА"\)/,
+  'Opening the editor must never wipe the existing screen with a placeholder');
 
 assert.match(migration, /gender IN \('male', 'female'\)/);
 assert.match(migration, /preferred_gender IN \('male', 'female', 'any'\)/);
