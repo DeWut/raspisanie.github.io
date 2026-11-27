@@ -4,15 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#173d2e" />
-    <meta name="description" content="Расписание СПбГЛТУ." />
+    <meta name="description" content="Расписание и настройки SPBFTUIT." />
+    <meta name="smart-campus-api" content="" />
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
     <link rel="manifest" href="../manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20261127-31" />
+    <link rel="stylesheet" href="./styles.css?v=20261127-32" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script defer src="./campus-map-config.js?v=20261127-31"></script>
     <script defer src="./native-bridge.js"></script>
-    <script defer src="./app.js?v=20261127-44"></script>
+    <script defer src="./app.js?v=20261127-45"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -32,7 +33,61 @@
       </header>
       <div class="connectivity-note" id="connectivity-note" role="status" hidden>Нет подключения · показываем сохранённые данные</div>
 
-      <main>
+      <section class="home-view" id="home-view">
+        <div class="home-intro">
+          <p class="eyebrow">УЧЕБНЫЙ ПОМОЩНИК</p>
+          <h1 id="home-greeting">Добро пожаловать</h1>
+          <p>Расписание, пары и личные настройки — в одном месте.</p>
+        </div>
+        <div class="home-actions">
+          <button class="home-action-card schedule-action" id="home-open-schedule" type="button">
+            <span class="home-action-icon" aria-hidden="true">▦</span>
+            <span><strong>Расписание</strong><small>Пары на сегодня и неделю</small></span>
+            <span class="home-action-arrow" aria-hidden="true">→</span>
+          </button>
+          <button class="home-action-card settings-action" id="home-open-settings" type="button">
+            <span class="home-action-icon" aria-hidden="true">⚙</span>
+            <span><strong>Настройки</strong><small>Группа и уведомления Telegram</small></span>
+            <span class="home-action-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+        <div class="home-account-note" id="home-account-note" role="status"></div>
+      </section>
+
+      <section class="miniapp-settings-view hidden" id="miniapp-settings-view">
+        <div class="settings-view-header">
+          <button class="back-link" id="settings-back-home" type="button">← Назад</button>
+          <p class="eyebrow">ЛИЧНЫЙ АККАУНТ</p>
+          <h1>Настройки</h1>
+          <p>Настройки сохраняются к Telegram-аккаунту в Neon, когда Mini App открыт из Telegram.</p>
+        </div>
+        <section class="settings-card">
+          <div class="settings-group-row">
+            <div><p class="eyebrow">УЧЕБНАЯ ГРУППА</p><strong id="settings-group-name">Не выбрана</strong></div>
+            <button class="text-button" id="settings-group-button" type="button">Изменить</button>
+          </div>
+          <div class="settings-divider"></div>
+          <label class="settings-toggle-row">
+            <span><strong>Напоминания о парах</strong><small>Уведомления от Telegram-бота</small></span>
+            <input id="settings-reminders" type="checkbox" disabled />
+          </label>
+          <label class="settings-toggle-row">
+            <span><strong>Ежедневный дайджест</strong><small>Каждый день в 07:00 по Москве</small></span>
+            <input id="settings-digest" type="checkbox" disabled />
+          </label>
+          <label class="settings-toggle-row">
+            <span><strong>Изменения расписания</strong><small>Сообщения об обновлении расписания</small></span>
+            <input id="settings-changes" type="checkbox" disabled />
+          </label>
+          <div class="settings-actions">
+            <button class="primary-button" id="settings-save" type="button" disabled>Сохранить настройки</button>
+            <p id="settings-save-status" role="status">Проверяем подключение к аккаунту…</p>
+          </div>
+        </section>
+      </section>
+
+      <main id="schedule-view" class="schedule-view hidden">
+        <div class="schedule-view-back"><button class="back-link" id="schedule-back-home" type="button">← Главное меню</button></div>
         <section class="welcome-row">
           <div>
             <p class="eyebrow" id="welcome-date">СЕГОДНЯ</p>
