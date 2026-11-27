@@ -222,8 +222,8 @@
     html += '<h3>' + esc(title) + '</h3>';
     if (camp && camp.description) { html += '<p>' + esc(camp.description) + '</p>'; }
     if (camp && camp.address) { html += '<p class="muted">' + esc(camp.address) + '</p>'; }
-    if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (указана в OSM)</p>'; }
-    else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (оценка по этажности OSM)</p>'; }
+    if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'указана в источнике') + ')</p>'; }
+    else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по числу этажей источника') + ')</p>'; }
     else if (p.hq === 'unknown') { html += '<p><b>3D-высота:</b> не указана в источнике; показан только реальный контур</p>'; }
     if (heritage) {
       if (heritage.built) html += '<p><b>Построен:</b> ' + esc(heritage.built) + '</p>';
