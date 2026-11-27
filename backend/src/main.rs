@@ -9,6 +9,18 @@ use smart_campus_backend::{
     state::AppState,
 };
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use sqlx::postgres::PgPoolOptions;
+use url::Url;
+
+fn direct_neon_url(database_url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let mut parsed = Url::parse(database_url)?;
+    if let Some(host) = parsed.host_str() {
+        if host.contains("-pooler.") {
+            parsed.set_host(Some(&host.replace("-pooler.", ".")))?;
+        }
+    }
+    Ok(parsed.to_string())
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -20,8 +32,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState::new(config.clone()).await?;
 
-    // Применяем миграции. Данные расписания при этом не удаляются.
-    sqlx::migrate!("./migrations").run(&state.db).await?;
+    // Run SQLx migrations through Neon's direct endpoint. The app itself keeps
+    // using DATABASE_URL (normally the pooled endpoint) for regular queries.
+    let migration_url = match std::env::var("DATABASE_URL_UNPOOLED") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => direct_neon_url(&config.database_url)?,
+    };
+    let migration_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_secs(30))
+        .connect(&migration_url)
+        .await?;
+    sqlx::migrate!("./migrations").run(&migration_pool).await?;
+    migration_pool.close().await?;
 
     // Worker использует sync_metadata: запускается сразу только при отсутствии истории синхронизации,
     // а затем проверяет сохранённое время и обновляет расписание не чаще раза в 24 часа.
