@@ -278,6 +278,65 @@
   var scene = null;
   var campusData = null;
   var popup = null;
+  var campusMarkers = [];
+  var wikipediaSummaryPromise = null;
+  var WIKIPEDIA_PAGE = 'https://ru.wikipedia.org/wiki/Санкт-Петербургский_государственный_лесотехнический_университет';
+  var WIKIPEDIA_API = 'https://ru.wikipedia.org/api/rest_v1/page/summary/Санкт-Петербургский_государственный_лесотехнический_университет';
+
+  function loadWikipediaSummary() {
+    if (!wikipediaSummaryPromise) {
+      wikipediaSummaryPromise = fetch(WIKIPEDIA_API, { headers: { Accept: 'application/json' } })
+        .then(function (r) { if (!r.ok) throw new Error('Wikipedia HTTP ' + r.status); return r.json(); })
+        .then(function (data) {
+          return { extract: String(data.extract || ''), url: data.content_urls && data.content_urls.desktop && data.content_urls.desktop.page || WIKIPEDIA_PAGE };
+        })
+        .catch(function () { return { extract: '', url: WIKIPEDIA_PAGE }; });
+    }
+    return wikipediaSummaryPromise;
+  }
+
+  function updateWikipediaBlock(container) {
+    if (!container) return;
+    loadWikipediaSummary().then(function (wiki) {
+      if (!container.isConnected) return;
+      var summary = container.querySelector('[data-wikipedia-summary]');
+      var link = container.querySelector('[data-wikipedia-link]');
+      if (summary) summary.textContent = wiki.extract || 'Краткая справка сейчас недоступна.';
+      if (link) link.href = wiki.url || WIKIPEDIA_PAGE;
+    });
+  }
+
+  function buildCampusMarkers() {
+    campusMarkers.forEach(function (marker) { marker.remove(); });
+    campusMarkers = [];
+    var list = ((campusData && campusData.buildings) || []).filter(function (b) {
+      return b && b.number && isFinite(Number(b.longitude)) && isFinite(Number(b.latitude));
+    }).slice().sort(function (a, b) { return Number(a.number) - Number(b.number); });
+    list.forEach(function (building) {
+      var markerButton = document.createElement('button');
+      markerButton.type = 'button';
+      markerButton.className = 'campus-number-marker';
+      markerButton.setAttribute('aria-label', 'Корпус ' + building.number + ': ' + (building.name || 'учебный корпус'));
+      markerButton.title = 'Корпус ' + building.number;
+      var number = document.createElement('span');
+      number.textContent = String(building.number);
+      markerButton.appendChild(number);
+      markerButton.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOrbit(false);
+        var coordinate = [Number(building.longitude), Number(building.latitude)];
+        map.flyTo({ center: coordinate, zoom: 18.4, pitch: buildings3D ? 58 : 0, bearing: buildings3D ? map.getBearing() : 0, duration: 1100 });
+        if (building.osm && scene && scene.index[String(building.osm.id)]) {
+          setTimeout(function () { selectBuilding(String(building.osm.id), coordinate); }, 1150);
+        }
+      });
+      var marker = new maplibregl.Marker({ element: markerButton, anchor: 'center' })
+        .setLngLat([Number(building.longitude), Number(building.latitude)])
+        .addTo(map);
+      campusMarkers.push(marker);
+    });
+  }
 
   function applyAtmosphere() {
     try { map.setLight({ anchor: 'map', color: '#fff1d4', intensity: 0.5, position: [1.3, G.SUN_FROM_AZ, 42] }); } catch (e) { /* older/newer API */ }
@@ -317,6 +376,7 @@
     html += '<h3>' + esc(title) + '</h3>';
     if (camp && camp.description) { html += '<p>' + esc(camp.description) + '</p>'; }
     if (camp && camp.address) { html += '<p class="muted">' + esc(camp.address) + '</p>'; }
+    html += '<section class="wiki-card"><b>Справка Wikipedia</b><p data-wikipedia-summary>Загружаем краткую справку…</p><a data-wikipedia-link href="' + esc(WIKIPEDIA_PAGE) + '" target="_blank" rel="noopener noreferrer">Открыть статью в Wikipedia</a></section>';
     if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'указана в источнике') + ')</p>'; }
     else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по числу этажей источника') + ')</p>'; }
     else if (p.hq === 'unknown') { html += '<p><b>3D-высота:</b> не указана в источнике; показан только реальный контур</p>'; }
@@ -406,6 +466,7 @@
     var mine = new maplibregl.Popup({ closeButton: true, maxWidth: '320px', className: 'bpop', focusAfterOpen: false })
       .setLngLat(lngLat).setHTML(popupHtml(info)).addTo(map);
     popup = mine;
+    updateWikipediaBlock(mine.getElement());
     var floorButton = mine.getElement().querySelector('[data-open-floorplan]');
     if (floorButton) floorButton.addEventListener('click', function () { openFloorPlan(floorButton.getAttribute('data-open-floorplan')); });
     mine.on('close', function () { if (popup === mine) { popup = null; map.getSource('hl').setData(EMPTY); } });
@@ -540,6 +601,7 @@
     campusData = data[1];
     scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
     syncSceneData();
+    buildCampusMarkers();
     buildChips();
     showStats(scene.stats);
     setStatus('');
