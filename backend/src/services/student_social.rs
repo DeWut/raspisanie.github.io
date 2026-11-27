@@ -696,6 +696,7 @@ async fn dating_action(
         let page = parts.next().and_then(|value| value.parse::<i64>().ok()).unwrap_or(0).clamp(0, 10_000);
         incoming_like_card(db, actor, liker, page).await?
     } else if action == "dating:photo" {
+        start_flow(db, chat_id.0, actor, "dating_photo", message_id).await?;
         (
             "📷 Отправь фотографию следующим сообщением в этот личный чат. Она будет показываться только в анкете знакомств. Не отправляй чужие фотографии без согласия человека.".into(),
             InlineKeyboardMarkup::new(vec![
@@ -781,19 +782,27 @@ async fn dating_action(
                 None,
             ),
         }
-    } else if action.starts_with("dating:like:") || action.starts_with("dating:pass:") {
-        let is_like = action.starts_with("dating:like:");
-        let target = action
-            .rsplit(':')
-            .next()
-            .and_then(|v| v.parse::<i64>().ok())
-            .filter(|id| *id > 0);
+    } else if action.starts_with("dating:like:") || action.starts_with("dating:like_incoming:") || action.starts_with("dating:pass:") {
+        let incoming_like = action.starts_with("dating:like_incoming:");
+        let is_like = !action.starts_with("dating:pass:");
+        let suffix = if incoming_like {
+            action.strip_prefix("dating:like_incoming:").unwrap_or_default()
+        } else if is_like {
+            action.strip_prefix("dating:like:").unwrap_or_default()
+        } else {
+            action.strip_prefix("dating:pass:").unwrap_or_default()
+        };
+        let mut parts = suffix.split(':');
+        let target = parts.next().and_then(|v| v.parse::<i64>().ok()).filter(|id| *id > 0);
+        let incoming_page = parts.next().and_then(|v| v.parse::<i64>().ok()).unwrap_or(0).clamp(0, 10_000);
         let Some(target) = target else {
             return Ok(());
         };
-        sqlx::query("INSERT INTO bot_dating_swipes(from_telegram_id,to_telegram_id,action) SELECT $1,$2,$3 WHERE EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$1 AND is_active=TRUE AND is_paused=FALSE AND age_confirmed_at IS NOT NULL) AND EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$2 AND is_active=TRUE AND is_paused=FALSE AND age_confirmed_at IS NOT NULL) ON CONFLICT(from_telegram_id,to_telegram_id) DO UPDATE SET action=EXCLUDED.action,created_at=now()")
-            .bind(actor).bind(target).bind(if is_like{"like"}else{"pass"}).execute(db).await?;
-        if is_like && sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM bot_dating_swipes WHERE from_telegram_id=$2 AND to_telegram_id=$1 AND action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks WHERE (blocker_telegram_id=$1 AND blocked_telegram_id=$2) OR (blocker_telegram_id=$2 AND blocked_telegram_id=$1))")
+        let result = sqlx::query("INSERT INTO bot_dating_swipes(from_telegram_id,to_telegram_id,action) SELECT $1,$2,$3 WHERE EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$1 AND is_active=TRUE AND is_paused=FALSE AND age_confirmed_at IS NOT NULL) AND EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$2 AND is_active=TRUE AND is_paused=FALSE AND age_confirmed_at IS NOT NULL) AND (NOT $4 OR EXISTS(SELECT 1 FROM bot_dating_swipes WHERE from_telegram_id=$2 AND to_telegram_id=$1 AND action='like')) ON CONFLICT(from_telegram_id,to_telegram_id) DO UPDATE SET action=EXCLUDED.action,created_at=now()")
+            .bind(actor).bind(target).bind(if is_like{"like"}else{"pass"}).bind(incoming_like).execute(db).await?;
+        if result.rows_affected() == 0 {
+            ("Этот лайк уже недоступен. Список обновлён.".into(), InlineKeyboardMarkup::new(vec![vec![button("💚 Входящие лайки","dating:likes")],nav("dating:profile")]), None)
+        } else if is_like && sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM bot_dating_swipes WHERE from_telegram_id=$2 AND to_telegram_id=$1 AND action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks WHERE (blocker_telegram_id=$1 AND blocked_telegram_id=$2) OR (blocker_telegram_id=$2 AND blocked_telegram_id=$1))")
             .bind(actor).bind(target).fetch_one(db).await.unwrap_or(false) {
             let (one,two)=if actor<target {(actor,target)} else {(target,actor)};
             sqlx::query("INSERT INTO bot_dating_matches(user1_telegram_id,user2_telegram_id,status) VALUES($1,$2,'active') ON CONFLICT(user1_telegram_id,user2_telegram_id) DO UPDATE SET status='active',created_at=now(),ended_at=NULL")
@@ -801,8 +810,11 @@ async fn dating_action(
             let target_profile=profile_short(db,target).await;
             let name=target_profile.map(|v|v.0).unwrap_or_else(||"новый знакомый".into());
             (format!("💞 Взаимный лайк! Вы понравились друг другу.\n\n{name} · Написать можно только по взаимному согласию."),InlineKeyboardMarkup::new(vec![vec![contact_button(target)],vec![button("Мои совпадения","dating:matches")],nav("dating:profile")]),Some((target,format!("💞 У вас взаимный лайк с {}! Чтобы начать общение, нажми кнопку ниже.",profile_short(db,actor).await.map(|v|v.0).unwrap_or_else(||"студентом".into())))))
+        } else if incoming_like {
+            let (text, keyboard, _) = incoming_likes_screen(db, actor, incoming_page).await?;
+            (text, keyboard, None)
         } else {
-            let (text,kb)=match next_candidate(db,actor).await { Some(c)=>(candidate_text(&c),candidate_keyboard(c.id)),None=>("Новые анкеты закончились. Загляни позже.".into(),InlineKeyboardMarkup::new(vec![vec![button("Моя анкета","dating:profile")]])) };
+            let (text,kb)=match next_candidate(db,actor).await { Some(c)=>(candidate_text(&c),candidate_keyboard(c.id)),None=>("Новые анкеты закончились.".into(),InlineKeyboardMarkup::new(vec![vec![button("Моя анкета","dating:profile")]])) };
             (if is_like { format!("👍 Лайк отправлен.\n\n{text}") } else { text },kb,None)
         }
     } else if let Some(target_text) = action.strip_prefix("dating:reportmenu:") {
@@ -939,7 +951,7 @@ async fn dating_action(
     if let Some(liker_text) = action.strip_prefix("dating:likeview:") {
         let liker = liker_text.split(':').next().and_then(|value| value.parse::<i64>().ok()).unwrap_or_default();
         let photo: Option<String> = sqlx::query_scalar(
-            "SELECT p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
+            "SELECT p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
         ).bind(actor).bind(liker).fetch_optional(db).await?.flatten();
         if let Some(file_id) = photo {
             bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
@@ -1088,7 +1100,7 @@ async fn incoming_like_card(
         .await?
     } else { None };
 
-    let mut rows = vec![vec![button("💚 Ответить лайком", format!("dating:like:{liker}"))]];
+    let mut rows = vec![vec![button("💚 Ответить лайком", format!("dating:like_incoming:{liker}:{page}"))]];
     let mut navigation = Vec::new();
     if let Some(previous_id) = previous {
         navigation.push(button("◀️ Предыдущий лайк", format!("dating:likeview:{previous_id}:{}", page - 1)));
