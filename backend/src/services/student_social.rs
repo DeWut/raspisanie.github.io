@@ -118,11 +118,34 @@ pub async fn handle_callback(
         return Ok(false);
     }
     let actor = i64::try_from(query.from.id.0).unwrap_or_default();
-    let Some(message) = query.regular_message() else {
-        bot.answer_callback_query(query.id.clone()).await?;
+
+    // CallbackQuery::regular_message() returns None not only when the callback
+    // has no message, but also when Telegram marks the attached message as
+    // inaccessible. In that case Telegram still supplies chat and message IDs,
+    // which are sufficient for editMessageText. Do not silently drop the click.
+    let Some(source_message) = query.message.as_ref() else {
+        tracing::error!(
+            action = action,
+            actor = actor,
+            inline_message_id = ?query.inline_message_id,
+            "Student social callback has no attached chat message"
+        );
+        bot.answer_callback_query(query.id.clone())
+            .text("Не удалось определить сообщение. Открой /profile заново.")
+            .show_alert(true)
+            .await?;
         return Ok(true);
     };
-    if message.chat.id.0 != actor {
+    let chat_id = source_message.chat().id;
+    let message_id = source_message.id();
+
+    if chat_id.0 != actor {
+        tracing::warn!(
+            action = action,
+            actor = actor,
+            chat_id = chat_id.0,
+            "Student social callback rejected outside private chat"
+        );
         bot.answer_callback_query(query.id.clone())
             .text("Личный кабинет и анкеты доступны только в личном чате с ботом.")
             .show_alert(true)
@@ -132,20 +155,21 @@ pub async fn handle_callback(
     tracing::info!(
         action = action,
         actor = actor,
-        chat_id = message.chat.id.0,
-        message_id = message.id.0,
+        chat_id = chat_id.0,
+        message_id = message_id.0,
+        source_message = ?source_message,
         "Student social callback: dispatching action"
     );
     bot.answer_callback_query(query.id.clone()).await?;
     let result = if action.starts_with("pc:") {
-        profile_action(bot, db, actor, message.chat.id, message.id, action).await
+        profile_action(bot, db, actor, chat_id, message_id, action).await
     } else {
         dating_action(
             bot,
             db,
             actor,
-            message.chat.id,
-            message.id,
+            chat_id,
+            message_id,
             action,
             admin_id,
         )
