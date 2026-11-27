@@ -64,9 +64,9 @@
   var params = new URLSearchParams(location.search);
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
   var mode = 'sat';
-  var buildings3D = false;
+  var buildings3D = true;
   var DEFAULT_MAP_MODE = 'scheme';
-  var DEFAULT_BUILDINGS_3D = false;
+  var DEFAULT_BUILDINGS_3D = true;
   var satelliteCamera = null;
   var styleRequest = 0;
   var SCHEME_STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
@@ -145,32 +145,15 @@
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL)' }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
-  function setBuildingMode(on) {
-    buildings3D = !!on;
-    var btn = $('btn-3d');
-    if (btn) {
-      btn.textContent = buildings3D ? 'Объёмы: Вкл' : 'Объёмы: Выкл';
-      btn.setAttribute('aria-pressed', buildings3D ? 'true' : 'false');
-    }
-    if (map && map.getLayer('bld')) {
-      map.setLayoutProperty('bld', 'visibility', buildings3D ? 'visible' : 'none');
-    }
-    if (map && map.getLayer('campus-bld-2d')) {
-      map.setLayoutProperty('campus-bld-2d', 'visibility', buildings3D ? 'none' : 'visible');
-    }
-    if (map && map.getLayer('bld-footprint')) {
-      map.setLayoutProperty('bld-footprint', 'visibility', buildings3D ? 'visible' : 'none');
-    }
-    if (map && map.getLayer('hl')) {
-      map.setLayoutProperty('hl', 'visibility', buildings3D ? 'visible' : 'none');
-    }
-    if (map && map.getLayer('hl-flat')) {
-      map.setLayoutProperty('hl-flat', 'visibility', buildings3D ? 'none' : 'visible');
-    }
-    // Flat vector scheme stays top-down; turning 3D volumes on tilts the camera.
-    if (map && mode === 'scheme') {
-      map.easeTo({ pitch: buildings3D ? 48 : 0, bearing: 0, duration: 500 });
-    }
+  // Building volumes are permanently enabled; no manual 2D/3D toggle.
+  function setBuildingMode() {
+    buildings3D = true;
+    if (map && map.getLayer('bld')) map.setLayoutProperty('bld', 'visibility', 'visible');
+    if (map && map.getLayer('campus-bld-2d')) map.setLayoutProperty('campus-bld-2d', 'visibility', 'none');
+    if (map && map.getLayer('bld-footprint')) map.setLayoutProperty('bld-footprint', 'visibility', 'visible');
+    if (map && map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
+    if (map && map.getLayer('hl-flat')) map.setLayoutProperty('hl-flat', 'visibility', 'none');
+    if (map && mode === 'scheme' && map.getPitch() < 40) map.easeTo({ pitch: 48, bearing: 0, duration: 500 });
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
   map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
@@ -459,11 +442,10 @@
         event.stopPropagation();
         switch (btn.id) {
           case 'btn-mode': setMode(mode === 'sat' ? 'scheme' : 'sat'); break;
-          case 'btn-3d': setBuildingMode(!buildings3D); break;
           case 'btn-orbit': setOrbit(!orbiting); break;
           case 'btn-home':
             setOrbit(false);
-            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: mode === 'scheme' ? (buildings3D ? 48 : 0) : HOME.pitch, bearing: mode === 'scheme' ? 0 : HOME.bearing, duration: 1800 });
+            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: mode === 'scheme' ? 48 : HOME.pitch, bearing: mode === 'scheme' ? 0 : HOME.bearing, duration: 1800 });
             break;
         }
       });
@@ -495,7 +477,7 @@
       btn.textContent = 'Корпус ' + b.number;
       btn.addEventListener('click', function () {
         setOrbit(false);
-        map.flyTo({ center: [b.longitude, b.latitude], zoom: 18.4, pitch: mode === 'scheme' && !buildings3D ? 0 : 64, bearing: mode === 'scheme' ? 0 : map.getBearing(), duration: 1600 });
+        map.flyTo({ center: [b.longitude, b.latitude], zoom: 18.4, pitch: 64, bearing: mode === 'scheme' ? 0 : map.getBearing(), duration: 1600 });
         if (b.osm && scene && scene.index[String(b.osm.id)]) {
           setTimeout(function () { selectBuilding(String(b.osm.id), [b.longitude, b.latitude]); }, 1700);
         }
