@@ -1752,11 +1752,13 @@ async function addCampusParkLayers(map) {
     });
     $('#toggle-notifications')?.addEventListener('click', () => { closeQuickMenu(); toggleLessonReminders(); });
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
-    $('#open-map').addEventListener('click', async () => {
+    $('#open-map').addEventListener('click', () => {
       closeQuickMenu();
       $('#map-dialog').showModal();
-      await loadCampusDirectory();
-      openCampusOnlineMap();
+      const frame = $('.campus-map-frame');
+      if (frame && frame.contentWindow) {
+        frame.contentWindow.dispatchEvent(new Event('resize'));
+      }
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', () => {
