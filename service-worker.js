@@ -1,10 +1,10 @@
-const SHELL_CACHE = "spbftuit-shell-v43";
+const SHELL_CACHE = "spbftuit-shell-v44";
 const DATA_CACHE = "spbftuit-data-v1";
 const SHELL_FILES = [
   "./", "./index.html", "./miniapp/index.html", "./miniapp/week.html",
   "./miniapp/app.js", "./miniapp/styles.css", "./miniapp/native-bridge.js", "./miniapp/campus-map-config.js", "./miniapp/map3d.html", "./miniapp/map3d.js", "./miniapp/map3d-geometry.js", "./miniapp/floorplans.js", "./miniapp/floorplans-building1.js",
   "./week.html", "./manifest.webmanifest", "./offline.html", "./favicon.png",
-  "./data/groups.json", "./data/teachers.json", "./data/campus.json",
+  "./data/groups.json", "./data/schedule-meta.json", "./data/teachers.json", "./data/campus.json",
   "./data/campus-park-scene.json", "./miniapp/assets/campus-main-building-aerial.jpg", "./miniapp/vendor/maplibre-gl.js",
   "./miniapp/vendor/maplibre-gl.css", "./miniapp/vendor/maplibre-gl-LICENSE.txt"
 ];
