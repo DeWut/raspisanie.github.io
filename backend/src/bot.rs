@@ -4362,56 +4362,109 @@ pub async fn run(state: Arc<AppState>) {
 
 /// Delivers opt-in daily schedule posts and 10-minute lesson reminders to configured group chats.
 /// Delivery rows are reserved before sending to prevent duplicate messages across worker ticks.
+async fn record_notification_delivery(
+    db: &PgPool,
+    kind: &str,
+    recipient_kind: &str,
+    recipient_id: i64,
+    success: bool,
+    detail: Option<&str>,
+) {
+    let status = if success { "sent" } else { "failed" };
+    let detail = detail.map(|value| value.chars().take(500).collect::<String>());
+    if let Err(error) = sqlx::query(
+        "INSERT INTO bot_notification_delivery_log(kind,recipient_kind,recipient_id,status,detail) VALUES($1,$2,$3,$4,$5)",
+    )
+    .bind(kind)
+    .bind(recipient_kind)
+    .bind(recipient_id)
+    .bind(status)
+    .bind(detail)
+    .execute(db)
+    .await
+    {
+        tracing::warn!("Could not record notification delivery event: {}", error);
+    }
+
+    if success {
+        let _ = sqlx::query(
+            "INSERT INTO bot_notification_worker_state(worker,last_success_at,updated_at) VALUES('telegram_reminders',now(),now()) ON CONFLICT(worker) DO UPDATE SET last_success_at=now(),updated_at=now()",
+        )
+        .execute(db)
+        .await;
+    }
+}
+
+/// Daily schedule and digest are separate posts with independent times and delivery keys.
 async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
-    let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate, Option<i64>, bool)>(
+    let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate, Option<i64>, String)>(
         r#"
-        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date, c.message_thread_id, c.daily_digest_enabled
+        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date,
+               c.message_thread_id, post.post_kind
         FROM bot_chat_settings c
-        WHERE c.is_active = TRUE
-          AND (c.daily_schedule_enabled = TRUE OR c.daily_digest_enabled = TRUE)
-          AND CASE
-                WHEN c.daily_schedule_enabled AND c.daily_digest_enabled THEN LEAST(c.daily_schedule_time,c.daily_digest_time)
-                WHEN c.daily_digest_enabled THEN c.daily_digest_time
-                ELSE c.daily_schedule_time
-              END <= (now() AT TIME ZONE 'Europe/Moscow')::time
+        CROSS JOIN LATERAL (
+          VALUES
+            ('schedule'::text, c.daily_schedule_enabled, c.daily_schedule_time),
+            ('digest'::text, c.daily_digest_enabled, c.daily_digest_time)
+        ) AS post(post_kind, enabled, post_time)
+        WHERE c.is_active=TRUE
+          AND post.enabled=TRUE
+          AND post.post_time <= (now() AT TIME ZONE 'Europe/Moscow')::time
           AND NOT EXISTS (
-              SELECT 1 FROM bot_chat_daily_posts p
-              WHERE p.chat_id = c.chat_id
-                 AND p.local_date = (now() AT TIME ZONE 'Europe/Moscow')::date
-                AND p.delivered_at IS NOT NULL
+            SELECT 1 FROM bot_chat_daily_deliveries d
+            WHERE d.chat_id=c.chat_id
+              AND d.local_date=(now() AT TIME ZONE 'Europe/Moscow')::date
+              AND d.post_kind=post.post_kind
           )
+        ORDER BY post.post_time, c.chat_id
         "#,
     )
     .fetch_all(&state.db)
     .await
     .unwrap_or_else(|error| {
-        tracing::error!("Could not load daily group schedule posts: {}", error);
+        tracing::error!("Could not load daily group posts: {}", error);
         Vec::new()
     });
 
-    for (chat_id, group_id, local_date, thread_id, digest_enabled) in daily_chats {
+    for (chat_id, group_id, local_date, thread_id, post_kind) in daily_chats {
         let reserved = sqlx::query(
-            r#"
-            INSERT INTO bot_chat_daily_posts (chat_id, local_date, sent_at)
-            VALUES ($1, $2, now())
-            ON CONFLICT (chat_id, local_date) DO UPDATE
-                SET sent_at = now()
-                WHERE bot_chat_daily_posts.delivered_at IS NULL
-                  AND bot_chat_daily_posts.sent_at < now() - interval '2 minutes'
-            "#,
+            "INSERT INTO bot_chat_daily_deliveries(chat_id,local_date,post_kind) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
         )
         .bind(chat_id)
         .bind(local_date)
+        .bind(&post_kind)
         .execute(&state.db)
         .await;
-
-        if !matches!(reserved, Ok(ref result) if result.rows_affected() == 1) {
+        if !matches!(reserved, Ok(ref row) if row.rows_affected() == 1) {
             continue;
         }
 
-        let text = schedule_text(&state.db, group_id, "/today").await;
-        let title = if digest_enabled { "📬 Ежедневный дайджест учебной группы" } else { "📢 Ежедневное расписание учебной группы" };
-        let message = format!("{}\\n\\n{}", title, text);
+        let schedule = schedule_text(&state.db, group_id, "/today").await;
+        let mut message = if post_kind == "digest" {
+            format!("📬 Ежедневный дайджест учебной группы\n\n{schedule}")
+        } else {
+            format!("📢 Ежедневное расписание учебной группы\n\n{schedule}")
+        };
+        if post_kind == "digest" {
+            let tasks = sqlx::query_as::<_, (String, Option<DateTime<Utc>>)>(
+                "SELECT subject,due_at FROM bot_homework WHERE chat_id=$1 AND status='active' ORDER BY due_at NULLS LAST,id DESC LIMIT 8",
+            )
+            .bind(chat_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
+            message.push_str("\n\n📚 Активные задания:");
+            if tasks.is_empty() {
+                message.push_str("\nНа данный момент активных заданий нет.");
+            } else {
+                for (subject, due) in tasks {
+                    let due = due.map(|value| moscow_time(value, "%d.%m %H:%M"))
+                        .unwrap_or_else(|| "срок не указан".into());
+                    message.push_str(&format!("\n• {subject} · {due}"));
+                }
+            }
+        }
+
         let request = bot.send_message(ChatId(chat_id), message);
         let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
             Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
@@ -4419,38 +4472,57 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         };
         match request.await {
             Ok(_) => {
-                if let Err(error) = sqlx::query(
-                    "UPDATE bot_chat_daily_posts SET delivered_at = now() WHERE chat_id = $1 AND local_date = $2"
-                ).bind(chat_id).bind(local_date).execute(&state.db).await {
-                    tracing::error!("Could not mark daily schedule as delivered to chat {}: {}", chat_id, error);
-                }
+                let _ = sqlx::query(
+                    "UPDATE bot_chat_daily_deliveries SET delivered_at=now() WHERE chat_id=$1 AND local_date=$2 AND post_kind=$3",
+                )
+                .bind(chat_id)
+                .bind(local_date)
+                .bind(&post_kind)
+                .execute(&state.db)
+                .await;
+                record_notification_delivery(
+                    &state.db,
+                    if post_kind == "digest" { "group_daily_digest" } else { "group_daily_schedule" },
+                    "group",
+                    chat_id,
+                    true,
+                    None,
+                ).await;
             }
             Err(error) => {
-            tracing::warn!("Could not post daily schedule to chat {}: {}", chat_id, error);
-            let _ = sqlx::query(
-                "DELETE FROM bot_chat_daily_posts WHERE chat_id = $1 AND local_date = $2"
-            )
-            .bind(chat_id)
-            .bind(local_date)
-            .execute(&state.db)
-            .await;
+                record_notification_delivery(
+                    &state.db,
+                    if post_kind == "digest" { "group_daily_digest" } else { "group_daily_schedule" },
+                    "group",
+                    chat_id,
+                    false,
+                    Some(&error.to_string()),
+                ).await;
+                tracing::warn!("Could not post {} to chat {}: {}", post_kind, chat_id, error);
+                let _ = sqlx::query(
+                    "DELETE FROM bot_chat_daily_deliveries WHERE chat_id=$1 AND local_date=$2 AND post_kind=$3",
+                )
+                .bind(chat_id)
+                .bind(local_date)
+                .bind(&post_kind)
+                .execute(&state.db)
+                .await;
             }
         }
     }
 
     let lessons = sqlx::query_as::<_, (i64, String, String, DateTime<Utc>, Option<i64>)>(
         r#"
-        SELECT c.chat_id, l.id::text, l.subject, l.starts_at, c.message_thread_id
+        SELECT c.chat_id,l.id::text,l.subject,l.starts_at,c.message_thread_id
         FROM bot_chat_settings c
-        JOIN lessons l ON l.group_id = c.group_id
-        WHERE c.is_active = TRUE
-          AND c.lesson_notifications_enabled = TRUE
-          AND l.starts_at BETWEEN now() + interval '9 minutes'
-                              AND now() + interval '10 minutes'
+        JOIN lessons l ON l.group_id=c.group_id
+        WHERE c.is_active=TRUE
+          AND c.lesson_notifications_enabled=TRUE
+          AND l.starts_at BETWEEN now()+interval '9 minutes'
+                              AND now()+interval '10 minutes'
           AND NOT EXISTS (
-              SELECT 1
-              FROM bot_chat_lesson_notifications n
-              WHERE n.chat_id = c.chat_id AND n.lesson_id = l.id
+            SELECT 1 FROM bot_chat_lesson_notifications n
+            WHERE n.chat_id=c.chat_id AND n.lesson_id=l.id
           )
         ORDER BY l.starts_at
         "#,
@@ -4463,44 +4535,40 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
     });
 
     for (chat_id, lesson_id, subject, starts_at, thread_id) in lessons {
-        let Ok(lesson_uuid) = uuid::Uuid::parse_str(&lesson_id) else {
-            continue;
-        };
+        let Ok(lesson_uuid) = uuid::Uuid::parse_str(&lesson_id) else { continue; };
         let reserved = sqlx::query(
-            "INSERT INTO bot_chat_lesson_notifications (chat_id, lesson_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+            "INSERT INTO bot_chat_lesson_notifications(chat_id,lesson_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
         )
         .bind(chat_id)
         .bind(lesson_uuid)
         .execute(&state.db)
         .await;
-
-        if !matches!(reserved, Ok(ref result) if result.rows_affected() == 1) {
-            continue;
-        }
+        if !matches!(reserved, Ok(ref row) if row.rows_affected()==1) { continue; }
 
         let text = format!(
             "🔔 Скоро начинается пара!\n\n📚 {}\n🕒 Начало: {}\n⏳ До начала примерно 10 минут",
-            subject,
-            moscow_time(starts_at, "%H:%M")
+            subject, moscow_time(starts_at, "%H:%M")
         );
         let request = bot.send_message(ChatId(chat_id), text);
         let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
             Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
             None => request,
         };
-        if let Err(error) = request.await {
-            tracing::warn!(
-                "Could not send lesson notification to chat {}: {}",
-                chat_id,
-                error
-            );
-            let _ = sqlx::query(
-                "DELETE FROM bot_chat_lesson_notifications WHERE chat_id = $1 AND lesson_id = $2",
-            )
-            .bind(chat_id)
-            .bind(lesson_uuid)
-            .execute(&state.db)
-            .await;
+        match request.await {
+            Ok(_) => {
+                record_notification_delivery(&state.db,"group_lesson_reminder","group",chat_id,true,None).await;
+            }
+            Err(error) => {
+                record_notification_delivery(&state.db,"group_lesson_reminder","group",chat_id,false,Some(&error.to_string())).await;
+                tracing::warn!("Could not send lesson notification to chat {}: {}",chat_id,error);
+                let _ = sqlx::query(
+                    "DELETE FROM bot_chat_lesson_notifications WHERE chat_id=$1 AND lesson_id=$2",
+                )
+                .bind(chat_id)
+                .bind(lesson_uuid)
+                .execute(&state.db)
+                .await;
+            }
         }
     }
 }
