@@ -6,6 +6,7 @@ on:
     branches:
       - feature/smart-campus-step-1
     paths:
+      - 'index.html'
       - 'miniapp/**'
       - 'data/**'
       - 'favicon.png'
