@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('start', 'stop', 'status', 'sync')]
+    [ValidateSet('start', 'stop', 'status', 'sync', 'update')]
     [string]$Action
 )
 
@@ -43,6 +43,54 @@ function Show-Status {
 }
 
 switch ($Action) {
+    'update' {
+        if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            Write-Host '  [ERR] Git is not in PATH.' -ForegroundColor Red
+            exit 1
+        }
+
+        $branch = (& git -C $repoRoot branch --show-current).Trim()
+        if ($LASTEXITCODE -ne 0 -or $branch -ne 'feature/smart-campus-step-1') {
+            Write-Host "  [ERR] Switch to feature/smart-campus-step-1 first. Current branch: '$branch'." -ForegroundColor Red
+            exit 1
+        }
+
+        $running = @(Get-ProjectProcesses)
+        if ($running.Count -gt 0) {
+            Write-Host '  [ERR] Stop the local backend first using menu option [2], then retry [6].' -ForegroundColor Red
+            exit 1
+        }
+
+        $workingTree = @(& git -C $repoRoot status --porcelain)
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host '  [ERR] Could not inspect the Git working tree.' -ForegroundColor Red
+            exit 1
+        }
+        if ($workingTree.Count -gt 0) {
+            Write-Host '  [ERR] Local changes detected. Commit or stash them before updating:' -ForegroundColor Red
+            $workingTree | ForEach-Object { Write-Host "         $_" -ForegroundColor Yellow }
+            exit 1
+        }
+
+        Write-Host '  [.. ] Fetching origin/feature/smart-campus-step-1...' -ForegroundColor Cyan
+        & git -C $repoRoot fetch origin feature/smart-campus-step-1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host '  [ERR] Git fetch failed. Check your network and GitHub access.' -ForegroundColor Red
+            exit 1
+        }
+
+        Write-Host '  [.. ] Applying updates with fast-forward only...' -ForegroundColor Cyan
+        & git -C $repoRoot pull --ff-only origin feature/smart-campus-step-1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host '  [ERR] Update was not applied. Resolve the Git state manually, then retry.' -ForegroundColor Red
+            exit 1
+        }
+
+        $head = (& git -C $repoRoot rev-parse --short HEAD).Trim()
+        Write-Host "  [ OK ] Project updated to commit $head." -ForegroundColor Green
+        Write-Host '         Next: choose menu option [1] to build and start the backend.'
+    }
+
     'status' {
         [void](Show-Status)
     }
