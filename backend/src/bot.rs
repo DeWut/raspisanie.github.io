@@ -296,12 +296,17 @@ async fn handle_ui_callback(
         .await?;
         return Ok(());
     }
-    let Some(message) = query.regular_message() else {
+    // Inline-mode callbacks carry inline_message_id instead of a regular chat
+    // message. Use the actor's private chat as the personal context and edit the
+    // inline message through editMessageTextInline at the end of this handler.
+    let message = query.regular_message();
+    let inline_message_id = query.inline_message_id.clone();
+    if message.is_none() && inline_message_id.is_none() {
         bot.answer_callback_query(query.id.clone()).await?;
         return Ok(());
-    };
+    }
     let actor = i64::try_from(query.from.id.0).unwrap_or_default();
-    let chat_id = message.chat.id.0;
+    let chat_id = message.map(|value| value.chat.id.0).unwrap_or(actor);
     let settings = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT settings FROM users WHERE telegram_id=$1",
     )
@@ -316,6 +321,13 @@ async fn handle_ui_callback(
 
     let action = data.to_owned();
     if action == "ban:yes" || action == "ban:no" {
+        let Some(message) = message else {
+            bot.answer_callback_query(query.id.clone())
+                .text("Подтверждение модерации доступно только в сообщении учебного чата.")
+                .show_alert(true)
+                .await?;
+            return Ok(());
+        };
         let pending = sqlx::query_as::<_, (serde_json::Value, DateTime<Utc>)>(
             "SELECT payload,expires_at FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow='ban_confirm'"
         ).bind(chat_id).bind(actor).fetch_optional(&state.db).await.ok().flatten();
@@ -395,6 +407,13 @@ async fn handle_ui_callback(
         return Ok(());
     }
     if let Some(rest) = action.strip_prefix("dzdel:") {
+        let Some(message) = message else {
+            bot.answer_callback_query(query.id.clone())
+                .text("Удаление задания подтверждается в сообщении учебного чата.")
+                .show_alert(true)
+                .await?;
+            return Ok(());
+        };
         let mut parts = rest.split(':');
         let id = parts
             .next()
@@ -762,11 +781,19 @@ async fn handle_ui_callback(
 
     // Telegram's callback spinner is always dismissed before editing the screen.
     bot.answer_callback_query(query.id.clone()).await?;
-    match bot
-        .edit_message_text(message.chat.id, message.id, text)
-        .reply_markup(ui_keyboard(screen, reminders_enabled, reminder_minutes))
-        .await
-    {
+    let keyboard = ui_keyboard(screen, reminders_enabled, reminder_minutes);
+    let edit_result = if let Some(message) = message {
+        bot.edit_message_text(message.chat.id, message.id, text)
+            .reply_markup(keyboard)
+            .await
+    } else if let Some(inline_message_id) = inline_message_id.as_deref() {
+        bot.edit_message_text_inline(inline_message_id, text)
+            .reply_markup(keyboard)
+            .await
+    } else {
+        return Ok(());
+    };
+    match edit_result {
         Ok(_) => {}
         // A repeated tap may lead to the same screen and markup. That is
         // already the desired state, not a broken callback.
