@@ -164,6 +164,27 @@ pub async fn open_dating(
     Ok(())
 }
 
+/// Open the editor from a Telegram deep link, reusing the one tracked private screen.
+pub async fn open_dating_editor(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    actor: i64,
+) -> ResponseResult<()> {
+    let message_id = tracked_dating_screen_message(bot, db, chat_id, actor).await?;
+    let (text, keyboard) = dating_editor_home(db, actor).await;
+    if let Err(error) = bot
+        .edit_message_text(chat_id, message_id, text)
+        .reply_markup(keyboard)
+        .await
+    {
+        if !error.to_string().contains("message is not modified") {
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
 pub async fn open_admin_reports(
     bot: &Bot,
     db: &PgPool,
@@ -335,6 +356,36 @@ pub async fn handle_callback(
                 ).await {
                     tracing::error!(action = action, "Inline dating action failed: {}", error);
                 }
+
+                // An inline-mode message cannot display the private editor itself.
+                // Give the user a deep link that opens the bot's DM and sends the
+                // editor payload; /start dating_edit then opens the tracked screen.
+                if action == "dating:edit" {
+                    let redirect_button = match bot.get_me().await {
+                        Ok(me) => me.username.and_then(|username| {
+                            url::Url::parse(&format!("https://t.me/{username}?start=dating_edit"))
+                                .ok()
+                                .map(|url| InlineKeyboardButton::url("✏️ Открыть редактор", url))
+                        }),
+                        Err(error) => {
+                            tracing::warn!("Could not resolve bot username for dating editor link: {}", error);
+                            None
+                        }
+                    };
+                    let notice = "✏️ Редактор анкеты подготовлен в личном чате с ботом. Нажми кнопку ниже, чтобы перейти к нему.";
+                    if let Some(link_button) = redirect_button {
+                        let _ = bot.edit_message_text_inline(inline_message_id, notice)
+                            .reply_markup(InlineKeyboardMarkup::new(vec![vec![link_button]]))
+                            .await;
+                    } else {
+                        let _ = bot.edit_message_text_inline(
+                            inline_message_id,
+                            "✏️ Редактор подготовлен. Открой личный чат с ботом и отправь команду /start dating_edit.",
+                        ).await;
+                    }
+                    return Ok(true);
+                }
+
                 let markup = InlineKeyboardMarkup::new(vec![vec![
                     button("💚 Моя анкета", "dating:profile"),
                     button("🏠 Меню", "ui:main"),
