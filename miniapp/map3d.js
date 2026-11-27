@@ -649,7 +649,7 @@
   function closeFloorPlan() {
     var panel = $('floorplan');
     if (panel) { panel.hidden = true; panel.setAttribute('aria-hidden', 'true'); }
-    roomEditor.placing = false; roomEditor.start = null; roomEditor.editingId = null; roomEditor.movingId = null;
+    roomEditor.placing = false; roomEditor.start = null; roomEditor.editingId = null; roomEditor.movingId = null; roomEditor.draft = null;
   }
 
   function showBuildingPopup(info, lngLat) {
@@ -757,7 +757,7 @@
     if (floorContent) floorContent.addEventListener('click', function (event) {
       var tab = event.target.closest('[data-floor-select]');
       if (tab && activeFloorBuilding) {
-        roomEditor.placing = false; roomEditor.editingId = null; roomEditor.movingId = null;
+        roomEditor.placing = false; roomEditor.editingId = null; roomEditor.movingId = null; roomEditor.draft = null;
         renderFloorPlan(activeFloorBuilding, Number(tab.getAttribute('data-floor-select')));
         return;
       }
@@ -884,6 +884,7 @@
       floorContent.addEventListener('pointercancel', function () {
         if (roomEditor.start && roomEditor.start.svg) {
           var preview = roomEditor.start.svg.querySelector('.fp-room-preview'); if (preview) preview.remove();
+          roomEditor.start.svg.classList.remove('is-placing-room');
         }
         roomEditor.start = null; roomEditor.placing = false;
         setRoomEditorStatus('Размещение отменено.');
