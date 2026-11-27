@@ -1,5 +1,6 @@
-/* map3d.js — interactive 3D campus map. MapLibre GL (vendored) + local OSM scene.
- * No API keys. The only external requests are the optional Esri satellite tiles. */
+/* map3d.js — campus map. Vendored MapLibre + local OSM/Overture campus data.
+ * Basemaps: OpenFreeMap vector streets (scheme) and Esri World Imagery (satellite).
+ * Neither basemap requires an API key. */
 (function () {
   'use strict';
 
