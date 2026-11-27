@@ -283,27 +283,11 @@
   var campusData = null;
   var popup = null;
 
-  // Floor plans supplied by the user. Building 1 has room layouts; building 2 has evacuation plans.
+  // Main building interior is reconstructed as vector geometry in interior-model.js.
   var FLOOR_PLANS = {
     '1': {
-      title: 'Планы помещений',
-      note: 'Справочные фотографии планов главного корпуса (литера У), предоставленные пользователем. Схемы помогают найти аудиторию, но не заменяют проверку указателей на месте.',
-      floors: [
-        { number: 1, image: './assets/floorplans/building-1-floor-1.webp' },
-        { number: 2, image: './assets/floorplans/building-1-floor-2.webp' },
-        { number: 3, image: './assets/floorplans/building-1-floor-3.webp' },
-        { number: 4, image: './assets/floorplans/building-1-floor-4.webp' }
-      ]
-    },
-    '2': {
-      title: 'Планы эвакуации',
-      note: 'Это планы эвакуации корпуса № 2 (литера Б), а не обычные планы кабинетов. При чрезвычайной ситуации следуйте актуальным указателям и указаниям сотрудников университета.',
-      floors: [
-        { number: 1, image: './assets/floorplans/building-2-evac-floor-1.webp' },
-        { number: 2, image: './assets/floorplans/building-2-evac-floor-2.webp' },
-        { number: 3, image: './assets/floorplans/building-2-evac-floor-3.webp' },
-        { number: 4, image: './assets/floorplans/building-2-evac-floor-4.webp' }
-      ]
+      title: 'План помещений',
+      note: 'Собственная схематическая реконструкция по фотографиям планов этажей. Номера помещений перенесены в векторную модель; размеры и точные координаты требуют сверки с обмерами.'
     }
   };
 
@@ -379,43 +363,25 @@
   function openFloorPlan(number) {
     var building = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(number); });
     var plan = FLOOR_PLANS[String(number)];
-    var panel = $('floorplan');
-    var title = $('floorplan-title');
-    var tabs = $('floorplan-tabs');
-    var image = $('floorplan-image');
-    var note = $('floorplan-note');
-    var originalLink = $('floorplan-original');
-    if (!building || !plan || !panel || !tabs || !image || !note) return;
-
-    title.textContent = building.name + ' · ' + plan.title.toLocaleLowerCase('ru');
+    var panel = $('floorplan'), tabs = $('floorplan-tabs'), note = $('floorplan-note');
+    var canvas = $('interior-canvas'), button2d = $('interior-2d'), button3d = $('interior-3d');
+    if (!building || !plan || !window.InteriorModel || !panel || !tabs || !canvas || !note) return;
+    title = $('floorplan-title');
+    title.textContent = building.name + ' · ' + plan.title;
     tabs.innerHTML = '';
-
-    function selectFloor(floor) {
-      image.src = floor.image;
-      image.alt = building.name + ', ' + floor.number + '-й этаж';
-      if (originalLink) originalLink.href = floor.image;
-      Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (button) {
-        var active = Number(button.getAttribute('data-floor')) === floor.number;
-        button.classList.toggle('active', active);
-        button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
+    var activeFloor = 1, mode = '2d';
+    function render() {
+      window.InteriorModel.draw(canvas, activeFloor, mode);
+      [button2d,button3d].forEach(function(b){ if(!b)return; var on=(b.id==='interior-2d'&&mode==='2d')||(b.id==='interior-3d'&&mode==='3d'); b.classList.toggle('active',on); b.setAttribute('aria-pressed',on?'true':'false'); });
+      Array.prototype.forEach.call(tabs.querySelectorAll('button'),function(b){var on=Number(b.getAttribute('data-floor'))===activeFloor;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');});
     }
-
-    plan.floors.forEach(function (floor, index) {
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'floor-tab';
-      button.textContent = floor.number + ' этаж';
-      button.setAttribute('data-floor', String(floor.number));
-      button.setAttribute('aria-pressed', 'false');
-      button.addEventListener('click', function () { selectFloor(floor); });
-      tabs.appendChild(button);
-      if (index === 0) selectFloor(floor);
+    [1,2,3,4].forEach(function(floor){
+      var b=document.createElement('button');b.type='button';b.className='floor-tab';b.textContent=floor+' этаж';b.setAttribute('data-floor',String(floor));b.addEventListener('click',function(){activeFloor=floor;render();});tabs.appendChild(b);
     });
-
-    note.textContent = plan.note;
-    panel.hidden = false;
-    panel.setAttribute('aria-hidden', 'false');
+    if(button2d)button2d.onclick=function(){mode='2d';render();};
+    if(button3d)button3d.onclick=function(){mode='3d';render();};
+    note.textContent=plan.note;
+    panel.hidden=false;panel.setAttribute('aria-hidden','false');render();
   }
 
   function closeFloorPlan() {
