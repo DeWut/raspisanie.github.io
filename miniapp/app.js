@@ -2539,15 +2539,18 @@ async function addCampusParkLayers(map) {
     window.setInterval(updatePresence, 45_000);
     await loadTeacherDirectory();
     await loadData();
-    if (hasTelegramAccountApi()) await loadMiniAppAccount();
-    updateGroupCommandHint();
-    else {
+    if (hasTelegramAccountApi()) {
+      await loadMiniAppAccount();
+    } else {
       const note = !tg?.initData
         ? 'Открой Mini App через Telegram, чтобы настройки привязались к аккаунту.'
         : 'Адрес backend не настроен. Доступно локальное расписание.';
       $('#home-account-note').textContent = note;
       $('#settings-save-status').textContent = note;
+      const apiNote = $('#control-api-note');
+      if (apiNote) { apiNote.textContent = note; apiNote.dataset.state = 'error'; }
     }
+    updateGroupCommandHint();
     if (!isWeekPage) showView('home');
     await syncLessonReminders();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
