@@ -1760,31 +1760,6 @@ async function addCampusParkLayers(map) {
         frame.contentWindow.dispatchEvent(new Event('resize'));
       }
     });
-    $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
-    $('#campus-open-online')?.addEventListener('click', () => {
-      setCampusMapMode('online');
-      if (campusOnlineMap) {
-        campusOnlineMap.resize();
-        fitCampusMapToPark();
-      } else {
-        openCampusOnlineMap();
-      }
-    });
-    $('#campus-mode-photorealistic')?.addEventListener('click', openCampusPhotorealisticMap);
-    $('#campus-cesium-expand')?.addEventListener('click', () => {
-      const dialog = $('#map-dialog');
-      if (!dialog) return;
-      const expanded = dialog.classList.toggle('campus-map-expanded');
-      const button = $('#campus-cesium-expand');
-      if (button) {
-        button.textContent = expanded ? 'Свернуть карту' : 'На весь экран';
-        button.setAttribute('aria-pressed', String(expanded));
-      }
-      requestAnimationFrame(() => {
-        if (campusCesiumViewer && !campusCesiumViewer.isDestroyed()) campusCesiumViewer.resize();
-        campusOnlineMap?.resize();
-      });
-    });
     $('#campus-mode-osm')?.addEventListener('click', () => {
       destroyCampusCesiumViewer();
       setCampusMapMode('online');
@@ -1809,11 +1784,6 @@ async function addCampusParkLayers(map) {
       destroyCampusCesiumViewer();
       if (campusMapMode === 'cesium') setCampusMapMode('offline');
     });
-    $('#campus-basemap-osm')?.addEventListener('click', () => setCampusBasemap('osm'));
-    $('#campus-basemap-satellite')?.addEventListener('click', () => setCampusBasemap('satellite'));
-    $('#campus-mode-yandex')?.addEventListener('click', openCampusYandexMap);
-    $('#campus-mode-2gis')?.addEventListener('click', openCampus2GisMap);
-    $('#campus-fit-buildings')?.addEventListener('click', () => campusMapMode === 'yandex' ? fitCampusYandexMap() : fitCampusMapToBuildings());
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
