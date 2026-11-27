@@ -395,7 +395,7 @@ def main():
             "status": "success" if not failed else "partial",
         }
         (DATA_DIR / "schedule-meta.json").write_text(
-            json.dumps(metadata, ensure_ascii=False, indent=2) + "\\n", "utf-8"
+            json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", "utf-8"
         )
         print(f"Метка расписания обновлена: {metadata['updated_at']} · групп {len(ok)}/{len(groups)}")
 
