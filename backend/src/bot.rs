@@ -9,7 +9,7 @@ use teloxide::{
         BotCommand, BotCommandScope, ButtonRequest, CallbackQuery, ChatPermissions,
         InlineKeyboardButton, InlineKeyboardMarkup, InlineQuery, InlineQueryResult,
         InlineQueryResultArticle, InputFile, InputMessageContent, InputMessageContentText,
-        KeyboardButton, KeyboardMarkup, Message, MessageId, Recipient, ThreadId, UserId,
+        KeyboardButton, KeyboardMarkup, Message, MessageId, Recipient, ReplyParameters, ThreadId, UserId,
         WebAppInfo,
     },
 };
@@ -693,7 +693,7 @@ async fn reply(
 ) -> ResponseResult<()> {
     // Make bot answers actual Telegram replies so users can keep a readable
     // thread around a homework post, schedule post, or a previous question.
-    let request = bot.send_message(message.chat.id, text).reply_to(message.id);
+    let request = bot.send_message(message.chat.id, text).reply_parameters(ReplyParameters::new(message.id));
     let request = if message.chat.is_private() {
         request.reply_markup(main_keyboard(webapp_url, true))
     } else {
