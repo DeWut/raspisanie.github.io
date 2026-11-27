@@ -1631,6 +1631,26 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     }
 
     let Some(text) = message.text() else {
+        // Dating profile photos arrive without message.text(). Give the active
+        // private photo flow first refusal before the generic attachment handler.
+        if message.photo().is_some() {
+            if let Some(actor) = telegram_user_id(&message) {
+                match crate::services::student_social::handle_text_flow(
+                    &bot, &state.db, &message, actor, "",
+                ).await {
+                    Ok(true) => return Ok(()),
+                    Ok(false) => {}
+                    Err(error) => {
+                        tracing::warn!("Dating photo flow failed: {}", error);
+                        bot.send_message(
+                            message.chat.id,
+                            "Не удалось сохранить фото. Попробуй ещё раз через «Фото анкеты».",
+                        ).await?;
+                        return Ok(());
+                    }
+                }
+            }
+        }
         // Telegram keeps file captions separate from message text. Support
         // `/attach_dz ID` captions and store only the Telegram file reference.
         if let Some(caption) = message.caption() {
