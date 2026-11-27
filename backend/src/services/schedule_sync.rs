@@ -612,12 +612,13 @@ async fn upsert_room(tx: &mut Transaction<'_, Postgres>, name: &str) -> Result<U
     sqlx::query_scalar(
         r#"
         INSERT INTO rooms (
-            id, external_id, name, source_data, updated_at
+            id, external_id, name, building, source_data, updated_at
         )
-        VALUES ($1, $2, $3, '{"source":"eios"}'::jsonb, now())
+        VALUES ($1, $2, $3, substring($3 from '^([0-9]+)\.'), '{"source":"eios"}'::jsonb, now())
         ON CONFLICT (external_id)
         DO UPDATE SET
             name = EXCLUDED.name,
+            building = COALESCE(EXCLUDED.building, rooms.building),
             updated_at = now()
         RETURNING id
         "#,
