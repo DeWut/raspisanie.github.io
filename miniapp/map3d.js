@@ -152,29 +152,33 @@
 
   function setBuildingMode(on) {
     buildings3D = !!on;
+    var hasExtrusions = !!(scene && scene.solid && scene.solid.length);
+    var showExtrusions = buildings3D && hasExtrusions;
     var btn = $('btn-3d');
     if (btn) {
-      btn.textContent = buildings3D ? '3D-здания: вкл.' : '3D-здания: выкл.';
+      btn.textContent = buildings3D ? '3D: включено' : '3D: выключено';
       btn.setAttribute('aria-pressed', buildings3D ? 'true' : 'false');
+      btn.title = hasExtrusions ? 'Объёмное отображение зданий' : 'Для объёмов ещё не загружена геометрия зданий';
     }
     if (map && map.getLayer('bld')) {
-      map.setLayoutProperty('bld', 'visibility', buildings3D ? 'visible' : 'none');
+      map.setLayoutProperty('bld', 'visibility', showExtrusions ? 'visible' : 'none');
     }
     if (map && map.getLayer('campus-bld-2d')) {
-      map.setLayoutProperty('campus-bld-2d', 'visibility', buildings3D ? 'none' : 'visible');
+      map.setLayoutProperty('campus-bld-2d', 'visibility', showExtrusions ? 'none' : 'visible');
     }
+    // Keep footprints for buildings whose height is not mapped; never invent their height.
     if (map && map.getLayer('bld-footprint')) {
-      map.setLayoutProperty('bld-footprint', 'visibility', buildings3D ? 'visible' : 'none');
+      map.setLayoutProperty('bld-footprint', 'visibility', showExtrusions ? 'visible' : 'none');
     }
     if (map && map.getLayer('hl')) {
-      map.setLayoutProperty('hl', 'visibility', buildings3D ? 'visible' : 'none');
+      map.setLayoutProperty('hl', 'visibility', showExtrusions ? 'visible' : 'none');
     }
     if (map && map.getLayer('hl-flat')) {
-      map.setLayoutProperty('hl-flat', 'visibility', buildings3D ? 'none' : 'visible');
+      map.setLayoutProperty('hl-flat', 'visibility', showExtrusions ? 'none' : 'visible');
     }
-    // Flat vector scheme stays top-down; turning 3D volumes on tilts the camera.
-    if (map && mode === 'scheme') {
-      map.easeTo({ pitch: buildings3D ? 48 : 0, bearing: 0, duration: 500 });
+    // 3D mode always tilts the camera, in both satellite and vector map styles.
+    if (map) {
+      map.easeTo({ pitch: showExtrusions ? 58 : 0, bearing: showExtrusions ? -18 : 0, duration: 650 });
     }
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
