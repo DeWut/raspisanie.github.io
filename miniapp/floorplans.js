@@ -5,9 +5,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); }
 
   function roomRect(x, y, w, h, label, edge) {
-    var tx = x + w / 2, ty = y + h / 2 + 3;
-    return '<rect class="fp-room" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>' +
-      (label ? '<text class="fp-room-label" x="' + tx + '" y="' + ty + '">' + esc(label) + '</text>' : '');
+    return '<rect class="fp-room" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
   }
   function horizontalWing(x, y, w, h, count, name) {
     var corridorH = Math.max(26, Math.min(34, h * 0.25));
@@ -51,16 +49,15 @@
   }
   function createSvg(floor, cfg) {
     var out = '<svg class="floorplan-svg" viewBox="0 0 1000 760" role="img" aria-label="Схематический план второго корпуса, ' + floor + '-й этаж">';
-    out += '<defs><pattern id="fp-grid-' + floor + '" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#dfe6df" stroke-width="1"/></pattern></defs>';
-    out += '<rect width="1000" height="760" rx="18" fill="#f7f8f3"/><rect width="1000" height="760" rx="18" fill="url(#fp-grid-' + floor + ')"/>';
-    out += '<text class="fp-heading" x="40" y="42">КОРПУС № 2 · ' + floor + '-Й ЭТАЖ</text>';
-    out += '<text class="fp-subheading" x="40" y="66">Схематическая векторная реконструкция по плану этажа</text>';
+    out += '<rect width="1000" height="760" fill="#fff"/>';
+    out += '<text class="fp-heading" x="40" y="42">ПЛАН ' + floor + '-ГО ЭТАЖА</text>';
+    out += '<text class="fp-subheading" x="40" y="66">КОРПУС № 2 · ИНСТИТУТСКИЙ ПЕРЕУЛОК, 5, ЛИТЕРА Б</text>';
     cfg.connectors.forEach(function (c) { out += connector(c[0],c[1],c[2],c[3]); });
     cfg.horizontal.forEach(function (w) { out += horizontalWing(w[0],w[1],w[2],w[3],w[4],w[5]); });
     cfg.vertical.forEach(function (w) { out += verticalWing(w[0],w[1],w[2],w[3],w[4],w[5],w[6]); });
     cfg.stairs.forEach(function (s) { out += stair(s[0],s[1],s[2],s[3],s[4]); });
     out += '<g class="fp-north"><path d="M 925 92 v 42 m -12 -12 12 12 12 -12"/><text x="925" y="82">СЕВЕР</text></g>';
-    out += '<g class="fp-legend"><rect x="40" y="690" width="920" height="42" rx="10"/><rect x="58" y="703" width="28" height="15" class="fp-legend-room"/><text x="96" y="716">помещения</text><rect x="230" y="703" width="42" height="15" class="fp-legend-corridor"/><text x="282" y="716">коридор</text><rect x="415" y="701" width="32" height="19" class="fp-stair"/><text x="457" y="716">лестничный узел</text><text x="690" y="716">Не использовать для эвакуации</text></g>';
+    out += '<g class="fp-title-block"><path d="M40 670H960 M40 670V735H960V670 M650 670V735 M810 670V735"/><text x="55" y="695">СПРАВОЧНЫЙ ПЛАН ЭТАЖА</text><text x="55" y="718">Кабинеты и навигация · схема по фото</text><text x="670" y="695">КОРПУС № 2</text><text x="670" y="718">ЭТАЖ '+floor+'</text><text x="830" y="695">МАСШТАБ</text><text x="830" y="718">НЕ ЗАДАН</text></g>';
     out += '</svg>';
     return out;
   }
