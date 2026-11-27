@@ -187,7 +187,7 @@ pub async fn handle_callback(
             // Do not silently hide an action failure behind a second edit of the
             // same message. Send a separate diagnostic-facing reply instead.
             bot.send_message(
-                message.chat.id,
+                chat_id,
                 "Не удалось выполнить действие. Попробуй ещё раз. Если ошибка повторится, сообщи администратору.",
             )
             .await?;
