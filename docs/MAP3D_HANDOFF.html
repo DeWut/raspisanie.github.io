@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>3D-карта кампуса — заметки для разработчиков</title>
+  <style>
+    :root { --bg: #ffffff; --ink: #1d2733; --muted: #5c6773; --line: #dde3ea; --code: #f3f5f8; --accent: #2f6fb3; --warn: #fff4d6; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #14181d; --ink: #e8edf2; --muted: #9aa5b1; --line: #2b333c; --code: #1d242c; --accent: #7fb2ea; --warn: #3a3320; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 860px; margin: 0 auto; padding: 24px 18px 64px; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    h2 { font-size: 21px; margin: 36px 0 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+    h3 { font-size: 17px; margin: 22px 0 6px; }
+    p, li { margin: 0 0 8px; }
+    .muted { color: var(--muted); }
+    code, pre { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); border-radius: 6px; }
+    code { padding: 1px 5px; }
+    pre { padding: 12px 14px; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; margin: 8px 0 16px; }
+    th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--code); }
+    .note { background: var(--warn); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+    nav ul { columns: 2; padding-left: 18px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>3D-карта кампуса: заметки для следующих разработчиков</h1>
+  <p class="muted">Репозиторий DeWut/raspisanie.github.io · дата: 27.11.2026 · цель: интерактивная объёмная карта без API-ключей</p>
+
+  <nav aria-label="Содержание">
+    <ul>
+      <li><a href="#status">Состояние работы</a></li>
+      <li><a href="#files">Файлы</a></li>
+      <li><a href="#run">Запуск и проверка</a></li>
+      <li><a href="#arch">Архитектура</a></li>
+      <li><a href="#data">Данные</a></li>
+      <li><a href="#layers">Слои карты</a></li>
+      <li><a href="#limits">Что реально, а что стилизация</a></li>
+      <li><a href="#todo">Что делать дальше</a></li>
+      <li><a href="#legal">Лицензии и источники</a></li>
+      <li><a href="#security">Безопасность и ключи</a></li>
+    </ul>
+  </nav>
+
+  <h2 id="status">Состояние работы</h2>
+  <div class="note">
+    Геометрия проверена 7 автотестами Node.js. Интеграция подключает страницу к основному приложению через один iframe; реальная отрисовка на Android и Telegram WebView всё ещё требует ручной проверки после публикации.
+  </div>
+  <p>Процедурная карта MapLibre становится единственным пользовательским экраном карты кампуса. Яндекс и 2ГИС не загружаются в приложение и не требуют API-ключей; спутниковая подложка — Esri World Imagery, схема и 3D-геометрия строятся из локальных данных OSM.</p>
+
+  <h3>Журнал изменений</h3>
+  <table>
+    <tr><th>Что</th><th>Где</th></tr>
+    <tr><td>Новая страница 3D-карты без API-ключей</td><td><code>miniapp/map3d.html</code></td></tr>
+    <tr><td>Интерфейс карты: слои, клики, режимы, облёт</td><td><code>miniapp/map3d.js</code></td></tr>
+    <tr><td>Генератор 3D-геометрии (здания, окна, деревья, тени)</td><td><code>miniapp/map3d-geometry.js</code></td></tr>
+    <tr><td>7 автотестов геометрии (Node, без зависимостей)</td><td><code>tests/map3d-geometry.test.js</code></td></tr>
+    <tr><td>Этот документ</td><td><code>docs/MAP3D_HANDOFF.html</code></td></tr>
+    <tr><td>Единый экран карты в основном приложении</td><td><code>miniapp/index.html</code>, <code>miniapp/app.js</code>, <code>miniapp/styles.css</code></td></tr>
+  </table>
+  <p>Исправлено по ходу проверки: гонка между закрытием старого попапа и подсветкой нового здания (подсветка пропадала при выборе второго здания).</p>
+
+  <h2 id="files">Файлы</h2>
+  <table>
+    <tr><th>Файл</th><th>Куда положить</th><th>Назначение</th></tr>
+    <tr><td><code>map3d.html</code></td><td><code>miniapp/map3d.html</code></td><td>Страница, стили, интерфейс (кнопки, подсказка, панель «i»).</td></tr>
+    <tr><td><code>map3d.js</code></td><td><code>miniapp/map3d.js</code></td><td>Инициализация MapLibre, слои, клики, режимы, облёт.</td></tr>
+    <tr><td><code>map3d-geometry.js</code></td><td><code>miniapp/map3d-geometry.js</code></td><td>Построение 3D-геометрии из GeoJSON. Чистый JS без DOM, работает и в Node.</td></tr>
+    <tr><td><code>map3d-geometry.test.js</code></td><td><code>tests/map3d-geometry.test.js</code></td><td>Автотесты геометрии на встроенном <code>node:test</code>.</td></tr>
+    <tr><td><code>MAP3D_HANDOFF.html</code></td><td><code>docs/MAP3D_HANDOFF.html</code></td><td>Этот документ.</td></tr>
+  </table>
+  <p>Нужны уже лежащие в ветке <code>feature/campus-map-photorealism</code> файлы: <code>miniapp/vendor/maplibre-gl.js</code>, <code>miniapp/vendor/maplibre-gl.css</code>, <code>data/campus-park-scene.json</code>, <code>data/campus.json</code>.</p>
+
+  <h3>Как добавить в репозиторий</h3>
+<pre>git fetch origin
+git checkout -b feature/campus-map-3d-keyless origin/feature/campus-map-photorealism
+# распаковать архив map3d-update.zip в корень репозитория (папки miniapp/, docs/, tests/)
+git add miniapp/map3d.* miniapp/map3d-geometry.js docs/MAP3D_HANDOFF.html tests/map3d-geometry.test.js
+git commit -m "Add keyless procedural 3D campus map with tests and handoff notes"
+git push -u origin feature/campus-map-3d-keyless</pre>
+
+  <h2 id="run">Запуск и проверка</h2>
+  <ol>
+    <li>Запустить статический сервер из корня репозитория, например <code>python3 -m http.server 8080</code>.</li>
+    <li>Открыть <code>http://localhost:8080/miniapp/map3d.html</code> либо открыть карту из приложения через кнопку карты. Через <code>file://</code> данные не загрузятся.</li>
+    <li>Режим схемы без внешних тайлов: <code>map3d.html?mode=scheme</code>.</li>
+    <li>Автотесты: <code>node --test tests/map3d-geometry.test.js</code> (нужен Node 18+; указывать файл, а не папку).</li>
+    <li>Проверить: наклон двумя пальцами, клик по корпусам 1–4, фото Wikimedia и сведения главного корпуса, кнопки «Тени», «Деревья», «Окна», «Облёт», «Сброс», окна при zoom ≥ 17.2.</li>
+  </ol>
+  <p>Что проверено: синтаксис (<code>node --check</code>) и 7 автотестов (классификация высот, связь со справочником, замкнутые кольца без NaN, двор не закрывается крышей, лимит окон, случайные и вырожденные полигоны). Что не проверено: реальная отрисовка на Android Chrome и Telegram WebView, а также результат GitHub Actions.</p>
+
+  <h2 id="arch">Архитектура</h2>
+  <ol>
+    <li><code>map3d.js</code> загружает <code>campus-park-scene.json</code> и <code>campus.json</code> (пути <code>../data/</code>, <code>./data/</code>, <code>data/</code> по очереди).</li>
+    <li>Основное приложение показывает эту страницу в одном полноразмерном iframe; отдельные переключатели Яндекса и 2ГИС удалены из пользовательского интерфейса. Ключи карт не загружаются.</li>
+    <li><code>Map3D.buildScene(scene, campus)</code> возвращает <code>{ground, solid, windows, trees, shadows, highlight, index, stats}</code>.</li>
+    <li>Каждый список записывается в свой GeoJSON-источник MapLibre через <code>setData</code>.</li>
+    <li>Все детали зданий лежат в одном источнике <code>solid</code> как отдельные <code>fill-extrusion</code>-фичи с полями <code>col</code> (цвет), <code>z0</code> (низ, м), <code>z1</code> (верх, м). Один слой <code>bld</code> рисует их все.</li>
+    <li>Клик читает <code>pid</code> фичи и берёт данные из <code>scene.index[pid]</code>; в <code>campus.json</code> здание ищется по номеру или OSM id.</li>
+  </ol>
+
+  <h3>Из чего строится здание</h3>
+  <table>
+    <tr><th>Часть</th><th>Как строится</th></tr>
+    <tr><td>Цоколь</td><td>Контур, увеличенный на 0,12 м, высота 0–1 м, тёмный оттенок стены.</td></tr>
+    <tr><td>Стены</td><td>Исходный контур от 0 до высоты <code>h</code>.</td></tr>
+    <tr><td>Перекрытия</td><td>Тонкие пояса (0,3 м) на границах этажей, контур +0,1 м.</td></tr>
+    <tr><td>Окна</td><td>Отдельные тёмные «коробки» 1,15 м шириной с шагом 3 м вдоль каждой стены, на каждом этаже. Бюджет по умолчанию 30 000 штук, сначала корпуса из справочника, потом по убыванию площади.</td></tr>
+    <tr><td>Карниз и крыша</td><td>Плоская: карниз + утопленная плита. Для тегов <code>roof:shape</code> hipped/gabled/pyramidal и выпуклого контура без двора: четыре ступени, уменьшающиеся к центру.</td></tr>
+    <tr><td>Тень на земле</td><td>Выпуклая оболочка контура и его сдвига (солнце с азимута 215°), для невыпуклых зданий только сдвинутый контур. Длина тени 0,55 от высоты, не более 22 м.</td></tr>
+  </table>
+  <p>Смещения контуров делаются анизотропным масштабированием по ограничивающему прямоугольнику (<code>offsetRing</code>). Это достаточно для долей метра, но не настоящий offset полигона.</p>
+
+  <h2 id="data">Данные</h2>
+  <p>Схема <code>campus-park-scene.json</code> (FeatureCollection, создаётся <code>scripts/build-campus-park-scene.py</code>):</p>
+  <table>
+    <tr><th><code>properties.kind</code></th><th>Что используется</th></tr>
+    <tr><td><code>building</code></td><td><code>osmId, heightKnown, heightMeters, heightSource, levels, osmBuilding, styleColor, cladding, roofShape, roofMaterial, roofColor, campusNumber, sourceUrl, name</code></td></tr>
+    <tr><td><code>tree-canopy</code> / <code>tree-trunk</code></td><td><code>foliageColor</code>, полигон кроны (12 точек)</td></tr>
+    <tr><td><code>green-area, water, park-boundary, path</code></td><td>Передаются в слой земли как есть (<code>areaType</code> для зелени).</td></tr>
+  </table>
+  <p>Классификация высоты: <code>heightKnown</code> и источник «OSM height» — <code>known</code>; источник со словом «levels»/«estimate» — <code>levels</code>; иначе <code>assumed</code> (9 м, для гаражей и сараев 3,2 м). Статус виден в карточке здания и в строке статистики.</p>
+
+  <h2 id="layers">Слои карты (снизу вверх)</h2>
+  <p><code>bg</code> · <code>sat</code> (Esri, по умолчанию) · <code>park</code> · <code>green</code> · <code>water</code> · <code>path-casing</code> · <code>path</code> · <code>shadow</code> · <code>bld</code> · <code>win</code> (minzoom 17.2) · <code>tree</code> · <code>hl</code> (подсветка выбранного).</p>
+  <p>В режиме «Спутник» слои земли скрыты, виден только растр Esri. В режиме «Схема» наоборот.</p>
+  <p>Освещение: <code>map.setLight</code> и <code>map.setSky</code> вызываются в <code>try/catch</code>, потому что API зависит от версии MapLibre. Если небо не поддерживается, остаётся CSS-градиент за холстом.</p>
+
+  <h2 id="limits">Что реально, а что стилизация</h2>
+  <div class="note">
+    Нельзя называть эту карту фотореалистичной. Реальны контуры и высоты (где они есть в OSM). Окна, карнизы, цоколи, цвета стен,
+    ступенчатые крыши и кроны деревьев сгенерированы процедурно. Цвет стены берётся из OSM только при явном теге, иначе
+    выбирается детерминированно из тёплой палитры по id здания.
+  </div>
+  <ul>
+    <li>Рельефа нет: кампус плоский, а карта высот не подключалась.</li>
+    <li>У многих зданий нет высоты в OSM — они показаны условно. Улучшить можно тегами <code>height</code>/<code>building:levels</code> в OpenStreetMap.</li>
+    <li>Реальных фасадов и крыш нет. Настоящий фотореал возможен только из своих данных: аэрофотосъёмка с дрона, ортофото, фотограмметрическая модель (3D Tiles или glTF).</li>
+    <li>Ступенчатая крыша не передаёт конёк и вальмы, это упрощение.</li>
+    <li>Тени наложены полупрозрачными полигонами, при пересечении они темнее. Это допустимый артефакт.</li>
+  </ul>
+
+  <h2 id="todo">Что делать дальше</h2>
+  <ol>
+    <li>Открыть страницу на реальных данных и подправить палитру, толщину окон и тени. Это самый важный шаг: внешний вид не проверялся глазами.</li>
+    <li>Определить версию MapLibre в <code>vendor</code> и проверить <code>setLight</code>/<code>setSky</code> на ней.</li>
+    <li>Протестировать на Android Chrome и в Telegram Mini App; при низкой частоте кадров уменьшить <code>maxWindows</code> (параметр <code>buildScene</code>).</li>
+    <li>Добавить ссылку на <code>map3d.html</code> в интерфейс мини-приложения (<code>miniapp/index.html</code>, диалог карты). Сейчас страница отдельная.</li>
+    <li>Добавить <code>map3d*.js</code> и <code>map3d.html</code> в кэш Service Worker и в проверку синтаксиса CI.</li>
+    <li>Подключить расширенную выгрузку зданий (<code>scripts/update-campus-osm.py</code>), когда её закоммитят.</li>
+    <li>Опционально: поднять реальные данные высот, ортофото или модель; поддержать <code>building:part</code> и <code>roof:height</code> там, где они размечены.</li>
+  </ol>
+
+  <h2 id="legal">Лицензии и источники</h2>
+  <ul>
+    <li>Данные зданий, деревьев и дорожек: © OpenStreetMap contributors, ODbL 1.0. Атрибуция выводится в карте.</li>
+    <li>Спутниковая подложка: Esri World Imagery (без ключа). Условия использования нужно проверить перед публикацией; атрибуция Esri выводится картой. Режим <code>?mode=scheme</code> не обращается к внешним тайлам.</li>
+    <li>MapLibre GL JS лежит в <code>miniapp/vendor</code> вместе с файлом лицензии.</li>
+    <li>Не скачивать, не сшивать и не использовать как текстуры снимки Yandex, Google и 2GIS.</li>
+  </ul>
+
+  <h2 id="security">Безопасность и ключи</h2>
+  <div class="note">
+    В <code>miniapp/campus-map-config.js</code> на ветке <code>feature/campus-map-photorealism</code> лежат ключи Yandex и 2GIS, а репозиторий публичный.
+    Ключи нужно ограничить по домену (HTTP referrer) или перевыпустить. Новая карта ключей не использует.
+  </div>
+</main>
+</body>
+</html>

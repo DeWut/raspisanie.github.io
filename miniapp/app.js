@@ -1752,36 +1752,13 @@ async function addCampusParkLayers(map) {
     });
     $('#toggle-notifications')?.addEventListener('click', () => { closeQuickMenu(); toggleLessonReminders(); });
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
-    $('#open-map').addEventListener('click', async () => {
+    $('#open-map').addEventListener('click', () => {
       closeQuickMenu();
       $('#map-dialog').showModal();
-      await loadCampusDirectory();
-      openCampusOnlineMap();
-    });
-    $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
-    $('#campus-open-online')?.addEventListener('click', () => {
-      setCampusMapMode('online');
-      if (campusOnlineMap) {
-        campusOnlineMap.resize();
-        fitCampusMapToPark();
-      } else {
-        openCampusOnlineMap();
+      const frame = $('.campus-map-frame');
+      if (frame && frame.contentWindow) {
+        frame.contentWindow.dispatchEvent(new Event('resize'));
       }
-    });
-    $('#campus-mode-photorealistic')?.addEventListener('click', openCampusPhotorealisticMap);
-    $('#campus-cesium-expand')?.addEventListener('click', () => {
-      const dialog = $('#map-dialog');
-      if (!dialog) return;
-      const expanded = dialog.classList.toggle('campus-map-expanded');
-      const button = $('#campus-cesium-expand');
-      if (button) {
-        button.textContent = expanded ? 'Свернуть карту' : 'На весь экран';
-        button.setAttribute('aria-pressed', String(expanded));
-      }
-      requestAnimationFrame(() => {
-        if (campusCesiumViewer && !campusCesiumViewer.isDestroyed()) campusCesiumViewer.resize();
-        campusOnlineMap?.resize();
-      });
     });
     $('#campus-mode-osm')?.addEventListener('click', () => {
       destroyCampusCesiumViewer();
@@ -1807,11 +1784,6 @@ async function addCampusParkLayers(map) {
       destroyCampusCesiumViewer();
       if (campusMapMode === 'cesium') setCampusMapMode('offline');
     });
-    $('#campus-basemap-osm')?.addEventListener('click', () => setCampusBasemap('osm'));
-    $('#campus-basemap-satellite')?.addEventListener('click', () => setCampusBasemap('satellite'));
-    $('#campus-mode-yandex')?.addEventListener('click', openCampusYandexMap);
-    $('#campus-mode-2gis')?.addEventListener('click', openCampus2GisMap);
-    $('#campus-fit-buildings')?.addEventListener('click', () => campusMapMode === 'yandex' ? fitCampusYandexMap() : fitCampusMapToBuildings());
     $('#open-weather').addEventListener('click', () => { closeQuickMenu(); $('#weather-dialog').showModal(); loadWeather(); });
     $('#toggle-theme').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
     $('#calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));

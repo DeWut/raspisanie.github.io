@@ -6,10 +6,12 @@ on:
       - main
       - feature/smart-campus-step-1
       - feature/campus-map-realism-scroll
+      - feature/campus-map-3d-keyless
   pull_request:
     branches:
       - main
       - feature/smart-campus-step-1
+      - feature/campus-map-photorealism
 
 permissions:
   contents: read
@@ -32,6 +34,9 @@ jobs:
         run: |
           node --check miniapp/app.js
           node --check miniapp/campus-map-config.js
+          node --check miniapp/map3d.js
+          node --check miniapp/map3d-geometry.js
+          node --test tests/map3d-geometry.test.js
           node --check service-worker.js
           node --check scripts/prepare-mobile.mjs
 
