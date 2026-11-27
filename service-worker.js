@@ -1,4 +1,4 @@
-const SHELL_CACHE = "spbftuit-shell-v29";
+const SHELL_CACHE = "spbftuit-shell-v30";
 const DATA_CACHE = "spbftuit-data-v1";
 const SHELL_FILES = [
   "./", "./index.html", "./miniapp/index.html", "./miniapp/week.html",
