@@ -18,9 +18,9 @@
       :root { --glass: rgba(28, 34, 42, .88); --ink: #eef2f6; --muted: #aab4bf; --accent: #7fb2ea; }
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #cfd8c8; }
-    #app { position: fixed; inset: 0; }
-    #map { position: absolute; inset: 0; background: linear-gradient(#8fb6de 0%, #dfeaf2 46%, #cfd8c8 100%); }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #cfd8c8 !important; }
+    #app { position: fixed; inset: 0; isolation: isolate; background: #cfd8c8; }
+    #map { position: absolute; inset: 0; background: #cfd8c8 linear-gradient(#8fb6de 0%, #dfeaf2 46%, #cfd8c8 100%); }
     .hud { position: absolute; z-index: 5; }
     .title {
       top: calc(var(--safe-top) + 10px); left: 10px; max-width: calc(100% - 80px);
