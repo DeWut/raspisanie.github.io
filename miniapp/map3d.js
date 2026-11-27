@@ -361,6 +361,110 @@
 
   /* ---------- popup / selection ---------- */
 
+  function commonsCategoryTitle(sourceUrl) {
+    try {
+      var url = new URL(sourceUrl);
+      if (url.hostname !== 'commons.wikimedia.org') return '';
+      var match = url.pathname.match(/^\\/wiki\\/Category:(.+)$/);
+      return match ? decodeURIComponent(match[1]).replace(/_/g, ' ') : '';
+    } catch (e) { return ''; }
+  }
+
+  function wikiPlainText(value) {
+    if (!value) return '';
+    var node = document.createElement('div');
+    node.innerHTML = String(value);
+    return (node.textContent || '').replace(/\\s+/g, ' ').trim();
+  }
+
+  function loadCommonsGallery(container, building) {
+    if (!container || !building || !building.heritage) return;
+    var gallery = container.querySelector('[data-commons-gallery]');
+    if (!gallery) return;
+    var heritage = building.heritage;
+    var category = commonsCategoryTitle(heritage.heritageSourceUrl);
+    if (!category) return;
+
+    var params = new URLSearchParams({
+      action: 'query',
+      generator: 'categorymembers',
+      gcmtitle: 'Category:' + category,
+      gcmtype: 'file',
+      gcmnamespace: '6',
+      gcmlimit: '8',
+      gcmsort: 'timestamp',
+      gcmdir: 'desc',
+      prop: 'imageinfo',
+      iiprop: 'url|extmetadata|user',
+      iiurlwidth: '640',
+      format: 'json',
+      origin: '*'
+    });
+
+    fetch('https://commons.wikimedia.org/w/api.php?' + params.toString())
+      .then(function (response) {
+        if (!response.ok) throw new Error('Commons HTTP ' + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        if (!gallery.isConnected) return;
+        var pages = data.query && data.query.pages ? Object.keys(data.query.pages).map(function (key) { return data.query.pages[key]; }) : [];
+        var images = pages.map(function (page) {
+          var info = page.imageinfo && page.imageinfo[0];
+          if (!info || !info.thumburl || !/^https:\\/\\//.test(info.thumburl)) return null;
+          if (!/\\.(jpe?g|png|webp)$/i.test(page.title || '')) return null;
+          var meta = info.extmetadata || {};
+          var author = wikiPlainText(meta.Artist && meta.Artist.value) || info.user || '';
+          var license = wikiPlainText(meta.LicenseShortName && meta.LicenseShortName.value) || '';
+          return {
+            title: page.title || 'Фотография корпуса',
+            thumb: info.thumburl,
+            page: info.descriptionurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(page.title || '').replace(/%20/g, '_')),
+            author: author,
+            license: license
+          };
+        }).filter(Boolean).slice(0, 6);
+
+        if (!images.length) return;
+        var strip = document.createElement('div');
+        strip.className = 'commons-strip';
+        images.forEach(function (item) {
+          var card = document.createElement('a');
+          card.className = 'commons-item';
+          card.href = item.page;
+          card.target = '_blank';
+          card.rel = 'noopener noreferrer';
+          card.setAttribute('aria-label', 'Открыть фотографию на Wikimedia Commons');
+          var image = document.createElement('img');
+          image.src = item.thumb;
+          image.alt = item.title.replace(/^File:/, '');
+          image.loading = 'lazy';
+          image.decoding = 'async';
+          image.onerror = function () { card.remove(); };
+          card.appendChild(image);
+          var caption = document.createElement('span');
+          caption.className = 'commons-caption';
+          caption.textContent = [item.author, item.license].filter(Boolean).join(' · ') || 'Wikimedia Commons';
+          card.appendChild(caption);
+          strip.appendChild(card);
+        });
+        if (strip.children.length) {
+          gallery.innerHTML = '';
+          gallery.appendChild(strip);
+          var note = document.createElement('a');
+          note.className = 'commons-more';
+          note.href = heritage.heritageSourceUrl;
+          note.target = '_blank';
+          note.rel = 'noopener noreferrer';
+          note.textContent = 'Все фотографии на Wikimedia Commons';
+          gallery.appendChild(note);
+        }
+      })
+      .catch(function () {
+        /* Оставляем локальную фотографию, если Commons временно недоступен. */
+      });
+  }
+
   function popupHtml(p) {
     var camp = null;
     ((campusData && campusData.buildings) || []).forEach(function (b) {
@@ -370,47 +474,48 @@
     var title = camp ? camp.name : (p.name || 'Здание');
     var heritage = camp && camp.heritage;
     var photo = heritage && heritage.photo;
-    if (photo && photo.src) {
-      var photoUrl = null;
-      try { photoUrl = new URL(photo.src, location.href).href; } catch (e) { photoUrl = null; }
-      if (photoUrl && /^https?:/.test(photoUrl)) {
-        var photoSource = photo.sourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(photo.sourceUrl) ? photo.sourceUrl : '';
-        html += '<figure class="campus-photo">';
-        if (photoSource) html += '<a class="campus-photo-link" href="' + esc(photoSource) + '" target="_blank" rel="noopener noreferrer" aria-label="Открыть фотографию в Wikimedia Commons">';
-        html += '<img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async">';
-        if (photoSource) html += '</a>';
-        html += '<figcaption>' + esc(photo.credit || 'Фото Wikimedia Commons');
-        if (photo.licenseUrl && /^https:\/\/creativecommons\.org\//.test(photo.licenseUrl)) html += ' · <a href="' + esc(photo.licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(photo.license || 'лицензия') + '</a>';
-        html += '</figcaption></figure>';
-      }
-    }
+
     html += '<h3>' + esc(title) + '</h3>';
-    if (camp && camp.description) { html += '<p>' + esc(camp.description) + '</p>'; }
-    if (camp && camp.address) { html += '<p class="muted">' + esc(camp.address) + '</p>'; }
-    if (heritage && heritage.heritageSourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(heritage.heritageSourceUrl)) {
-      html += '<section class="wiki-card commons-card"><b>Wikimedia Commons</b><p>Фотографии и материалы об этом корпусе.</p><a href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Открыть материалы в Wikimedia Commons</a></section>';
-    }
-    html += '<section class="wiki-card"><b>Справка Wikipedia</b><p data-wikipedia-summary>Загружаем краткую справку…</p><a data-wikipedia-link href="' + esc(WIKIPEDIA_PAGE) + '" target="_blank" rel="noopener noreferrer">Открыть статью в Wikipedia</a></section>';
-    if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'по данным карты') + ')</p>'; }
-    else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по этажности') + ')</p>'; }
-    else if (p.hq === 'unknown') { html += '<p><b>Высота:</b> не указана</p>'; }
+    if (camp && camp.description) html += '<p>' + esc(camp.description) + '</p>';
+    if (camp && camp.address) html += '<p class="muted">' + esc(camp.address) + '</p>';
+
     if (heritage) {
+      if (heritage.historicalNote) html += '<section class="building-history"><b>История</b><p>' + esc(heritage.historicalNote) + '</p></section>';
       if (heritage.built) html += '<p><b>Построен:</b> ' + esc(heritage.built) + '</p>';
       if (heritage.style) html += '<p><b>Стиль:</b> ' + esc(heritage.style) + '</p>';
       if (heritage.architects) html += '<p><b>Архитекторы:</b> ' + esc(heritage.architects) + '</p>';
-      if (heritage.heritageSourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(heritage.heritageSourceUrl)) html += '<p><a href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Материалы Wikimedia Commons</a></p>';
-      if (heritage.historySourceUrl && /^https?:\/\//.test(heritage.historySourceUrl)) html += '<p><a href="' + esc(heritage.historySourceUrl) + '" target="_blank" rel="noopener noreferrer">Историческая справка</a></p>';
+
+      if (heritage.heritageSourceUrl && /^https:\\/\\/commons\\.wikimedia\\.org\\//.test(heritage.heritageSourceUrl)) {
+        html += '<section class="wiki-card commons-card"><b>Фотографии корпуса</b><div data-commons-gallery>';
+        if (photo && photo.src) {
+          var photoUrl = null;
+          try { photoUrl = new URL(photo.src, location.href).href; } catch (e) { photoUrl = null; }
+          if (photoUrl && /^https?:/.test(photoUrl)) {
+            html += '<figure class="campus-photo"><a class="campus-photo-link" href="' + esc(photo.sourceUrl || heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async" data-campus-fallback-photo><figcaption>' + esc(photo.credit || 'Wikimedia Commons');
+            if (photo.licenseUrl && /^https:\\/\\/creativecommons\\.org\\//.test(photo.licenseUrl)) html += ' · <a href="' + esc(photo.licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(photo.license || 'лицензия') + '</a>';
+            html += '</figcaption></a></figure>';
+          }
+        }
+        html += '</div><a class="commons-more" href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Открыть Wikimedia Commons</a></section>';
+      }
+      if (heritage.historySourceUrl && /^https?:\\/\\//.test(heritage.historySourceUrl)) {
+        html += '<p><a href="' + esc(heritage.historySourceUrl) + '" target="_blank" rel="noopener noreferrer">Подробнее об истории</a></p>';
+      }
     }
+
     if (camp && camp.units && camp.units.length) {
-      html += '<ul>';
+      html += '<section class="building-units"><b>Подразделения и кабинеты</b><ul>';
       camp.units.forEach(function (u) {
         html += '<li>' + esc(u.name) + (u.room ? ' <span class="muted">— ' + esc(u.room) + '</span>' : '') + '</li>';
       });
-      html += '</ul>';
+      html += '</ul></section>';
     }
-    if (camp && camp.units && camp.units.length) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Схема этажей и кабинеты</button></p>';
-    if (p.src && /^https:\/\/www\.openstreetmap\.org\//.test(p.src)) {
-      html += '<p class="muted"><a href="' + esc(p.src) + '" target="_blank" rel="noopener">Объект в OpenStreetMap</a></p>';
+    if (camp && camp.units && camp.units.length) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей и кабинеты</button></p>';
+    if (camp && camp.officialSource && /^https?:\\/\\//.test(camp.officialSource)) {
+      html += '<p class="muted"><a href="' + esc(camp.officialSource) + '" target="_blank" rel="noopener noreferrer">На официальной карте университета</a></p>';
+    }
+    if (p.src && /^https:\\/\\/www\\.openstreetmap\\.org\\//.test(p.src)) {
+      html += '<p class="muted"><a href="' + esc(p.src) + '" target="_blank" rel="noopener">Объект на OpenStreetMap</a></p>';
     }
     return html + '</div>';
   }
@@ -540,7 +645,8 @@
     var mine = new maplibregl.Popup({ closeButton: true, maxWidth: '340px', className: 'bpop', focusAfterOpen: false })
       .setLngLat(lngLat).setHTML(popupHtml(info)).addTo(map);
     popup = mine;
-    updateWikipediaBlock(mine.getElement());
+    var selectedCampus = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(info.campus); });
+    loadCommonsGallery(mine.getElement(), selectedCampus);
     var floorButton = mine.getElement().querySelector('[data-open-floorplan]');
     if (floorButton) floorButton.addEventListener('click', function () { openFloorPlan(floorButton.getAttribute('data-open-floorplan')); });
     mine.on('close', function () {
