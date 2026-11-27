@@ -4,6 +4,7 @@ pub mod groups;
 pub mod health;
 pub mod help;
 pub mod me;
+pub mod miniapp;
 pub mod presence;
 pub mod queue;
 pub mod rag;
@@ -14,7 +15,7 @@ pub mod tracker;
 
 use crate::state::SharedState;
 use axum::{
-    routing::{get, post, put},
+    routing::{get, patch, post, put},
     Router,
 };
 
@@ -25,6 +26,14 @@ pub fn router() -> Router<SharedState> {
         .route("/api/presence/ping", post(presence::ping))
         .route("/api/me", get(me::get_me).put(me::update_me))
         .route("/api/me/group", post(me::update_group))
+        .route("/api/me/preferences", get(miniapp::get_preferences).patch(miniapp::update_preferences))
+        .route("/api/me/chats", get(miniapp::list_managed_chats))
+        .route("/api/me/chats/:chat_id/settings", get(miniapp::get_chat_settings).put(miniapp::update_chat_settings))
+        .route("/api/me/chats/:chat_id/group", post(miniapp::update_chat_group))
+        .route("/api/me/chats/:chat_id/command", post(miniapp::run_chat_command))
+        .route("/api/me/assistant", post(miniapp::assistant_chat))
+        .route("/api/me/notification-health", get(miniapp::notification_health))
+        .route("/api/me/notification-test", post(miniapp::send_notification_test))
         .route("/api/groups", get(groups::list_groups))
         .route("/api/groups/:group_id", get(groups::get_group))
         .route("/api/schedule/:group_id", get(schedule::group_schedule))
