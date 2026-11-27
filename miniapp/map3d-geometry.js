@@ -217,7 +217,7 @@
           var iy2 = cy + uy * (frameW / 2 - inset) + ny * 0.04;
           var ix3 = [ix2 + nx * (frameD - 0.08), iy2 + ny * (frameD - 0.08)];
           var ix4 = [ix1 + nx * (frameD - 0.08), iy1 + ny * (frameD - 0.08)];
-          frames.push(polyFeature([outer, [ix1, iy1, ix2, iy2, ix3, ix4]], P, {
+          frames.push(polyFeature([outer, [ix1, iy1, ix2, iy2, ix3, ix4].reverse()], P, {
             pid: pid, col: '#e4dac6', z0: z0, z1: z0 + wh + 0.16
           }));
           var p1 = [cx - ux * ww / 2 + nx * 0.055, cy - uy * ww / 2 + ny * 0.055];
