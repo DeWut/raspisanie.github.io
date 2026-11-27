@@ -167,6 +167,11 @@
     if (map && map.getLayer('hl-flat')) {
       map.setLayoutProperty('hl-flat', 'visibility', buildings3D ? 'none' : 'visible');
     }
+    // In schematic mode, turning volumes on tilts the camera so the
+    // extrusions are actually visible; flat mode stays north-up and top-down.
+    if (map && mode === 'scheme') {
+      map.easeTo({ pitch: buildings3D ? 48 : 0, bearing: 0, duration: 500 });
+    }
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
   map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
@@ -459,7 +464,7 @@
           case 'btn-orbit': setOrbit(!orbiting); break;
           case 'btn-home':
             setOrbit(false);
-            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: HOME.pitch, bearing: HOME.bearing, duration: 1800 });
+            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: mode === 'scheme' ? (buildings3D ? 48 : 0) : HOME.pitch, bearing: mode === 'scheme' ? 0 : HOME.bearing, duration: 1800 });
             break;
         }
       });
@@ -491,7 +496,7 @@
       btn.textContent = 'Корпус ' + b.number;
       btn.addEventListener('click', function () {
         setOrbit(false);
-        map.flyTo({ center: [b.longitude, b.latitude], zoom: 18.4, pitch: 64, bearing: map.getBearing(), duration: 1600 });
+        map.flyTo({ center: [b.longitude, b.latitude], zoom: 18.4, pitch: mode === 'scheme' && !buildings3D ? 0 : 64, bearing: mode === 'scheme' ? 0 : map.getBearing(), duration: 1600 });
         if (b.osm && scene && scene.index[String(b.osm.id)]) {
           setTimeout(function () { selectBuilding(String(b.osm.id), [b.longitude, b.latitude]); }, 1700);
         }
