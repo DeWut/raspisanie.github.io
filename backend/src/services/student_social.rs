@@ -265,45 +265,94 @@ pub async fn handle_callback(
             bot.answer_callback_query(query.id.clone()).await?;
 
             if action.starts_with("dating:") {
-                let open_editor = matches!(
-                    action,
-                    "dating:edit" | "dating:name" | "dating:bio" | "dating:photo"
-                        | "dating:cancel" | "dating:photo:delete"
-                ) || action.starts_with("dating:tag:");
-                let payload = if open_editor { "dating_edit" } else { "dating_home" };
-                let (label, text) = if open_editor {
-                    (
-                        "✏️ Открыть редактор",
-                        "Редактирование анкеты доступно в личном чате. Нажми кнопку ниже — откроется редактор с твоими текущими данными.",
-                    )
-                } else {
-                    (
-                        "💚 Открыть мою анкету",
-                        "Управление анкетой и знакомствами доступно в личном чате с ботом. Нажми кнопку ниже, чтобы открыть свою анкету.",
-                    )
-                };
-                let link = match bot.get_me().await {
-                    Ok(me) => me.username.as_ref().and_then(|username| {
-                        url::Url::parse(&format!("https://t.me/{username}?start={payload}"))
-                            .ok()
-                            .map(|url| InlineKeyboardButton::url(label, url))
-                    }),
+                // Telegram may provide inline_message_id even when an inline
+                // result is shown in this user's private chat. Therefore route
+                // every dating action directly to the user's tracked DM screen.
+                let private_chat = ChatId(actor);
+                let (home_text, home_keyboard) = dating_home(db, actor).await;
+                if let Err(error) = render_tracked_dating_screen(
+                    bot,
+                    db,
+                    private_chat,
+                    actor,
+                    home_text,
+                    home_keyboard,
+                )
+                .await
+                {
+                    tracing::error!(
+                        action = action,
+                        actor = actor,
+                        "Could not ensure private dating screen: {}",
+                        error
+                    );
+                    let _ = bot
+                        .edit_message_text_inline(
+                            inline_message_id,
+                            "Не удалось обновить анкету. Проверь, что личный чат с ботом не заблокирован, и отправь /start.",
+                        )
+                        .await;
+                    return Ok(true);
+                }
+
+                let message_id = match tracked_dating_screen_message(
+                    bot,
+                    db,
+                    private_chat,
+                    actor,
+                )
+                .await
+                {
+                    Ok(message_id) => message_id,
                     Err(error) => {
-                        tracing::warn!("Could not resolve bot username for dating handoff: {}", error);
-                        None
+                        tracing::error!(
+                            action = action,
+                            actor = actor,
+                            "Could not resolve tracked private dating screen: {}",
+                            error
+                        );
+                        let _ = bot
+                            .edit_message_text_inline(
+                                inline_message_id,
+                                "Не удалось открыть анкету. Отправь /start в этом чате и повтори действие.",
+                            )
+                            .await;
+                        return Ok(true);
                     }
                 };
-                if let Some(link_button) = link {
-                    bot.edit_message_text_inline(inline_message_id, text)
-                        .reply_markup(InlineKeyboardMarkup::new(vec![vec![link_button]]))
-                        .await?;
-                } else {
-                    bot.edit_message_text_inline(
-                        inline_message_id,
-                        format!("{text}\n\nОткрой личный чат с ботом и отправь /start {payload}."),
-                    )
-                    .await?;
+
+                if let Err(error) = dating_action(
+                    bot,
+                    db,
+                    actor,
+                    private_chat,
+                    message_id,
+                    action,
+                    admin_id,
+                )
+                .await
+                {
+                    tracing::error!(
+                        action = action,
+                        actor = actor,
+                        "Inline dating action failed in private screen: {}",
+                        error
+                    );
+                    let _ = bot
+                        .edit_message_text_inline(
+                            inline_message_id,
+                            "Не удалось выполнить действие анкеты. Повтори нажатие; если ошибка останется, проверь backend log.",
+                        )
+                        .await;
+                    return Ok(true);
                 }
+
+                let _ = bot
+                    .edit_message_text_inline(
+                        inline_message_id,
+                        "✅ Анкета обновлена. Экран управления уже находится в этом диалоге.",
+                    )
+                    .await;
                 return Ok(true);
             }
 
