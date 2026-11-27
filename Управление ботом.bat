@@ -20,7 +20,7 @@ echo  ^|                                                  ^|
 echo  +--------------------------------------------------+
 echo.
 set "choice="
-set /p "choice=  Select command [0-5]: "
+set /p "choice=  Select command [0-6]: "
 
 if "%choice%"=="1" goto start
 if "%choice%"=="2" goto stop
@@ -30,7 +30,7 @@ if "%choice%"=="5" goto sync
 if "%choice%"=="6" goto update
 if "%choice%"=="0" goto end
 echo.
-echo  [!] Unknown command. Choose 0, 1, 2, 3, 4 or 5.
+echo  [!] Unknown command. Choose 0, 1, 2, 3, 4, 5 or 6.
 pause
 goto menu
 
