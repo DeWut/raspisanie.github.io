@@ -650,6 +650,10 @@
         if (zoomValue) zoomValue.textContent = Math.round(floorPlanZoom * 100) + '%';
       }
     });
+    window.addEventListener('resize', function () {
+      var panel = $('floorplan');
+      if (panel && !panel.hidden) fitFloorPlanDrawing();
+    });
     var floorPanel = $('floorplan');
     if (floorPanel) floorPanel.addEventListener('click', function (event) { if (event.target === floorPanel) closeFloorPlan(); });
     var infoButton = $('infoBtn');
