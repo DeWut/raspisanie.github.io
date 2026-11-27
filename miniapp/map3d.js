@@ -78,7 +78,7 @@
       paint: {
         'fill-extrusion-color': ['get', 'col'],
         'fill-extrusion-base': ['get', 'z0'],
-        'fill-extrusion-height': ['get', 'z1'],
+        'fill-extrusion-height': ['+', ['get', 'z0'], ['*', ['-', ['get', 'z1'], ['get', 'z0']], 1.25]],
         'fill-extrusion-opacity': opacity,
         'fill-extrusion-vertical-gradient': true
       }
@@ -169,7 +169,7 @@
     }
     // Flat vector scheme stays top-down; turning 3D volumes on tilts the camera.
     if (map && mode === 'scheme') {
-      map.easeTo({ pitch: buildings3D ? 48 : 0, bearing: 0, duration: 500 });
+      map.easeTo({ pitch: buildings3D ? 62 : 0, bearing: buildings3D ? -12 : 0, duration: 750, essential: true });
     }
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
