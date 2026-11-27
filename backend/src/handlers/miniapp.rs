@@ -191,7 +191,7 @@ pub async fn get_chat_settings(
 
     let row = sqlx::query(
         r#"
-        SELECT g.name, c.daily_schedule_enabled,
+        SELECT g.name, g.external_id, c.daily_schedule_enabled,
                to_char(c.daily_schedule_time,'HH24:MI') AS daily_schedule_time,
                c.lesson_notifications_enabled, c.daily_digest_enabled,
                to_char(c.daily_digest_time,'HH24:MI') AS daily_digest_time,
@@ -215,6 +215,7 @@ pub async fn get_chat_settings(
     Ok(Json(json!({
         "chat_id": chat_id,
         "group_name": row.try_get::<String,_>("name")?,
+        "external_id": row.try_get::<String,_>("external_id")?,
         "daily_schedule_enabled": row.try_get::<bool,_>("daily_schedule_enabled")?,
         "daily_schedule_time": row.try_get::<String,_>("daily_schedule_time")?,
         "lesson_notifications_enabled": row.try_get::<bool,_>("lesson_notifications_enabled")?,
@@ -521,7 +522,9 @@ pub async fn assistant_chat(
             "Спроси, например: «какое расписание завтра?», «что задали?», «какие дедлайны?», «когда пары у Иванова?» или «свободные аудитории на 15:00». Для данных своей группы привяжи её в настройках.".to_owned(),
         ),
         Some(crate::services::conversation::Intent::Today) => {
-            let group = group_id.ok_or(AppError::Conflict)?;
+            let Some(group) = group_id else {
+                return Ok(Json(json!({"kind":"schedule","reply":"Сначала выбери учебную группу в настройках Mini App."})));
+            };
             ("schedule", crate::bot::schedule_text(&state.db, group, "/today").await)
         }
         Some(crate::services::conversation::Intent::Tomorrow) => {
@@ -656,15 +659,19 @@ pub async fn notification_health(
         json!({"kind":kind,"status":status,"recipient_id":recipient_id,"created_at":created_at,"detail":detail})
     }).collect::<Vec<_>>();
 
-    Ok(Json(json!({
-        "worker": worker.map(|(tick,success,error)|json!({
+    let worker = worker.map(|(tick,success,error)| {
+        let healthy = tick.as_ref().is_some_and(|value| {
+            Utc::now().signed_duration_since(*value).num_seconds() < 120
+        });
+        json!({
             "last_tick_at":tick,
             "last_success_at":success,
             "last_error":error,
-            "healthy":tick.is_some_and(|value| Utc::now().signed_duration_since(value).num_seconds() < 120)
-        })).unwrap_or_else(||json!({"healthy":false,"last_tick_at":null,"last_success_at":null,"last_error":"Ожидается первый запуск фонового цикла"})),
-        "deliveries": deliveries
-    })))
+            "healthy":healthy
+        })
+    }).unwrap_or_else(||json!({"healthy":false,"last_tick_at":null,"last_success_at":null,"last_error":"Ожидается первый запуск фонового цикла"}));
+
+    Ok(Json(json!({"worker":worker,"deliveries":deliveries})))
 }
 
 pub async fn send_notification_test(
