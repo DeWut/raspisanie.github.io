@@ -262,11 +262,32 @@
       if (b && b.osm && b.osm.id != null) { campusByOsm[String(b.osm.id)] = b; }
     });
 
+    function normalizeGroundFeature(feature) {
+      var geometry = feature.geometry;
+      function normalizePolygon(rings) {
+        return rings.map(function (ring, index) {
+          var clean = stripClose(ring);
+          var area = signedArea(clean);
+          var shouldBePositive = index === 0;
+          if ((area > 0) !== shouldBePositive) clean.reverse();
+          clean.push(clean[0]);
+          return clean;
+        });
+      }
+      var copy = { type: feature.type, properties: feature.properties, geometry: geometry };
+      if (geometry.type === 'Polygon') {
+        copy.geometry = { type: 'Polygon', coordinates: normalizePolygon(geometry.coordinates) };
+      } else if (geometry.type === 'MultiPolygon') {
+        copy.geometry = { type: 'MultiPolygon', coordinates: geometry.coordinates.map(normalizePolygon) };
+      }
+      return copy;
+    }
+
     var buildings = [];
     features.forEach(function (f) {
       var k = f && f.properties && f.properties.kind;
       if (!k || !f.geometry) return;
-      if (GROUND[k]) { out.ground.push(f); }
+      if (GROUND[k]) { out.ground.push(normalizeGroundFeature(f)); }
       else if (k === 'building') { buildings.push(f); }
     });
 
@@ -417,9 +438,9 @@
     // mapped woodland / arboretum polygons with deterministic illustrative trees.
     // These are vegetation-density visualizations, not surveyed individual trees.
     var TIERS = [
-      { f: 1.0, z0: 2.0, z1: 4.6, l: 0 },
-      { f: 0.74, z0: 4.6, z1: 6.9, l: 0.07 },
-      { f: 0.46, z0: 6.9, z1: 8.6, l: 0.14 }
+      { f: 1.0, z0: 2.2, z1: 5.0, l: 0 },
+      { f: 0.74, z0: 5.0, z1: 7.8, l: 0.07 },
+      { f: 0.46, z0: 7.8, z1: 10.4, l: 0.14 }
     ];
     var TREE_SHADOW = 5.5;
     var mappedTreePoints = [];
@@ -509,11 +530,11 @@
     var generatedPoints = [];
     var generatedLimit = 720;
     function addIllustrativeTree(x, y, seed) {
-      var radius = 2.05 + rnd(seed + '|radius') * 0.85;
+      var radius = 3.0 + rnd(seed + '|radius') * 1.15;
       var v = 0.86 + rnd(seed + '|height') * 0.28;
       var col = pick(['#356c3d', '#477e43', '#5a874b', '#3f7548', '#668c50'], seed);
       var crown = circle(x, y, radius, 10);
-      out.trees.push(polyFeature([circle(x, y, 0.18, 7)], P, { col: '#66513b', z0: 0, z1: 2.7 * v }));
+      out.trees.push(polyFeature([circle(x, y, 0.18, 7)], P, { col: '#66513b', z0: 0, z1: 3.0 * v }));
       TIERS.forEach(function (t) {
         var r = scaleAbout(crown, t.f, t.f, x, y);
         out.trees.push(polyFeature([r], P, { col: lighten(col, t.l), z0: t.z0 * v, z1: t.z1 * v }));
@@ -555,7 +576,7 @@
     }).forEach(function (f, fi) {
       if (generatedPoints.length >= generatedLimit) return;
       var isGarden = /дендролог|дендропарк|сад/i.test(String(f.properties.name || ''));
-      var spacing = isGarden ? 10.5 : 22;
+      var spacing = isGarden ? 10.5 : 19;
       polygonsOf(f.geometry).forEach(function (poly, pi) {
         if (!poly.length || generatedPoints.length >= generatedLimit) return;
         var rings = poly.map(function (r) { return stripClose(r.map(P.toM)); });
