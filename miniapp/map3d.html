@@ -29,6 +29,8 @@
     }
     .title b { display: block; font-size: 15px; }
     .title span { color: var(--muted); font-size: 12px; }
+    .floor-open { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:9px 14px; border:0; border-radius:10px; background:#176b4c; color:#fff; font:650 13px system-ui,sans-serif; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+    .floor-open:active { background:#0e5138; transform:scale(.98); }
     .map-style-toggle { position:absolute; z-index:8; top:calc(var(--safe-top) + 12px); right:12px; display:flex; align-items:center; gap:7px; min-height:42px; padding:8px 11px; border:1px solid rgba(255,255,255,.75); border-radius:13px; background:rgba(20,31,27,.9); color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.22); font:650 12px system-ui,sans-serif; cursor:pointer; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); touch-action:manipulation; }
     .map-style-toggle svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
     .map-style-toggle:active { transform:scale(.96); }
@@ -223,9 +225,9 @@
     })();
   </script>
   <script src="./vendor/maplibre-gl.js"></script>
-  <script src="./map3d-geometry.js?v=20261127-37"></script>
-  <script src="./floorplans.js?v=20261127-37"></script>
-  <script src="./floorplans-building1.js?v=20261127-37"></script>
-  <script src="./map3d.js?v=20261127-37"></script>
+  <script src="./map3d-geometry.js?v=20261127-38"></script>
+  <script src="./floorplans.js?v=20261127-38"></script>
+  <script src="./floorplans-building1.js?v=20261127-38"></script>
+  <script src="./map3d.js?v=20261127-38"></script>
 </body>
 </html>

@@ -693,11 +693,18 @@
   }
 
   function openFloorPlan(number, requestedFloor, requestedRoom, fromRoute) {
-    var building = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(number); });
-    if (!building) return;
+    var normalizedNumber = String(number == null ? '' : number).trim();
+    var building = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number).trim() === normalizedNumber; });
+    if (!building) {
+      setStatus('Не удалось найти данные корпуса № ' + normalizedNumber + '.', true);
+      return;
+    }
     var panel = $('floorplan');
     var title = $('floorplan-title');
-    if (!panel) return;
+    if (!panel || !title) {
+      setStatus('Не найдено окно планов этажей. Обновите страницу карты.', true);
+      return;
+    }
     title.textContent = building.name + ' · ' + (building.address || '');
     var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
     var availableFloors = custom && custom.floors ? Object.keys(custom.floors).map(Number) : [];
@@ -710,15 +717,20 @@
     var floor = Number(requestedFloor) || firstFloor;
     if (availableFloors.length && availableFloors.indexOf(floor) === -1) floor = firstFloor;
     floorPlanSearchQuery = '';
-    panel.hidden = false;
-    panel.style.display = 'grid';
-    panel.setAttribute('aria-hidden', 'false');
-    renderFloorPlan(building, floor, requestedRoom || '');
-    if (!window.CAMPUS_FLOORPLANS || !window.CAMPUS_FLOORPLANS[String(building.number)]) {
-      setStatus('Для этого корпуса пока нет графического плана этажей.', true);
-      setTimeout(function () { setStatus(''); }, 5000);
+    try {
+      renderFloorPlan(building, floor, requestedRoom || '');
+      panel.hidden = false;
+      panel.style.display = 'grid';
+      panel.setAttribute('aria-hidden', 'false');
+      if (!window.CAMPUS_FLOORPLANS || !window.CAMPUS_FLOORPLANS[String(building.number)]) {
+        setStatus('Для корпуса № ' + normalizedNumber + ' нет графического плана этажей.', true);
+        setTimeout(function () { setStatus(''); }, 5000);
+      }
+      if (!fromRoute) updateFloorRoute(building, floor, requestedRoom);
+    } catch (error) {
+      console.error('Не удалось открыть план этажа:', error);
+      setStatus('Ошибка открытия плана этажа: ' + ((error && error.message) || error), true);
     }
-    if (!fromRoute) updateFloorRoute(building, floor, requestedRoom);
   }
 
   function closeFloorPlan() {
@@ -767,7 +779,19 @@
     mine.getElement().querySelectorAll('[data-campus-fallback-photo]').forEach(function (image) {
       image.addEventListener('error', function () { var figure = image.closest('.campus-photo'); if (figure) figure.remove(); }, { once: true });
     });
-    // Delegated at document level in wire(); keep popup markup independent of timing.
+    // Bind on the popup itself: mobile WebViews may not reliably deliver
+    // popup clicks to a document-level delegated handler.
+    var popupElement = mine.getElement();
+    if (popupElement) popupElement.addEventListener('click', function (event) {
+      var target = event.target;
+      var floorButton = target && target.closest ? target.closest('[data-open-floorplan]') : null;
+      if (!floorButton || !popupElement.contains(floorButton)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      var buildingNumber = floorButton.getAttribute('data-open-floorplan');
+      openFloorPlan(buildingNumber);
+    }, true);
     mine.on('close', function () {
       if (popup === mine) {
         popup = null;
@@ -829,13 +853,6 @@
   /* ---------- UI wiring ---------- */
 
   function wire() {
-    document.addEventListener('click', function (event) {
-      var floorButton = event.target.closest && event.target.closest('[data-open-floorplan]');
-      if (!floorButton) return;
-      event.preventDefault();
-      event.stopPropagation();
-      openFloorPlan(floorButton.getAttribute('data-open-floorplan'));
-    }, true);
     var modeButton = $('btn-mode');
     if (modeButton) modeButton.addEventListener('click', function (event) {
       event.preventDefault();
