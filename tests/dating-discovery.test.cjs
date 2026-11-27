@@ -24,6 +24,7 @@ for (const action of [
 assert.match(social, /preferred_gender='any' OR p\.gender=own\.preferred_gender/);
 assert.match(social, /repeat_profiles_enabled=TRUE/);
 assert.match(social, /random\(\) < 0\.01/);
+assert.match(social, /own\\.repeat_profiles_enabled=FALSE OR NOT draw\\.repeat_draw/, 'Disabling repeats must not suppress unseen profiles');
 assert.match(social, /ORDER BY random\(\) LIMIT 1/);
 assert.match(social, /bot_dating_seen_profiles/);
 assert.match(social, /bot_dating_browse_state/);
