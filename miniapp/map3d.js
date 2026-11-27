@@ -515,14 +515,135 @@
     var value = String(room || '').trim();
     var explicit = value.match(/(?:^|\b)([1-9])\s*[- ]?й\s*этаж/i);
     if (explicit) return Number(explicit[1]);
-    var roomNumber = value.match(/\b([1-9])\d{2,3}\b/);
-    return roomNumber ? Number(roomNumber[1]) : null;
+    var roomNumber = value.match(/(?:^|[^\d])([1-9])\d{2,3}[А-Яа-яA-Za-z]?(?:$|[^\d])/);
+    if (roomNumber) return Number(roomNumber[1]);
+    var shortRoom = value.match(/^\s*\d{1,2}[А-Яа-яA-Za-z]?\s*$/);
+    return shortRoom ? 1 : null;
+  }
+
+  function floorForUnit(unit) {
+    return unit && Number(unit.floor) > 0 ? Number(unit.floor) : floorForRoom(unit && unit.room);
+  }
+
+  function normalizeRoom(value) {
+    return String(value == null ? '' : value).toUpperCase().replace(/Ё/g, 'Е')
+      .replace(/АУДИТОРИЯ|КАБИНЕТ|КАБ\.?|№|Nº|NO\.?/g, '')
+      .replace(/[^0-9A-ZА-Я]/g, '');
+  }
+
+  function roomUnit(building, room) {
+    var key = normalizeRoom(room);
+    return ((building && building.units) || []).find(function (unit) {
+      return normalizeRoom(unit.room) === key;
+    }) || null;
   }
 
   var activeFloorBuilding = null;
   var activeFloorNumber = 1;
   var floorPlanZoom = 1;
   var floorPlanFitWidth = 100;
+  var floorPlanSearchQuery = '';
+  var selectedFloorRoom = '';
+
+  function updateFloorRoute(building, floor, room) {
+    if (!building || !window.history || !window.URLSearchParams) return;
+    var params = new URLSearchParams(location.search);
+    var mapKey = building.mapKey || ('kor_' + String(building.number));
+    params.set('auditory', mapKey);
+    params.set('floor', String(floor || 1));
+    if (room) params.set('room', String(room));
+    else params.delete('room');
+    var query = params.toString();
+    history.replaceState(history.state, '', location.pathname + (query ? '?' + query : '') + location.hash);
+  }
+
+  function clearFloorRoute() {
+    if (!window.history || !window.URLSearchParams) return;
+    var params = new URLSearchParams(location.search);
+    ['auditory', 'building', 'campus', 'floor', 'room'].forEach(function (key) { params.delete(key); });
+    var query = params.toString();
+    history.replaceState(history.state, '', location.pathname + (query ? '?' + query : '') + location.hash);
+  }
+
+  function renderRoomSearchResults(building) {
+    var input = $('floor-room-search');
+    var results = $('room-search-results');
+    if (!input || !results) return;
+    floorPlanSearchQuery = input.value || '';
+    var query = normalizeRoom(floorPlanSearchQuery);
+    results.innerHTML = '';
+    if (!query) { results.hidden = true; return; }
+    var matches = ((building && building.units) || []).filter(function (unit) {
+      return normalizeRoom(unit.room).indexOf(query) !== -1 ||
+        String(unit.name || '').toLocaleLowerCase('ru').indexOf(floorPlanSearchQuery.trim().toLocaleLowerCase('ru')) !== -1;
+    }).slice(0, 20);
+    results.hidden = false;
+    if (!matches.length) {
+      results.textContent = 'Ничего не найдено. Проверьте номер аудитории или название подразделения.';
+      return;
+    }
+    matches.forEach(function (unit) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'room-search-result';
+      button.setAttribute('data-room-select', unit.room || '');
+      button.setAttribute('data-room-floor', String(floorForUnit(unit) || ''));
+      var number = document.createElement('b');
+      number.textContent = unit.room || 'Без номера';
+      var name = document.createElement('span');
+      name.textContent = unit.name || 'Помещение';
+      var floor = document.createElement('small');
+      floor.textContent = floorForUnit(unit) ? floorForUnit(unit) + '-й этаж' : 'Этаж не указан';
+      button.appendChild(number);
+      button.appendChild(name);
+      button.appendChild(floor);
+      results.appendChild(button);
+    });
+  }
+
+  function selectRoomInPlan(room) {
+    if (!activeFloorBuilding || !room) return;
+    selectedFloorRoom = String(room);
+    updateFloorRoute(activeFloorBuilding, activeFloorNumber, selectedFloorRoom);
+    var content = $('floorplan-content');
+    if (!content) return;
+    content.querySelectorAll('[data-room].is-selected').forEach(function (node) { node.classList.remove('is-selected'); });
+    content.querySelectorAll('.room-card.is-selected').forEach(function (node) { node.classList.remove('is-selected'); });
+    var target = null;
+    content.querySelectorAll('[data-room]').forEach(function (node) {
+      if (normalizeRoom(node.getAttribute('data-room')) === normalizeRoom(room)) target = node;
+    });
+    content.querySelectorAll('[data-room-card]').forEach(function (node) {
+      if (normalizeRoom(node.getAttribute('data-room-card')) === normalizeRoom(room)) {
+        node.classList.add('is-selected');
+        if (!target) target = node;
+      }
+    });
+    var detail = $('room-selection');
+    var unit = roomUnit(activeFloorBuilding, room);
+    if (detail) {
+      detail.hidden = false;
+      detail.innerHTML = '';
+      var heading = document.createElement('b');
+      heading.textContent = unit ? (unit.room || room) : ('Аудитория ' + room);
+      var description = document.createElement('span');
+      description.textContent = unit ? unit.name : 'Помещение на плане';
+      var locationNote = document.createElement('small');
+      locationNote.textContent = target && target.matches('[data-room]')
+        ? 'Место аудитории отмечено на схеме.'
+        : 'Аудитория есть в справочнике, но её точное место на схеме пока не привязано.';
+      detail.appendChild(heading);
+      detail.appendChild(description);
+      detail.appendChild(locationNote);
+    }
+    if (target && target.matches('[data-room]')) {
+      target.classList.add('is-selected');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    } else if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
   function fitFloorPlanDrawing() {
     var content = $('floorplan-content');
     var viewport = content && content.querySelector('.floorplan-viewport');
@@ -537,69 +658,88 @@
     drawing.style.width = (floorPlanFitWidth * floorPlanZoom) + '%';
   }
 
-  function renderFloorPlan(building, floor) {
+  function renderFloorPlan(building, floor, selectedRoom) {
     var content = $('floorplan-content');
     if (!content) return;
     activeFloorBuilding = building;
-    activeFloorNumber = floor;
+    activeFloorNumber = Number(floor) || 1;
+    selectedFloorRoom = selectedRoom || '';
     floorPlanZoom = 1;
     var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
-    if (custom && custom.floors && custom.floors[floor]) {
-      var plan = custom.floors[floor];
+    var units = building.units || [];
+    var html = '<label class="room-search-label" for="floor-room-search">Поиск корпуса и аудиторий</label>';
+    html += '<input id="floor-room-search" class="floor-room-search" type="search" autocomplete="off" placeholder="Номер аудитории или кафедра" value="' + esc(floorPlanSearchQuery) + '">';
+    html += '<div id="room-search-results" class="room-search-results" hidden></div>';
+
+    if (custom && custom.floors && custom.floors[activeFloorNumber]) {
+      var plan = custom.floors[activeFloorNumber];
       var tabs = '';
       Object.keys(custom.floors).sort(function (a,b) { return Number(a)-Number(b); }).forEach(function (key) {
-        tabs += '<button type="button" class="floor-tab' + (Number(key) === Number(floor) ? ' active' : '') + '" data-floor-select="' + key + '" aria-pressed="' + (Number(key) === Number(floor) ? 'true' : 'false') + '">' + key + ' этаж</button>';
+        tabs += '<button type="button" class="floor-tab' + (Number(key) === activeFloorNumber ? ' active' : '') + '" data-floor-select="' + key + '" aria-pressed="' + (Number(key) === activeFloorNumber ? 'true' : 'false') + '">' + key + ' этаж</button>';
       });
-      var assigned = [];
-      (building.units || []).forEach(function (unit) {
-        if (floorForRoom(unit.room) === Number(floor)) assigned.push(unit);
-      });
-      var html = '<nav class="floor-tabs" aria-label="Выбор этажа">' + tabs + '</nav>';
+      var assigned = units.filter(function (unit) { return floorForUnit(unit) === activeFloorNumber; });
+      html += '<nav class="floor-tabs" aria-label="Выбор этажа">' + tabs + '</nav>';
       html += '<div class="floor-toolbar"><span>' + esc(plan.title) + '</span><div><button type="button" data-floor-zoom="-1" aria-label="Уменьшить схему">−</button><output data-floor-zoom-value aria-live="polite">100%</output><button type="button" data-floor-zoom="1" aria-label="Увеличить схему">+</button><button type="button" data-floor-zoom="reset">Вписать</button></div></div>';
       html += '<div class="floorplan-viewport" aria-label="План этажа"><div class="floorplan-drawing" style="width:100%">' + plan.svg + '</div></div>';
+      html += '<div id="room-selection" class="room-selection" aria-live="polite" hidden></div>';
       html += '<section class="floor-units"><h4>Кабинеты этого этажа</h4>';
       if (assigned.length) {
         html += '<div class="room-grid">';
         assigned.forEach(function (unit) {
-          html += '<article class="room-card"><b>' + esc(unit.room || 'Этаж ' + floor) + '</b><span>' + esc(unit.name) + '</span></article>';
+          html += '<button type="button" class="room-card" data-room-card="' + esc(unit.room || '') + '" data-room-select="' + esc(unit.room || '') + '"><b>' + esc(unit.room || 'Этаж ' + activeFloorNumber) + '</b><span>' + esc(unit.name) + '</span></button>';
         });
         html += '</div>';
       } else {
-        html += '<p class="muted">Кабинеты пока не добавлены.</p>';
+        html += '<p class="muted">Кабинеты этого этажа пока не внесены в справочник.</p>';
       }
       html += '</section><p class="floor-note">' + esc(custom.note) + '</p>';
       content.innerHTML = html;
       fitFloorPlanDrawing();
+      renderRoomSearchResults(building);
+      if (selectedFloorRoom) selectRoomInPlan(selectedFloorRoom);
       return;
     }
 
-    var units = building.units || [];
     var floors = {};
     var unassigned = [];
     units.forEach(function (unit) {
-      var f = floorForRoom(unit.room);
+      var f = floorForUnit(unit);
       if (f == null) unassigned.push(unit);
       else (floors[f] || (floors[f] = [])).push(unit);
     });
     var keys = Object.keys(floors).sort(function (a, b) { return Number(a) - Number(b); });
-    var htmlFallback = '';
-    keys.forEach(function (f) {
-      htmlFallback += '<section class="floor-section"><h4>' + f + '-й этаж</h4><div class="room-grid">';
-      floors[f].forEach(function (unit) {
-        htmlFallback += '<article class="room-card"><b>' + esc(unit.room) + '</b><span>' + esc(unit.name) + '</span></article>';
+    if (keys.length) {
+      html += '<nav class="floor-tabs" aria-label="Выбор этажа">';
+      keys.forEach(function (key) {
+        html += '<button type="button" class="floor-tab' + (Number(key) === activeFloorNumber ? ' active' : '') + '" data-floor-select="' + key + '" aria-pressed="' + (Number(key) === activeFloorNumber ? 'true' : 'false') + '">' + key + ' этаж</button>';
       });
-      htmlFallback += '</div></section>';
-    });
-    if (unassigned.length) {
-      htmlFallback += '<section class="floor-section"><h4>Этаж не указан в данных</h4><div class="room-grid">';
-      unassigned.forEach(function (unit) { htmlFallback += '<article class="room-card"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></article>'; });
-      htmlFallback += '</div></section>';
+      html += '</nav>';
     }
-    htmlFallback += '<p class="floor-note">Схема ориентировочная. Точные размеры помещений не указаны.</p>';
-    content.innerHTML = htmlFallback || '<p>План этажа пока не добавлен.</p>';
+    html += '<div class="floor-toolbar"><span>' + (keys.length ? activeFloorNumber + '-й этаж' : 'Справочник помещений') + '</span></div>';
+    var visibleUnits = floors[activeFloorNumber] || [];
+    if (visibleUnits.length) {
+      html += '<section class="floor-units"><h4>Аудитории и подразделения</h4><div class="room-grid">';
+      visibleUnits.forEach(function (unit) {
+        html += '<button type="button" class="room-card" data-room-card="' + esc(unit.room || '') + '" data-room-select="' + esc(unit.room || '') + '"><b>' + esc(unit.room || 'Без номера') + '</b><span>' + esc(unit.name) + '</span></button>';
+      });
+      html += '</div></section>';
+    } else {
+      html += '<p class="muted">Для этого этажа пока нет помещений в справочнике.</p>';
+    }
+    if (unassigned.length) {
+      html += '<section class="floor-section"><h4>Этаж не указан</h4><div class="room-grid">';
+      unassigned.forEach(function (unit) {
+        html += '<button type="button" class="room-card" data-room-card="' + esc(unit.room || '') + '" data-room-select="' + esc(unit.room || '') + '"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></button>';
+      });
+      html += '</div></section>';
+    }
+    html += '<p class="floor-note">Графический план этого корпуса пока не подготовлен. Здесь показан справочник помещений, а не точное расположение кабинетов.</p>';
+    content.innerHTML = html;
+    renderRoomSearchResults(building);
+    if (selectedFloorRoom) selectRoomInPlan(selectedFloorRoom);
   }
 
-  function openFloorPlan(number) {
+  function openFloorPlan(number, requestedFloor, requestedRoom, fromRoute) {
     var building = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(number); });
     if (!building) return;
     var panel = $('floorplan');
@@ -607,18 +747,53 @@
     if (!panel) return;
     title.textContent = building.name + ' · ' + (building.address || '');
     var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
-    var firstFloor = custom ? 1 : (function () {
-      var found = (building.units || []).map(function (u) { return floorForRoom(u.room); }).filter(Boolean).sort(function(a,b){return a-b;});
-      return found.length ? found[0] : 1;
-    })();
+    var availableFloors = custom && custom.floors ? Object.keys(custom.floors).map(Number) : [];
+    (building.units || []).forEach(function (unit) {
+      var f = floorForUnit(unit);
+      if (f && availableFloors.indexOf(f) === -1) availableFloors.push(f);
+    });
+    availableFloors.sort(function (a,b) { return a-b; });
+    var firstFloor = availableFloors.length ? availableFloors[0] : 1;
+    var floor = Number(requestedFloor) || firstFloor;
+    if (availableFloors.length && availableFloors.indexOf(floor) === -1) floor = firstFloor;
+    floorPlanSearchQuery = '';
     panel.hidden = false;
     panel.setAttribute('aria-hidden', 'false');
-    renderFloorPlan(building, firstFloor);
+    renderFloorPlan(building, floor, requestedRoom || '');
+    if (!fromRoute) updateFloorRoute(building, floor, requestedRoom);
   }
 
   function closeFloorPlan() {
     var panel = $('floorplan');
     if (panel) { panel.hidden = true; panel.setAttribute('aria-hidden', 'true'); }
+    activeFloorBuilding = null;
+    selectedFloorRoom = '';
+    floorPlanSearchQuery = '';
+    clearFloorRoute();
+  }
+
+  function openFloorPlanFromLocation() {
+    var params = new URLSearchParams(location.search);
+    var key = params.get('auditory') || params.get('building') || params.get('campus');
+    if (!key) return;
+    var buildings = (campusData && campusData.buildings) || [];
+    var building = buildings.find(function (item) {
+      return String(item.number) === String(key) || String(item.mapKey || '').toLowerCase() === String(key).toLowerCase();
+    });
+    var room = params.get('room') || '';
+    if (!building && room) {
+      building = buildings.find(function (item) { return !!roomUnit(item, room); });
+    }
+    if (!building && key) {
+      building = buildings.find(function (item) { return !!roomUnit(item, key); });
+      if (building && !room) room = key;
+    }
+    if (!building) return;
+    var coordinate = [Number(building.longitude), Number(building.latitude)];
+    if (isFinite(coordinate[0]) && isFinite(coordinate[1])) {
+      map.flyTo({ center: coordinate, zoom: 18.2, pitch: buildings3D ? 48 : 0, duration: 700 });
+    }
+    openFloorPlan(building.number, Number(params.get('floor')) || undefined, room, true);
   }
 
   function showBuildingPopup(info, lngLat) {
