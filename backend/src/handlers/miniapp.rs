@@ -718,7 +718,8 @@ pub async fn notification_health(
         json!({
             "last_tick_at":tick,
             "last_success_at":success,
-            "last_error":error,
+            "has_delivery_error":error.is_some(),
+            "last_error":error.as_ref().map(|_| "Одна из последних отправок завершилась ошибкой; подробности доступны в журнале твоих доставок"),
             "healthy":healthy
         })
     }).unwrap_or_else(||json!({"healthy":false,"last_tick_at":null,"last_success_at":null,"last_error":"Ожидается первый запуск фонового цикла"}));
