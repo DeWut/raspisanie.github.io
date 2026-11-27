@@ -20,7 +20,8 @@ fn direct_neon_url(database_url: &str) -> Result<String, Box<dyn std::error::Err
     let mut parsed = Url::parse(database_url)?;
     if let Some(host) = parsed.host_str() {
         if host.contains("-pooler.") {
-            parsed.set_host(Some(&host.replace("-pooler.", ".")))?;
+            let direct_host = host.replace("-pooler.", ".");
+            parsed.set_host(Some(&direct_host))?;
         }
     }
     Ok(parsed.to_string())
