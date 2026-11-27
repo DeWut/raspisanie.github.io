@@ -631,7 +631,8 @@ button { font-family: inherit; }
 
 
 /* Map dialog must be a flex column so the embedded unified map fills the available viewport. */
-.map-dialog {
+.map-dialog:not([open]) { display: none !important; }
+.map-dialog[open] {
   display: flex;
   flex-direction: column;
   align-items: stretch;
