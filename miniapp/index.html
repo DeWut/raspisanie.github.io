@@ -24,7 +24,7 @@
               <path d="M20 4v32" stroke="#D8F27A" stroke-width="1.4" opacity=".85" />
             </svg>
           </span>
-          <span class="brand-copy"><strong>SPBFTUIT</strong><small>расписание университета</small><small class="online-indicator" id="online-indicator" hidden><span id="online-count">0</span> онлайн</small></span>
+          <span class="brand-copy"><strong>SPBFTUIT</strong><small>Расписание</small><small class="online-indicator" id="online-indicator" hidden><span id="online-count">0</span> онлайн</small></span>
         </a>
         <button class="icon-button" id="refresh-button" aria-label="Обновить расписание" title="Обновить">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.2 9a6.5 6.5 0 0 1 10.7-2L20 12M4 12l3.1 5a6.5 6.5 0 0 0 10.7-2" /></svg>
@@ -35,7 +35,7 @@
       <main>
         <section class="welcome-row">
           <div>
-            <p class="eyebrow" id="welcome-date">ТВОЙ УЧЕБНЫЙ ДЕНЬ</p>
+            <p class="eyebrow" id="welcome-date">СЕГОДНЯ</p>
             <h1 id="greeting">Привет!</h1>
           </div>
           <button class="group-pill" id="group-button" aria-haspopup="dialog" aria-controls="group-dialog">
@@ -48,8 +48,8 @@
           <div class="hero-content">
             <span class="hero-label" id="hero-label">СЕГОДНЯ</span>
             <h2 id="hero-title">Загрузка расписания…</h2>
-            <p id="hero-subtitle">Собираем твой учебный день</p>
-          <p class="hero-next" id="hero-next">Следующее занятие появится здесь</p>
+            <p id="hero-subtitle">Загрузка расписания…</p>
+          <p class="hero-next" id="hero-next">Следующая пара</p>
           </div>
           <div class="hero-icon" aria-hidden="true">
             <svg viewBox="0 0 64 64" fill="none"><rect x="9" y="13" width="46" height="42" rx="12" stroke="currentColor" stroke-width="2.5"/><path d="M20 8v11M44 8v11M9 25h46M20 35h8M36 35h8M20 44h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="48" cy="47" r="10" fill="#D8F27A" stroke="#173d2e" stroke-width="2"/><path d="m44 47 3 3 5-6" stroke="#173d2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -82,7 +82,7 @@
         </section>
 
 
-        <section class="source-note"><span class="source-icon">i</span><p>Источник расписания — <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a>. Если нашёл расхождение, проверь информацию на <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайте университета</a>.</p></section>
+        <section class="source-note"><span class="source-icon">i</span><p>Расписание загружается из <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a>. При расхождениях сверяйтесь с <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайтом университета</a>.</p></section>
       </main>
 
       <div class="quick-actions" id="quick-actions"><div class="quick-menu" id="quick-menu"><a class="quick-action quick-bot" href="https://t.me/spbftuITbot" target="_blank" rel="noopener noreferrer" aria-label="Открыть Telegram-бота SPbftuITbot" title="Telegram-бот"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 3.5 18.2 20c-.25 1.15-.9 1.45-1.82.9l-5.05-3.72-2.44 2.35c-.27.27-.5.5-1.02.5l.36-5.15 9.38-8.48c.41-.36-.09-.56-.64-.2L5.37 13.5.4 11.95c-1.08-.34-1.1-1.08.23-1.6L19.8 2.8c.9-.33 1.7.2 1.7.7Z"/></svg></a><button class="quick-action" id="toggle-notifications" type="button" aria-label="Напоминания о парах" title="Напоминания">♧</button><button class="quick-action" id="open-calendar" type="button" aria-label="Календарь"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M14 14h2"/></svg></button><button class="quick-action" id="open-map" type="button" aria-label="Карта университета"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></button><button class="quick-action" id="open-weather" type="button" aria-label="Погода"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></button><button class="quick-action theme-toggle" id="toggle-theme" type="button" aria-label="Переключить тему" aria-pressed="false" title="Тёмная тема"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/></svg></button></div><button class="quick-main" id="quick-main" type="button" aria-label="Дополнительные функции" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
