@@ -74,6 +74,18 @@ test('height quality is classified from OSM data', () => {
   assert.strictEqual(out.stats.buildings, 4);
 });
 
+test('sub-square-metre mapped footprints are not silently omitted from the building count', () => {
+  const input = sampleScene();
+  input.features.push({
+    id: 'way/tiny',
+    properties: { kind: 'building', osmId: 'tiny', heightKnown: false },
+    geometry: { type: 'Polygon', coordinates: [rect(130, 0, 0.9, 0.7)] }
+  });
+  const out = G.buildScene(input, campus);
+  assert.strictEqual(out.stats.buildings, 5);
+  assert.ok(out.ground.some(f => f.properties.kind === 'building-footprint' && f.properties.pid === 'tiny'));
+});
+
 test('campus directory link is resolved by OSM id', () => {
   const out = G.buildScene(sampleScene(), campus);
   assert.strictEqual(out.index['2'].campus, '3');
@@ -107,7 +119,7 @@ test('REGRESSION: a ring that mixes numbers and points (the old frame bug) is re
 
 test('windows and frames are simple rectangles, one frame per glass pane', () => {
   const out = G.buildScene(sampleScene(), campus);
-  assert.strictEqual(out.windows.length, out.windowFrames.length);
+  assert.ok(out.windowFrames.length > out.windows.length, 'separate frame members surround each glass pane');
   for (const f of out.windows.concat(out.windowFrames)) {
     assert.strictEqual(f.geometry.coordinates.length, 1, 'no holes in window geometry');
     assert.strictEqual(f.geometry.coordinates[0].length, 5);
@@ -234,13 +246,15 @@ test('named arboretum polygons generate clustered trees while respecting paths',
     }]
   };
   const out = G.buildScene(garden, null);
-  assert.strictEqual(out.stats.trees, 0, 'woodland polygons do not prove individual tree locations');
-  assert.strictEqual(out.trees.length, 0, 'do not invent tree points from vegetation polygons');
+  assert.ok(out.stats.estimatedTrees > 0, 'named arboretums receive clearly-labelled estimated placements');
+  assert.strictEqual(out.stats.mappedTrees, 0, 'these test placements are not surveyed OSM tree points');
+  assert.strictEqual(out.stats.trees, out.stats.estimatedTrees);
+  assert.ok(out.trees.length >= out.stats.estimatedTrees * 5, 'each estimated tree has a trunk and layered crown');
   const pathY = 0;
   for (const f of out.trees) {
     if (f.properties.z0 === 0) {   // trunks mark the planting point
       const c = centroidLL(f);
-      assert.ok(Math.abs(c[1] - pathY) >= 2.9, 'trees must not stand on the path');
+      assert.ok(Math.abs(c[1] - pathY) >= 3.5, 'estimated trees must not stand on the path');
     }
   }
   assert.deepStrictEqual(G.validateScene(out), []);
@@ -258,10 +272,15 @@ test('ground polygons are normalized even when OSM rings have mixed winding', ()
   assert.ok(areaOf(polygon[1]) < 0);
 });
 
+test('window frames are built from separate narrow members rather than a solid backing slab', () => {
+  const out = G.buildScene(sampleScene(), campus);
+  assert.ok(out.windowFrames.length > out.windows.length, 'four frame members and a sill accompany each glazed window');
+});
+
 test('window budget is respected', () => {
   const out = G.buildScene(sampleScene(), campus, { maxWindows: 50 });
   assert.ok(out.windows.length <= 50);
-  assert.ok(out.windowFrames.length <= 50);
+  assert.ok(out.windowFrames.length <= 150);
   assert.ok(out.windowFrames.length > 0);
 });
 
@@ -275,7 +294,7 @@ test('degenerate and random input does not throw, and the output always validate
     features.push({ id: 'way/r' + i, properties: { kind: 'building', osmId: 'r' + i, heightKnown: rand() > 0.5, heightMeters: 3 + rand() * 40, heightSource: 'OSM height' }, geometry: { type: 'Polygon', coordinates: [ring(pts)] } });
   }
   features.push({ id: 'way/line', properties: { kind: 'building', osmId: 'line' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [10, 0], [20, 0]])] } });
-  features.push({ id: 'way/tiny', properties: { kind: 'building', osmId: 'tiny' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]])] } });
+  features.push({ id: 'way/tiny', properties: { kind: 'building', osmId: 'tiny' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0.3, 0], [0.3, 0.3], [0, 0.3]])] } });
   features.push({ id: 'way/pt', properties: { kind: 'building', osmId: 'pt' }, geometry: { type: 'Point', coordinates: ll(0, 0) } });
   features.push({ id: 'way/dup', properties: { kind: 'building', osmId: 'dup', heightKnown: true, heightMeters: 12 }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0, 0], [30, 0], [30, 0], [30, 20], [0, 20]])] } });
   const out = G.buildScene({ features }, null);

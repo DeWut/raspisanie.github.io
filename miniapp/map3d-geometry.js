@@ -276,40 +276,69 @@
      plus a dark glass box standing slightly in front of it. Both are plain
      four-point rectangles: no holes, so nothing can go wrong in triangulation.
      deco.pilaster(rect, zTop) receives wall strips for historic facades. */
-  function windowsForRing(ring, isHole, fh, floors, seed, pid, glass, frames, add, cap, deco) {
-    var s = outwardSign(ring, isHole);
-    var gw = 1.05, fw = 1.3, sp = 3.0;
-    var wh = Math.min(1.55, fh * 0.43);
+  function windowsForRing(ring, isHole, floorHeight, floors, seed, pid, glass, frames, add, cap, deco) {
+    var sign = outwardSign(ring, isHole);
+    var paneWidth = 1.48;
+    var frameWidth = 1.72;
+    var spacing = 4.05;
+    var bar = 0.105;
+    var windowHeight = Math.min(1.72, floorHeight * 0.52);
+
     for (var i = 0; i < ring.length; i++) {
       var a = ring[i], b = ring[(i + 1) % ring.length];
       var dx = b[0] - a[0], dy = b[1] - a[1];
-      var L = Math.sqrt(dx * dx + dy * dy);
-      if (L < 4) continue;
-      var ux = dx / L, uy = dy / L;
-      var nx = s * uy, ny = -s * ux;
-      var count = Math.floor((L - 1.2) / sp);
+      var length = Math.sqrt(dx * dx + dy * dy);
+      if (length < 4.8) continue;
+      var ux = dx / length, uy = dy / length;
+      var nx = sign * uy, ny = -sign * ux;
+      var count = Math.floor((length - 1.6) / spacing);
       if (count < 1) continue;
-      var start = (L - (count - 1) * sp) / 2;
-      var box = function (cx, cy, w, d0, d1) {
+      var start = (length - (count - 1) * spacing) / 2;
+
+      function panel(cx, cy, width, depth0, depth1) {
         return [
-          [cx - ux * w / 2 + nx * d0, cy - uy * w / 2 + ny * d0],
-          [cx + ux * w / 2 + nx * d0, cy + uy * w / 2 + ny * d0],
-          [cx + ux * w / 2 + nx * d1, cy + uy * w / 2 + ny * d1],
-          [cx - ux * w / 2 + nx * d1, cy - uy * w / 2 + ny * d1]
+          [cx - ux * width / 2 + nx * depth0, cy - uy * width / 2 + ny * depth0],
+          [cx + ux * width / 2 + nx * depth0, cy + uy * width / 2 + ny * depth0],
+          [cx + ux * width / 2 + nx * depth1, cy + uy * width / 2 + ny * depth1],
+          [cx - ux * width / 2 + nx * depth1, cy - uy * width / 2 + ny * depth1]
         ];
-      };
+      }
+
       for (var k = 0; k < count; k++) {
-        var cx = a[0] + ux * (start + k * sp), cy = a[1] + uy * (start + k * sp);
-        for (var f = 0; f < floors; f++) {
-          if (glass.length >= cap) { return; }
-          var z0 = f * fh + fh * 0.32;
-          add(frames, [box(cx, cy, fw, 0.01, 0.07)], { pid: pid, col: '#e4dac6', z0: z0 - 0.08, z1: z0 + wh + 0.1 });
-          var col = '#40566c';
-          add(glass, [box(cx, cy, gw, 0.07, 0.11)], { pid: pid, col: col, z0: z0, z1: z0 + wh });
+        var cx = a[0] + ux * (start + k * spacing);
+        var cy = a[1] + uy * (start + k * spacing);
+        for (var floor = 0; floor < floors; floor++) {
+          if (glass.length + 2 > cap) return;
+          var z = floor * floorHeight + Math.max(0.32, (floorHeight - windowHeight) * 0.52);
+          var outerDepth0 = 0.015, outerDepth1 = 0.095;
+          var paneDepth0 = 0.095, paneDepth1 = 0.125;
+          var paneZ = z + 0.08;
+          var paneH = windowHeight - 0.16;
+          var sideX = (paneWidth + bar) / 2;
+
+          // Four separate frame members, not a solid beige slab behind the glass.
+          add(frames, [panel(cx - ux * sideX, cy - uy * sideX, bar, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z, z1: z + windowHeight });
+          add(frames, [panel(cx + ux * sideX, cy + uy * sideX, bar, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z, z1: z + windowHeight });
+          add(frames, [panel(cx, cy, frameWidth, outerDepth0, outerDepth1)], { pid: pid, col: '#cbbda5', z0: z, z1: z + bar });
+          add(frames, [panel(cx, cy, frameWidth, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z + windowHeight - bar, z1: z + windowHeight });
+
+          // Recessed dark glazing with a narrow central mullion.
+          var halfPane = (paneWidth - 0.07) / 2;
+          add(glass, [panel(cx - ux * (halfPane + 0.035) / 2, cy - uy * (halfPane + 0.035) / 2, halfPane, paneDepth0, paneDepth1)],
+            { pid: pid, col: '#263c4a', z0: paneZ, z1: paneZ + paneH });
+          add(glass, [panel(cx + ux * (halfPane + 0.035) / 2, cy + uy * (halfPane + 0.035) / 2, halfPane, paneDepth0, paneDepth1)],
+            { pid: pid, col: '#314d5d', z0: paneZ, z1: paneZ + paneH });
+          add(frames, [panel(cx, cy, 0.055, paneDepth0, paneDepth1)],
+            { pid: pid, col: '#8d887d', z0: paneZ, z1: paneZ + paneH });
+
+          // A projecting sill gives the window a readable shadow line.
+          add(frames, [panel(cx, cy, frameWidth + 0.12, 0.0, 0.16)],
+            { pid: pid, col: '#d0c5b1', z0: z - 0.10, z1: z - 0.02 });
         }
         if (deco && deco.pilaster && k % 4 === 3 && k + 1 < count) {
-          var tx = a[0] + ux * (start + (k + 0.5) * sp), ty = a[1] + uy * (start + (k + 0.5) * sp);
-          deco.pilaster([box(tx, ty, 0.34, 0.01, 0.12)]);
+          var tx = a[0] + ux * (start + (k + 0.5) * spacing);
+          var ty = a[1] + uy * (start + (k + 0.5) * spacing);
+          deco.pilaster([panel(tx, ty, 0.30, 0.01, 0.13)]);
         }
       }
     }
@@ -324,7 +353,7 @@
 
     var out = {
       ground: [], solid: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
-      stats: { buildings: 0, known: 0, levels: 0, assumed: 0, unknown: 0, windows: 0, trees: 0, dropped: 0 }
+      stats: { buildings: 0, known: 0, levels: 0, assumed: 0, unknown: 0, windows: 0, trees: 0, mappedTrees: 0, estimatedTrees: 0, dropped: 0 }
     };
     var features = (scene && scene.features) || [];
     var GROUND = { 'park-boundary': 1, 'green-area': 1, water: 1, path: 1 };
@@ -419,7 +448,7 @@
       item.polys.forEach(function (poly, pi) {
         var rings = poly.map(function (r) { return dedupe(stripClose(r.map(P.toM))); })
           .filter(function (r) { return r.length >= 3; });
-        if (!rings.length || Math.abs(signedArea(rings[0])) < 4) return;
+        if (!rings.length || Math.abs(signedArea(rings[0])) < 0.25) return;
         okPolys++;
         var outer = rings[0];
         var b = bbox(outer);
@@ -488,9 +517,6 @@
     });
     out.stats.windows = out.windows.length;
 
-    // Only individual OSM tree points become 3D tree symbols. Green-area polygons
-    // remain ground cover; they do not imply surveyed individual tree locations.
-    // Crown bands are illustrative because tree height and crown profiles are not mapped.
     var TIERS = [
       { f: 0.92, z0: 2.2, z1: 3.4, l: 0 },
       { f: 1.00, z0: 3.4, z1: 4.5, l: 0.025 },
@@ -499,27 +525,131 @@
       { f: 0.30, z0: 6.2, z1: 6.6, l: 0.13 }
     ];
     var TREE_SHADOW = 5.5;
+
+    // Mapped OSM tree points are retained as surveyed locations.
+    // For named arboretums only, add clearly-labelled inferred tree positions
+    // from the woodland polygon. They are visual estimates, not OSM tree records.
+    var pathSegments = [];
+    var mappedTreeCenters = [];
+    var buildingRings = [];
     features.forEach(function (f) {
       var p = f && f.properties;
-      if (!p || !f.geometry || f.geometry.type !== 'Polygon') return;
-      var ring = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
-      if (ring.length < 3) return;
-      var osmId = String(p.osmId || f.id);
-      if (p.kind === 'tree-trunk') {
-        var tc = centroid(ring);
-        add(out.trees, [circle(tc[0], tc[1], 0.32, 8)], { col: '#6b5640', z0: 0, z1: 2.4 });
-      } else if (p.kind === 'tree-canopy') {
-        var cen = centroid(ring);
-        var v = 1; // mapped position; crown dimensions stay explicitly illustrative
-        var col = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
-        TIERS.forEach(function (t) {
-          add(out.trees, [scaleAbout(ring, t.f * v, t.f * v, cen[0], cen[1])], { col: lighten(col, t.l), z0: t.z0 * v, z1: t.z1 * v });
+      if (!p || !f.geometry) return;
+      if (p.kind === 'tree-trunk' && f.geometry.type === 'Polygon') {
+        var trunkRing = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
+        if (trunkRing.length >= 3) add(out.trees, [trunkRing], { col: '#6b5640', z0: 0, z1: 2.4 });
+      }
+      if (p.kind === 'tree-canopy' && f.geometry.type === 'Polygon') {
+        var rr = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
+        if (rr.length >= 3) {
+          var mappedCenter = centroid(rr);
+          mappedTreeCenters.push(mappedCenter);
+          var mappedHeight = Number(p.heightMeters) > 0 ? Number(p.heightMeters) : 6.5;
+          var mappedScale = Math.max(0.75, Math.min(1.35, mappedHeight / 6.5));
+          var mappedColour = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
+          TIERS.forEach(function (tier) {
+            add(out.trees, [scaleAbout(rr, tier.f * mappedScale, tier.f * mappedScale, mappedCenter[0], mappedCenter[1])],
+              { col: lighten(mappedColour, tier.l), z0: tier.z0 * mappedScale, z1: tier.z1 * mappedScale });
+          });
+          var mappedShadow = rr.map(function (q) { return [q[0] + sx * TREE_SHADOW, q[1] + sy * TREE_SHADOW]; });
+          add(out.shadows, [hull(rr.concat(mappedShadow))], { k: 't' });
+          out.stats.trees++;
+          out.stats.mappedTrees++;
+        }
+      }
+      if (p.kind === 'path' && f.geometry.type === 'LineString') {
+        var line = f.geometry.coordinates.map(P.toM);
+        for (var li = 1; li < line.length; li++) pathSegments.push([line[li - 1], line[li]]);
+      } else if (p.kind === 'path' && f.geometry.type === 'MultiLineString') {
+        f.geometry.coordinates.forEach(function (partLine) {
+          var line2 = partLine.map(P.toM);
+          for (var lj = 1; lj < line2.length; lj++) pathSegments.push([line2[lj - 1], line2[lj]]);
         });
-        var sh = ring.map(function (q) { return [q[0] + sx * TREE_SHADOW * v, q[1] + sy * TREE_SHADOW * v]; });
-        add(out.shadows, [hull(ring.concat(sh))], { k: 't' });
-        out.stats.trees++;
+      }
+      if (p.kind === 'building') {
+        polygonsOf(f.geometry).forEach(function (poly) {
+          if (poly[0]) buildingRings.push(poly[0].map(P.toM));
+        });
       }
     });
+
+    function pointInRing(point, ring) {
+      var inside = false;
+      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        var a = ring[i], b = ring[j];
+        if (((a[1] > point[1]) !== (b[1] > point[1])) &&
+            point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+      }
+      return inside;
+    }
+    function segmentDistance(point, a, b) {
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var den = dx * dx + dy * dy;
+      var t = den ? ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / den : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.sqrt(Math.pow(point[0] - a[0] - t * dx, 2) + Math.pow(point[1] - a[1] - t * dy, 2));
+    }
+    function isNearPath(point) {
+      for (var i = 0; i < pathSegments.length; i++) {
+        if (segmentDistance(point, pathSegments[i][0], pathSegments[i][1]) < 3.5) return true;
+      }
+      return false;
+    }
+
+    var estimatedIndex = 0;
+    var treeSpacing = 18;
+    features.forEach(function (f) {
+      var p = f && f.properties;
+      if (!p || p.kind !== 'green-area' ||
+          !/дендрологический сад|дендропарк/i.test(String(p.name || '')) || !f.geometry) return;
+      var polys = polygonsOf(f.geometry);
+      polys.forEach(function (poly, polyIndex) {
+        if (!poly || !poly[0]) return;
+        var rings = poly.map(function (r) { return stripClose(r.map(P.toM)); });
+        var outer = rings[0];
+        if (outer.length < 3) return;
+        var bounds = bbox(outer);
+        var x0 = Math.floor(bounds.x0 / treeSpacing) * treeSpacing + treeSpacing / 2;
+        var y0 = Math.floor(bounds.y0 / treeSpacing) * treeSpacing + treeSpacing / 2;
+        for (var x = x0; x < bounds.x1; x += treeSpacing) {
+          for (var y = y0; y < bounds.y1; y += treeSpacing) {
+            var key = String(p.osmId || f.id) + ':' + polyIndex + ':' + x + ':' + y;
+            var jx = (rnd(key + ':x') - 0.5) * 5.0;
+            var jy = (rnd(key + ':y') - 0.5) * 5.0;
+            var point = [x + jx, y + jy];
+            if (!pointInRing(point, outer)) continue;
+            var inHole = false;
+            for (var h = 1; h < rings.length; h++) if (pointInRing(point, rings[h])) inHole = true;
+            if (inHole || isNearPath(point)) continue;
+            var blocked = buildingRings.some(function (r) { return pointInRing(point, r); });
+            if (blocked) continue;
+            if (mappedTreeCenters.some(function (q) { return Math.hypot(point[0] - q[0], point[1] - q[1]) < 6; })) continue;
+
+            var radius = 2.0 + rnd(key + ':r') * 0.9;
+            var height = 5.8 + rnd(key + ':h') * 1.8;
+            var crown = circle(point[0], point[1], radius, 12);
+            var shadeCol = ['#477846', '#56864c', '#638d50', '#3f7042'][hash(key + ':c') % 4];
+            add(out.trees, [circle(point[0], point[1], 0.18, 8)], { col: '#66513b', z0: 0, z1: 2.15 });
+            var profiles = [
+              { f: 0.74, z0: 2.0, z1: 3.25, light: 0 },
+              { f: 1.00, z0: 3.1, z1: 4.45, light: 0.025 },
+              { f: 0.86, z0: 4.35, z1: 5.45, light: 0.05 },
+              { f: 0.58, z0: 5.35, z1: 6.15, light: 0.08 }
+            ];
+            profiles.forEach(function (profile) {
+              add(out.trees, [scaleAbout(crown, profile.f, profile.f, point[0], point[1])],
+                { col: lighten(shadeCol, profile.light), z0: profile.z0, z1: profile.z1 * (height / 6.8) });
+            });
+            var shadowRing = crown.map(function (q) { return [q[0] + sx * 4.8, q[1] + sy * 4.8]; });
+            add(out.shadows, [hull(crown.concat(shadowRing))], { k: 't' });
+            estimatedIndex++;
+          }
+        }
+      });
+    });
+    out.stats.mappedTrees = out.stats.mappedTrees || 0;
+    out.stats.estimatedTrees = estimatedIndex;
+    out.stats.trees = out.stats.mappedTrees + estimatedIndex;
 
     // Final gate: nothing invalid or oversized reaches MapLibre.
     out.solid = sanitize(out.solid, out.stats);
