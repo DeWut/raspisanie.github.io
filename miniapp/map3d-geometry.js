@@ -573,7 +573,7 @@
     var treeSpacing = 18;
     features.forEach(function (f) {
       var p = f && f.properties;
-      if (!p || p.kind !== 'green-area' || p.areaType !== 'wood' ||
+      if (!p || p.kind !== 'green-area' ||
           !/дендрологический сад|дендропарк/i.test(String(p.name || '')) || !f.geometry) return;
       var polys = polygonsOf(f.geometry);
       polys.forEach(function (poly, polyIndex) {
