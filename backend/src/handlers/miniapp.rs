@@ -277,7 +277,17 @@ pub async fn update_chat_settings(
     if !can_manage_chat(&state, chat_id, telegram_id).await? {
         return Err(AppError::Forbidden);
     }
-    if body.context_enabled == Some(true) && body.consent_context != Some(true) {
+    let context_already_enabled: bool = sqlx::query_scalar(
+        "SELECT context_enabled FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE",
+    )
+    .bind(chat_id)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(false);
+    if body.context_enabled == Some(true)
+        && body.consent_context != Some(true)
+        && !context_already_enabled
+    {
         return Err(AppError::BadRequest);
     }
     if body.context_retention_days.is_some_and(|days| !(1..=30).contains(&days)) {
@@ -365,7 +375,7 @@ pub async fn update_chat_settings(
             "assistant_enabled": body.assistant_enabled,
             "context_enabled": body.context_enabled,
             "context_retention_days": body.context_retention_days,
-            "consent": body.consent_context == Some(true)
+            "consent": body.consent_context == Some(true) || (body.context_enabled == Some(true) && context_already_enabled)
         });
         sqlx::query(
             "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,'miniapp_settings',$3)",
