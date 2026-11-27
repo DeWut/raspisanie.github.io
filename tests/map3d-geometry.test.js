@@ -91,6 +91,24 @@ test('named arboretum polygons generate clustered trees while respecting paths',
   assert.ok(out.trees.length >= out.stats.trees * 3, 'each generated tree should have layered canopy geometry');
 });
 
+test('ground polygons are normalized even when OSM rings have mixed winding', () => {
+  const reversedOuter = ring([[0,0],[0,20],[20,20],[20,0]]);
+  const reversedHole = ring([[5,5],[15,5],[15,15],[5,15]]).reverse();
+  const scene = { features: [{
+    id: 'relation/ground',
+    properties: { kind: 'green-area', areaType: 'wood' },
+    geometry: { type: 'Polygon', coordinates: [reversedOuter, reversedHole] }
+  }] };
+  const out = G.buildScene(scene, null);
+  const polygon = out.ground[0].geometry.coordinates;
+  const area = r => r.slice(0, -1).reduce((sum, p, i, pts) => {
+    const q = pts[(i + 1) % pts.length];
+    return sum + p[0] * q[1] - q[0] * p[1];
+  }, 0) / 2;
+  assert.ok(area(polygon[0]) > 0);
+  assert.ok(area(polygon[1]) < 0);
+});
+
 test('GeoJSON polygon winding preserves courtyard holes for 3D extrusions', () => {
   const outer = ring([[0,0],[0,50],[50,50],[50,0]]); // deliberately clockwise
   const hole = ring([[15,15],[35,15],[35,35],[15,35]]); // deliberately counter-clockwise
