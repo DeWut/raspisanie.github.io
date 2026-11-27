@@ -12,19 +12,19 @@
       '</g>';
   }
   function hRow(x,y,w,h,labels,weights) {
-    var out='', sum=(weights||labels.map(function(){return 1;})).reduce(function(a,b){return a+b;},0), cursor=x;
+    var out=[], sum=(weights||labels.map(function(){return 1;})).reduce(function(a,b){return a+b;},0), cursor=x;
     labels.forEach(function(label,i){
       var cell=w*(weights?weights[i]:1)/sum;
-      out+=room(cursor,y,cell,h,label);
+      out.push([cursor,y,cell,h,label]);
       cursor+=cell;
     });
     return out;
   }
   function vRow(x,y,w,h,labels,weights) {
-    var out='', sum=(weights||labels.map(function(){return 1;})).reduce(function(a,b){return a+b;},0), cursor=y;
+    var out=[], sum=(weights||labels.map(function(){return 1;})).reduce(function(a,b){return a+b;},0), cursor=y;
     labels.forEach(function(label,i){
       var cell=h*(weights?weights[i]:1)/sum;
-      out+=room(x,cursor,w,cell,label);
+      out.push([x,cursor,w,cell,label]);
       cursor+=cell;
     });
     return out;
