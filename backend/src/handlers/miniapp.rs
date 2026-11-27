@@ -115,25 +115,27 @@ async fn can_manage_chat(
     chat_id: i64,
     telegram_id: i64,
 ) -> Result<bool, AppError> {
-    Ok(sqlx::query_scalar(
-        r#"
-        SELECT EXISTS(
-            SELECT 1
-            FROM bot_chat_settings c
-            LEFT JOIN bot_chat_members m
-              ON m.chat_id=c.chat_id AND m.telegram_id=$2
-            WHERE c.chat_id=$1 AND c.is_active=TRUE
-              AND (
-                c.owner_telegram_id=$2
-                OR m.telegram_status IN ('creator','administrator')
-              )
-        )
-        "#,
+    let token = state.config.teloxide_token.as_deref().ok_or(AppError::Internal)?;
+    let bot = Bot::new(token);
+    let role = crate::services::chat_roles::sync_member(
+        &bot,
+        &state.db,
+        ChatId(chat_id),
+        telegram_id,
+        None,
     )
-    .bind(chat_id)
-    .bind(telegram_id)
-    .fetch_one(&state.db)
-    .await?)
+    .await
+    .map_err(|error| {
+        tracing::warn!(
+            chat_id,
+            telegram_id,
+            "Could not verify Telegram admin status for Mini App settings: {}",
+            error
+        );
+        AppError::Forbidden
+    })?;
+
+    Ok(matches!(role.as_deref(), Some("owner" | "admin")))
 }
 
 pub async fn list_managed_chats(
