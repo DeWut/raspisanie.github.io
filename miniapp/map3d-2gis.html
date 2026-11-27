@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#e9edf0">
+  <title>Кампус СПбГЛТУ — 3D-карта 2ГИС</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1e2934;background:#dfe5e8}
+    *{box-sizing:border-box}
+    html,body,#app,#map{width:100%;height:100%;margin:0}
+    #app{position:fixed;inset:0;overflow:hidden}
+    #map{position:absolute;inset:0}
+    .panel{position:absolute;z-index:5;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.7);box-shadow:0 3px 16px #0002;border-radius:16px}
+    .head{top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;padding:12px 15px;max-width:620px}
+    .head strong{display:block;font-size:17px}
+    .head small{display:block;color:#536171;margin-top:3px;font-size:12px}
+    .actions{position:absolute;z-index:5;right:12px;top:calc(env(safe-area-inset-top,0px) + 105px);display:flex;flex-direction:column;gap:8px}
+    button,.link{font:inherit;border:0;border-radius:12px;background:rgba(255,255,255,.94);color:#1e2934;padding:10px 14px;min-height:42px;box-shadow:0 2px 9px #0002;text-decoration:none;cursor:pointer}
+    button:active{transform:scale(.98)}
+    .chips{position:absolute;z-index:5;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;gap:8px;overflow-x:auto;padding:4px;scrollbar-width:none}
+    .chips button{white-space:nowrap;flex:0 0 auto}
+    .info{left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 82px);padding:11px 14px;max-width:620px;font-size:13px}
+    .info[hidden]{display:none}
+    #status{position:absolute;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);width:max-content;max-width:88%;padding:13px 16px;background:#fff;border-radius:12px;box-shadow:0 3px 18px #0003;text-align:center}
+    #status[hidden]{display:none}
+    #status.error{color:#a11}
+    .fallback{position:absolute;z-index:6;top:calc(env(safe-area-inset-top,0px) + 160px);left:12px;font-size:12px}
+    @media(min-width:720px){.head{left:20px;top:20px}.actions{right:20px;top:20px}.info{left:20px;bottom:20px;width:440px}.chips{left:20px;right:auto;bottom:20px;max-width:70%}}
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="map"></div>
+  <div class="panel head">
+    <strong>Кампус СПбГЛТУ · реальная 3D-карта 2ГИС</strong>
+    <small>Здания и растительность берутся из картографических данных 2ГИС. Это не процедурные модели из контуров OSM.</small>
+  </div>
+  <div class="actions">
+    <button id="home" type="button">⌖ Кампус</button>
+    <a class="link" href="./map3d.html">← OSM-сцена</a>
+  </div>
+  <div class="panel info" id="info">Загрузка карты 2ГИС…</div>
+  <div class="chips" id="chips"></div>
+  <div id="status">Подключаю 2ГИС…</div>
+</div>
+<script src="./campus-map-config.js"></script>
+<script src="https://mapgl.2gis.com/api/js/v1"></script>
+<script>
+(function(){
+  'use strict';
+  var status=document.getElementById('status');
+  var info=document.getElementById('info');
+  var chips=document.getElementById('chips');
+  var map=null, markers=[];
+  var home=[30.3399,59.99455];
+  function say(message,error){status.hidden=!message;status.textContent=message||'';status.className=error?'error':'';}
+  function safe(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function showBuilding(b){
+    info.hidden=false;
+    info.innerHTML='<b>'+safe(b.name||('Корпус '+b.number))+'</b><br>'+safe(b.address||'')+(b.description?'<br>'+safe(b.description):'')+
+      '<br><small>Координаты и номер корпуса — из справочника кампуса. 3D-геометрия — картографические данные 2ГИС.</small>';
+  }
+  function focus(b){
+    var point=[Number(b.longitude),Number(b.latitude)];
+    if(!point.every(Number.isFinite))return;
+    map.setCenter(point);
+    map.setZoom(18);
+    showBuilding(b);
+  }
+  function init(campus){
+    var config=window.CAMPUS_MAP_CONFIG||{};
+    var key=config.dgisMapGlApiKey;
+    if(!key){say('Не найден ключ 2ГИС. Проверьте campus-map-config.js.',true);return;}
+    if(!window.mapgl||!window.mapgl.Map){say('Не удалось загрузить библиотеку 2ГИС MapGL.',true);return;}
+    map=new mapgl.Map('map',{key:key,center:home,zoom:16.4,pitch:58,rotation:-25});
+    var buildings=(campus&&campus.buildings)||[];
+    buildings.slice().sort(function(a,b){return Number(a.number)-Number(b.number);}).forEach(function(b){
+      var coordinates=[Number(b.longitude),Number(b.latitude)];
+      if(!coordinates.every(Number.isFinite))return;
+      var marker=new mapgl.Marker(map,{coordinates:coordinates,label:{text:'Корпус '+b.number,fontSize:13,color:'#17212b',haloColor:'#ffffff',haloRadius:2}});
+      marker.on('click',function(){focus(b);});
+      markers.push(marker);
+      var button=document.createElement('button');
+      button.type='button';button.textContent='Корпус '+b.number;
+      button.addEventListener('click',function(){focus(b);});
+      chips.appendChild(button);
+    });
+    document.getElementById('home').addEventListener('click',function(){map.setCenter(home);map.setZoom(16.4);info.hidden=true;});
+    say('');
+    info.innerHTML='<b>Режим реальной 3D-картографии.</b><br>Проверьте, насколько детально 2ГИС показывает корпуса и деревья именно на территории СПбГЛТУ. Если для отдельных объектов 3D-геометрия отсутствует у провайдера, страница не подменяет её выдуманной моделью.';
+  }
+  fetch('../data/campus.json',{cache:'no-cache'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(init).catch(function(e){say('Не удалось загрузить справочник кампуса: '+e.message,true);});
+  window.addEventListener('error',function(e){if(e.target&&e.target.tagName==='SCRIPT')say('Не загрузился внешний скрипт 2ГИС MapGL. Проверьте доступность mapgl.2gis.com.',true);},true);
+})();
+</script>
+</body>
+</html>
