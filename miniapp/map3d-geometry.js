@@ -317,9 +317,6 @@
       floors = Math.min(floors, Math.max(1, Math.round(h / 2.6)));
       var fh = h / floors;
       var wall = wallColour(props, pid);
-      var plinth = shade(wall, 0.74);
-      var ledge = lighten(wall, 0.08);
-      var trim = lighten(wall, 0.18);
       var rawShape = String(props.roofShape || '').toLowerCase();
       var shaped = /^(hipped|gabled|pyramidal|half-hipped|gambrel|mansard|hip|gable)/.test(rawShape);
       var roof = roofColour(props, pid, shaped);
@@ -349,14 +346,11 @@
         var hullPts = hull(outer);
         var convex = !hasHoles && Math.abs(signedArea(outer)) / Math.max(1e-6, Math.abs(signedArea(hullPts))) >= 0.88;
 
-        // Building massing follows the surveyed footprint exactly. Earlier
-        // bbox-scaled offsets distorted concave historic blocks and courtyards,
-        // creating oversized roof slabs at close zoom.
-        if (h >= 4) { part(rings, 0, 0.72, plinth); }
+        // One continuous wall extrusion only. Do not create thin
+        // full-footprint extrusions for plinths/floor bands: fill-extrusion
+        // renders those as horizontal slabs through the whole building,
+        // which caused the beige striped surfaces seen at close zoom.
         part(rings, 0, h, wall);
-        for (var i = 1; i < floors; i++) {
-          part(rings, i * fh - 0.09, i * fh + 0.09, ledge);
-        }
 
         // Roofs retain the original footprint and all courtyard holes.
         // Only explicitly tagged, convex roofs receive a restrained stepped
