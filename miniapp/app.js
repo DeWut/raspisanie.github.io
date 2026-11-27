@@ -346,6 +346,9 @@
       setChecked('#chat-setting-digest', settings.daily_digest_enabled);
       setValue('#chat-setting-digest-time', settings.daily_digest_time || '07:00');
       setChecked('#chat-setting-lesson-notifications', settings.lesson_notifications_enabled);
+      setChecked('#chat-setting-homework-reminders', settings.homework_reminders_enabled);
+      setChecked('#chat-setting-exam-reminders', settings.exam_reminders_enabled);
+      setChecked('#chat-setting-event-reminders', settings.event_reminders_enabled);
       setChecked('#chat-setting-changes', settings.schedule_changes_enabled);
       setChecked('#chat-setting-autodz', settings.homework_autocollect_enabled);
       setValue('#chat-setting-approver', settings.homework_approver_role || 'class_leader');
@@ -390,6 +393,9 @@
       daily_digest_enabled: $('#chat-setting-digest').checked,
       daily_digest_time: $('#chat-setting-digest-time').value || '07:00',
       lesson_notifications_enabled: $('#chat-setting-lesson-notifications').checked,
+      homework_reminders_enabled: $('#chat-setting-homework-reminders').checked,
+      exam_reminders_enabled: $('#chat-setting-exam-reminders').checked,
+      event_reminders_enabled: $('#chat-setting-event-reminders').checked,
       schedule_changes_enabled: $('#chat-setting-changes').checked,
       homework_autocollect_enabled: $('#chat-setting-autodz').checked,
       homework_approver_role: $('#chat-setting-approver').value,
