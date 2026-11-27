@@ -924,6 +924,29 @@ async fn dating_action(
             .reply_markup(InlineKeyboardMarkup::new(vec![vec![contact_button(actor)]]))
             .await;
     }
+
+    // Display a candidate's optional Telegram-hosted photo as a second message.
+    // The file_id is private Telegram storage; no third-party image host is used.
+    if action == "dating:discover" || action.starts_with("dating:like:") || action.starts_with("dating:pass:") {
+        if let Some(candidate) = next_candidate(db, actor).await {
+            if let Some(file_id) = candidate.photo_file_id {
+                bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
+                    .caption("📷 Фото анкеты")
+                    .await?;
+            }
+        }
+    }
+    if let Some(liker_text) = action.strip_prefix("dating:likeview:") {
+        let liker = liker_text.split(':').next().and_then(|value| value.parse::<i64>().ok()).unwrap_or_default();
+        let photo: Option<String> = sqlx::query_scalar(
+            "SELECT p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
+        ).bind(actor).bind(liker).fetch_optional(db).await?.flatten();
+        if let Some(file_id) = photo {
+            bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
+                .caption("📷 Фото анкеты")
+                .await?;
+        }
+    }
     Ok(())
 }
 
