@@ -47,7 +47,7 @@ function courtyardScene(extraProps) {
 const empireCampus = { buildings: [{ number: '1', osm: { id: 2045600 }, heritage: { style: 'Ампир' } }] };
 
 function allFeatures(out) {
-  return [].concat(out.solid, out.windows, out.windowFrames, out.trees, out.shadows, ...Object.values(out.highlight));
+  return [].concat(out.footprints || [], out.solid, out.windows, out.windowFrames, out.trees, out.shadows, ...Object.values(out.highlight));
 }
 function centroidLL(f) {
   const r = f.geometry.coordinates[0].slice(0, -1);
