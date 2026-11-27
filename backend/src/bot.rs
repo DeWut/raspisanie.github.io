@@ -538,8 +538,16 @@ async fn handle_ui_callback(
                 return Ok(());
             }
             reminders_enabled = !reminders_enabled;
-            let _ = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{reminders_enabled}',to_jsonb($2::boolean),true),updated_at=now() WHERE telegram_id=$1")
-                .bind(actor).bind(reminders_enabled).execute(&state.db).await;
+            if let Err(error) = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{reminders_enabled}',to_jsonb($2::boolean),true),updated_at=now() WHERE telegram_id=$1")
+                .bind(actor).bind(reminders_enabled).execute(&state.db).await
+            {
+                tracing::warn!("Could not save lesson reminder toggle: {}", error);
+                bot.answer_callback_query(query.id.clone())
+                    .text("Не удалось сохранить настройку напоминаний. Попробуй ещё раз.")
+                    .show_alert(true)
+                    .await?;
+                return Ok(());
+            }
             screen = "settings";
             text = format!(
                 "Настройки уведомлений\n\nНапоминания: {}\nВремя до пары: {} минут",
@@ -564,8 +572,16 @@ async fn handle_ui_callback(
                 .next()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(10);
-            let _ = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{reminder_minutes}',to_jsonb($2::integer),true),updated_at=now() WHERE telegram_id=$1")
-                .bind(actor).bind(reminder_minutes as i32).execute(&state.db).await;
+            if let Err(error) = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{reminder_minutes}',to_jsonb($2::integer),true),updated_at=now() WHERE telegram_id=$1")
+                .bind(actor).bind(reminder_minutes as i32).execute(&state.db).await
+            {
+                tracing::warn!("Could not save lesson reminder interval: {}", error);
+                bot.answer_callback_query(query.id.clone())
+                    .text("Не удалось сохранить интервал напоминания. Попробуй ещё раз.")
+                    .show_alert(true)
+                    .await?;
+                return Ok(());
+            }
             screen = "settings";
             text = format!(
                 "Настройки уведомлений\n\nНапоминания: {}\nВремя до пары: {} минут",
@@ -630,8 +646,16 @@ async fn handle_ui_callback(
                 return Ok(());
             }
             let enabled = settings["schedule_changes_enabled"] != true;
-            let _ = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{schedule_changes_enabled}',to_jsonb($2::boolean),true),updated_at=now() WHERE telegram_id=$1")
-                .bind(actor).bind(enabled).execute(&state.db).await;
+            if let Err(error) = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{schedule_changes_enabled}',to_jsonb($2::boolean),true),updated_at=now() WHERE telegram_id=$1")
+                .bind(actor).bind(enabled).execute(&state.db).await
+            {
+                tracing::warn!("Could not save schedule change notification setting: {}", error);
+                bot.answer_callback_query(query.id.clone())
+                    .text("Не удалось сохранить настройку изменений расписания. Попробуй ещё раз.")
+                    .show_alert(true)
+                    .await?;
+                return Ok(());
+            }
             screen = "settings";
             let refreshed = sqlx::query_scalar::<_, serde_json::Value>(
                 "SELECT settings FROM users WHERE telegram_id=$1",
