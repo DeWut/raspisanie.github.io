@@ -641,6 +641,7 @@
   let campusYandexApiPromise = null;
   let campusDgisMap = null;
   let campusDgisApiPromise = null;
+  let campusDgisMapInitPromise = null;
   const YANDEX_MAPS_API_KEY = typeof window.CAMPUS_MAP_CONFIG?.yandexMapsApiKey === 'string' ? window.CAMPUS_MAP_CONFIG.yandexMapsApiKey.trim() : '';
   const CAMPUS_PARK_BOUNDS = [[30.3304887, 59.9899431], [30.3542134, 59.9975551]];
   const campusMapMarkers = new Map();
@@ -933,7 +934,9 @@
     if (cesiumHost) cesiumHost.hidden = mode !== 'cesium';
     if (dgisHost) dgisHost.hidden = mode !== 'dgis';
     if (mode === 'yandex') campusYandexMap?.container.fitToViewport();
-    if (mode === 'dgis' && campusDgisMap) requestAnimationFrame(() => campusDgisMap.invalidateSize?.());
+    if (mode === 'dgis' && campusDgisMap) {
+      requestAnimationFrame(() => requestAnimationFrame(() => campusDgisMap?.invalidateSize?.()));
+    }
     if (mode === 'online' && campusOnlineMap) {
       requestAnimationFrame(() => {
         campusOnlineMap?.resize();
@@ -985,26 +988,80 @@ function setCampusSatelliteVisible(visible) {
     const status = $('#campus-online-status');
     const key = String(window.CAMPUS_MAP_CONFIG?.dgisMapGlApiKey || '').trim();
     if (!key) { status.textContent = 'Не задан ключ 2ГИС MapGL.'; return; }
-    if (!state.campus) await loadCampusDirectory();
-    setCampusMapMode('dgis');
-    if (campusDgisMap) return;
-    status.textContent = 'Загружаем 3D-карту 2ГИС…';
-    try {
-      const mapgl = await loadCampus2GisApi();
-      if (!$('#map-dialog')?.open) return;
-      campusDgisMap = new mapgl.Map('campus-2gis-map', { key: key, center: [30.34235, 59.99375], zoom: 16, pitch: 62, rotation: -18, lang: 'ru' });
-      let count = 0;
-      (state.campus?.buildings || []).forEach((building) => {
-        if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
-        new mapgl.Marker(campusDgisMap, { coordinates: [building.longitude, building.latitude] });
-        count += 1;
-      });
-      status.textContent = 'Детальная 3D-карта 2ГИС загружена. Отмечено корпусов: ' + count + '. Наклон и вращение доступны жестами. Доступность и детализация слоёв зависят от покрытия 2ГИС в этой точке.';
-    } catch (error) {
-      console.warn('2GIS MapGL failed:', error);
-      status.textContent = 'Не удалось открыть 2ГИС: ' + error.message + '. Проверь доступность Map Tiles API для демо-ключа.';
-      setCampusMapMode('offline');
+    if (campusDgisMap) {
+      setCampusMapMode('dgis');
+      requestAnimationFrame(() => requestAnimationFrame(() => campusDgisMap?.invalidateSize?.()));
+      return;
     }
+    if (campusDgisMapInitPromise) return campusDgisMapInitPromise;
+
+    campusDgisMapInitPromise = (async () => {
+      setCampusMapMode('dgis');
+      status.textContent = 'Загружаем 3D-карту 2ГИС…';
+      try {
+        if (!state.campus) await loadCampusDirectory();
+        const mapgl = await loadCampus2GisApi();
+        if (!$('#map-dialog')?.open) return;
+
+        if (typeof mapgl.Map.isSupported === 'function' && !mapgl.Map.isSupported()) {
+          const reason = typeof mapgl.Map.notSupportedReason === 'function'
+            ? mapgl.Map.notSupportedReason()
+            : '';
+          throw new Error(reason || 'Этот браузер или WebGL-устройство не поддерживает 2ГИС MapGL');
+        }
+
+        const host = $('#campus-2gis-map');
+        if (!host) throw new Error('Не найден контейнер карты 2ГИС');
+        campusDgisMap = new mapgl.Map(host, {
+          key,
+          center: [30.34235, 59.99375],
+          zoom: 16,
+          pitch: 62,
+          rotation: -18,
+          lang: 'ru',
+          enableTrackResize: true,
+          defaultBackgroundColor: '#e8e8e4'
+        });
+
+        let count = 0;
+        (state.campus?.buildings || []).forEach((building) => {
+          if (!Number.isFinite(building.longitude) || !Number.isFinite(building.latitude)) return;
+          new mapgl.Marker(campusDgisMap, { coordinates: [building.longitude, building.latitude] });
+          count += 1;
+        });
+
+        const activeMap = campusDgisMap;
+        activeMap.on('styleload', () => {
+          if (campusDgisMap !== activeMap) return;
+          status.textContent = 'Стиль 2ГИС загружен. Отмечено корпусов: ' + count + '. Наклон и вращение доступны жестами.';
+          requestAnimationFrame(() => requestAnimationFrame(() => activeMap.invalidateSize()));
+        });
+        activeMap.on('styleloaderror', () => {
+          if (campusDgisMap !== activeMap) return;
+          console.error('2GIS MapGL styleloaderror: style request failed');
+          status.textContent = '2ГИС не смог загрузить стиль карты. Проверь ограничения ключа, доступ к MapGL и сетевые запросы. Можно переключиться на 3D-парк.';
+        });
+        activeMap.on('idle', () => {
+          if (campusDgisMap !== activeMap) return;
+          status.textContent = '3D-карта 2ГИС готова. Отмечено корпусов: ' + count + '.';
+        });
+
+        status.textContent = 'Карта 2ГИС создана, загружаем стиль и тайлы…';
+        requestAnimationFrame(() => requestAnimationFrame(() => activeMap.invalidateSize()));
+      } catch (error) {
+        console.warn('2GIS MapGL failed:', error);
+        status.textContent = 'Не удалось открыть 2ГИС: ' + error.message + '. Переключись на автономный 3D-парк или проверь доступность MapGL для ключа.';
+        if (campusDgisMap) {
+          try { campusDgisMap.destroy(); } catch (destroyError) { console.debug('2GIS map cleanup failed:', destroyError); }
+          campusDgisMap = null;
+        }
+        setCampusMapMode('online');
+        if (campusOnlineMap) requestAnimationFrame(() => campusOnlineMap?.resize());
+      } finally {
+        campusDgisMapInitPromise = null;
+      }
+    })();
+    return campusDgisMapInitPromise;
   }
   function loadCampusYandexApi() {
     if (!YANDEX_MAPS_API_KEY) return Promise.reject(new Error('Для спутникового режима Яндекса нужен отдельный ключ JavaScript API в miniapp/campus-map-config.js'));
