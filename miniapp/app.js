@@ -1762,11 +1762,18 @@ async function addCampusParkLayers(map) {
     });
     $('#toggle-notifications')?.addEventListener('click', () => { closeQuickMenu(); toggleLessonReminders(); });
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
-    $('#open-map').addEventListener('click', async () => {
+    const campusMapFrame = $('#campus-map-frame');
+    const requestCampusMapResize = () => {
+      campusMapFrame?.contentWindow?.postMessage({ type: 'campus-map-resize' }, location.origin);
+    };
+    campusMapFrame?.addEventListener('load', requestCampusMapResize);
+    $('#open-map').addEventListener('click', () => {
       closeQuickMenu();
       $('#map-dialog').showModal();
-      await loadCampusDirectory();
-      openCampusOnlineMap();
+      requestAnimationFrame(() => {
+        requestCampusMapResize();
+        requestAnimationFrame(requestCampusMapResize);
+      });
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', () => {
