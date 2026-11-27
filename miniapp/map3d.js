@@ -424,9 +424,9 @@
 
   function floorForRoom(room) {
     var value = String(room || '').trim();
-    var explicit = value.match(/(?:^|\\b)([1-9])\\s*[- ]?й\\s*этаж/i);
+    var explicit = value.match(/(?:^|\b)([1-9])\s*[- ]?й\s*этаж/i);
     if (explicit) return Number(explicit[1]);
-    var roomNumber = value.match(/\\b([1-9])\\d{2,3}\\b/);
+    var roomNumber = value.match(/\b([1-9])\d{2,3}\b/);
     return roomNumber ? Number(roomNumber[1]) : null;
   }
 
