@@ -301,7 +301,7 @@
       if (!container.isConnected) return;
       var summary = container.querySelector('[data-wikipedia-summary]');
       var link = container.querySelector('[data-wikipedia-link]');
-      if (summary) summary.textContent = wiki.extract || 'Краткая справка сейчас недоступна.';
+      if (summary) summary.textContent = wiki.extract || 'Справка недоступна.';
       if (link) link.href = wiki.url || WIKIPEDIA_PAGE;
     });
   }
@@ -391,9 +391,9 @@
       html += '<section class="wiki-card commons-card"><b>Wikimedia Commons</b><p>Фотографии и материалы об этом корпусе.</p><a href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Открыть материалы в Wikimedia Commons</a></section>';
     }
     html += '<section class="wiki-card"><b>Справка Wikipedia</b><p data-wikipedia-summary>Загружаем краткую справку…</p><a data-wikipedia-link href="' + esc(WIKIPEDIA_PAGE) + '" target="_blank" rel="noopener noreferrer">Открыть статью в Wikipedia</a></section>';
-    if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'указана в источнике') + ')</p>'; }
-    else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по числу этажей источника') + ')</p>'; }
-    else if (p.hq === 'unknown') { html += '<p><b>3D-высота:</b> не указана в источнике; показан только реальный контур</p>'; }
+    if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'по данным карты') + ')</p>'; }
+    else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по этажности') + ')</p>'; }
+    else if (p.hq === 'unknown') { html += '<p><b>Высота не указана; показан контур</p>'; }
     if (heritage) {
       if (heritage.built) html += '<p><b>Построен:</b> ' + esc(heritage.built) + '</p>';
       if (heritage.style) html += '<p><b>Стиль:</b> ' + esc(heritage.style) + '</p>';
@@ -467,8 +467,8 @@
       });
       var html = '<nav class="floor-tabs" aria-label="Выбор этажа">' + tabs + '</nav>';
       html += '<div class="floor-toolbar"><span>' + esc(plan.title) + '</span><div><button type="button" data-floor-zoom="-1" aria-label="Уменьшить схему">−</button><output data-floor-zoom-value aria-live="polite">100%</output><button type="button" data-floor-zoom="1" aria-label="Увеличить схему">+</button><button type="button" data-floor-zoom="reset">Вписать</button></div></div>';
-      html += '<div class="floorplan-viewport" aria-label="План этажа. Можно увеличивать и перемещать схему"><div class="floorplan-drawing" style="width:100%">' + plan.svg + '</div></div>';
-      html += '<section class="floor-units"><h4>Подразделения и кабинеты этого этажа</h4>';
+      html += '<div class="floorplan-viewport" aria-label="План этажа"><div class="floorplan-drawing" style="width:100%">' + plan.svg + '</div></div>';
+      html += '<section class="floor-units"><h4>Кабинеты этого этажа</h4>';
       if (assigned.length) {
         html += '<div class="room-grid">';
         assigned.forEach(function (unit) {
@@ -476,7 +476,7 @@
         });
         html += '</div>';
       } else {
-        html += '<p class="muted">Подтверждённые номера кабинетов для этого этажа пока не внесены.</p>';
+        html += '<p class="muted">Кабинеты пока не добавлены.</p>';
       }
       html += '</section><p class="floor-note">' + esc(custom.note) + '</p>';
       content.innerHTML = html;
@@ -506,8 +506,8 @@
       unassigned.forEach(function (unit) { htmlFallback += '<article class="room-card"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></article>'; });
       htmlFallback += '</div></section>';
     }
-    htmlFallback += '<p class="floor-note">Это справочная схема размещения подразделений по номерам аудиторий; точная геометрия помещений пока не подтверждена.</p>';
-    content.innerHTML = htmlFallback || '<p>Для этого корпуса пока нет опубликованных данных о кабинетах.</p>';
+    htmlFallback += '<p class="floor-note">Схема ориентировочная. Точные размеры помещений не указаны.</p>';
+    content.innerHTML = htmlFallback || '<p>План этажа пока не добавлен.</p>';
   }
 
   function openFloorPlan(number) {
