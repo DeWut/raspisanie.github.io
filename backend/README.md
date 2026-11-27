@@ -36,7 +36,7 @@ The bot intentionally does not ingest ordinary group-chat messages yet. Chat-bas
 ## Current limitations
 
 - Schedule commands depend on the EIOS sync/import process having populated `groups` and `lessons`.
-- Reminders are delivered by an in-process polling loop. For production, run a single bot worker (or move scheduling to a distributed job queue) to avoid duplicate polling workers.
+- Telegram updates are consumed by one long-polling worker. The bot now holds a PostgreSQL advisory lock through the direct database endpoint (`DATABASE_URL_UNPOOLED`, or the direct host derived from `DATABASE_URL`) so duplicate service instances do not run competing `getUpdates` loops. The instance that acquires the lock owns Telegram updates; stop the hosted worker before running the bot locally with the same database and token.
 - Telegram only permits deletion of eligible bot messages in chats where the bot has permission; deletion is best-effort.
 - Configure the bot with a Telegram BotFather token and keep it secret. The RAG service uses `OPENAI_API_KEY`; basic Telegram commands do not require it. Both keys are read from environment variables / `.env`. Do not commit `.env`.
 
