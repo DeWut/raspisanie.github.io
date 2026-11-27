@@ -139,7 +139,7 @@ async fn profile_action(
             .and_then(|v| v.parse::<i64>().ok())
             .unwrap_or(0)
             .max(0);
-        groups_screen(db, page).await
+        groups_screen(db, page).await?
     } else if let Some(id) = action
         .strip_prefix("pc:group:")
         .and_then(|v| uuid::Uuid::parse_str(v).ok())
@@ -200,38 +200,70 @@ async fn cabinet_screen(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarku
     (text, cabinet_keyboard())
 }
 
-async fn groups_screen(db: &PgPool, page: i64) -> (String, InlineKeyboardMarkup) {
+async fn groups_screen(db: &PgPool, page: i64) -> SocialResult<(String, InlineKeyboardMarkup)> {
+    const PAGE_SIZE: i64 = 8;
     let total: i64 = sqlx::query_scalar("SELECT count(*) FROM groups WHERE is_active=TRUE")
         .fetch_one(db)
-        .await
-        .unwrap_or(0);
-    let pages = ((total + 7) / 8).max(1);
-    let page = page.min(pages - 1);
+        .await?;
+    if total == 0 {
+        return Ok((
+            "В базе данных пока нет активных учебных групп. Сначала выполни синхронизацию списка групп, затем повтори /group.".into(),
+            InlineKeyboardMarkup::new(vec![vec![
+                button("⬅️ В кабинет", "pc:open"),
+                button("🏠 Меню", "ui:main"),
+            ]]),
+        ));
+    }
+    let pages = (total + PAGE_SIZE - 1) / PAGE_SIZE;
+    let page = page.clamp(0, pages - 1);
     let rows = sqlx::query_as::<_, (uuid::Uuid, String)>(
-        "SELECT id,name FROM groups WHERE is_active=TRUE ORDER BY name LIMIT 8 OFFSET $1",
+        "SELECT id,name FROM groups WHERE is_active=TRUE ORDER BY name LIMIT $1 OFFSET $2",
     )
-    .bind(page * 8)
+    .bind(PAGE_SIZE)
+    .bind(page * PAGE_SIZE)
     .fetch_all(db)
-    .await
-    .unwrap_or_default();
+    .await?;
     let mut keyboard = rows
         .into_iter()
         .map(|(id, name)| vec![button(name, format!("pc:group:{id}"))])
         .collect::<Vec<_>>();
     let mut paging = Vec::new();
     if page > 0 {
-        paging.push(button("◀️", format!("pc:groups:{}", page - 1)));
+        paging.push(button("◀️ Назад", format!("pc:groups:{}", page - 1)));
     }
-    paging.push(button(format!("{}/{}", page + 1, pages), "pc:groups:0"));
+    paging.push(button(format!("Страница {}/{}", page + 1, pages), "pc:groups:0"));
     if page + 1 < pages {
-        paging.push(button("▶️", format!("pc:groups:{}", page + 1)));
+        paging.push(button("Далее ▶️", format!("pc:groups:{}", page + 1)));
     }
     keyboard.push(paging);
     keyboard.push(vec![
         button("⬅️ В кабинет", "pc:open"),
         button("🏠 Меню", "ui:main"),
     ]);
-    ("🎓 Выбери свою группу. Поиск по списку добавлю текстом только если групп станет слишком много.".into(), InlineKeyboardMarkup::new(keyboard))
+    Ok((
+        format!("🎓 Выбери свою учебную группу. Показаны группы {}–{} из {}. Переключай страницы кнопками внизу.", page * PAGE_SIZE + 1, (page * PAGE_SIZE + PAGE_SIZE).min(total), total),
+        InlineKeyboardMarkup::new(keyboard),
+    ))
+}
+
+/// Opens the same paginated group picker used by the private cabinet.
+/// This lets /group work without requiring a manually typed group name.
+pub async fn open_group_picker(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+) -> ResponseResult<()> {
+    match groups_screen(db, 0).await {
+        Ok((text, keyboard)) => {
+            bot.send_message(chat_id, text).reply_markup(keyboard).await?;
+        }
+        Err(error) => {
+            tracing::warn!("Could not load active groups for picker: {}", error);
+            bot.send_message(chat_id, "Не удалось загрузить список групп из Neon PostgreSQL. Проверь подключение к БД и применение миграций.")
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 async fn dating_home(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarkup) {
