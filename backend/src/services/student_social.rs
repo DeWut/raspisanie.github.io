@@ -1106,22 +1106,52 @@ async fn dating_action(
             .await;
     }
 
-    // Display a candidate's optional Telegram-hosted photo as a second message.
-    // The file_id is private Telegram storage; no third-party image host is used.
-    if let Some(file_id) = displayed_photo {
-        bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
+    // Remove only the previous photo posted by this dating screen. The exact
+    // Telegram message ID was saved when the bot sent it; no chat history is swept.
+    let previous_photo_id = sqlx::query_scalar::<_, Option<i32>>(
+        "SELECT photo_message_id FROM bot_dating_ui_messages WHERE telegram_id=$1",
+    )
+    .bind(actor)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten()
+    .flatten();
+    if let Some(previous_id) = previous_photo_id {
+        let _ = bot.delete_message(chat_id, MessageId(previous_id)).await;
+    }
+    let _ = sqlx::query(
+        "UPDATE bot_dating_ui_messages SET photo_message_id=NULL,updated_at=now() WHERE telegram_id=$1",
+    )
+    .bind(actor)
+    .execute(db)
+    .await;
+
+    // Candidate photos remain in Telegram storage and replace only the previous
+    // bot-owned dating photo, never the main screen or another chat message.
+    let photo_to_display = if displayed_photo.is_some() {
+        displayed_photo
+    } else if let Some(liker_text) = action.strip_prefix("dating:likeview:") {
+        let liker = liker_text.split(':').next().and_then(|value| value.parse::<i64>().ok()).unwrap_or_default();
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1))"
+        ).bind(actor).bind(liker).fetch_optional(db).await?.flatten()
+    } else {
+        None
+    };
+    if let Some(file_id) = photo_to_display {
+        let photo = bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
             .caption("📷 Фото анкеты")
             .await?;
-    }
-    if let Some(liker_text) = action.strip_prefix("dating:likeview:") {
-        let liker = liker_text.split(':').next().and_then(|value| value.parse::<i64>().ok()).unwrap_or_default();
-        let photo: Option<String> = sqlx::query_scalar(
-            "SELECT p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
-        ).bind(actor).bind(liker).fetch_optional(db).await?.flatten();
-        if let Some(file_id) = photo {
-            bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
-                .caption("📷 Фото анкеты")
-                .await?;
+        if let Err(error) = sqlx::query(
+            "UPDATE bot_dating_ui_messages SET photo_message_id=$2,updated_at=now() WHERE telegram_id=$1",
+        )
+        .bind(actor)
+        .bind(photo.id.0)
+        .execute(db)
+        .await
+        {
+            tracing::warn!("Could not track dating photo message: {}", error);
         }
     }
     Ok(())

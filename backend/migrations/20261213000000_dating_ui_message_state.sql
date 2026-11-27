@@ -9,3 +9,6 @@ CREATE TABLE IF NOT EXISTS bot_dating_ui_messages (
 
 CREATE INDEX IF NOT EXISTS idx_bot_dating_ui_messages_chat
     ON bot_dating_ui_messages(chat_id);
+
+ALTER TABLE bot_dating_ui_messages
+    ADD COLUMN IF NOT EXISTS photo_message_id INTEGER;
