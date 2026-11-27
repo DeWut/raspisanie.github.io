@@ -117,5 +117,8 @@ mod tests {
         assert_eq!(detect("когда у Иванова пары?"), Some(Intent::Teacher("иванова".into())));
         assert_eq!(detect("что у нас завтра?"), Some(Intent::Tomorrow));
         assert_eq!(detect("Барни, привет!"), Some(Intent::Greeting));
+        assert_eq!(detect("Привет, какое ДЗ?"), Some(Intent::Homework));
+        assert_eq!(detect("А какое домашнее задание задали?"), Some(Intent::Homework));
+        assert_eq!(detect("Что задали по улв?"), Some(Intent::Homework));
     }
 }
