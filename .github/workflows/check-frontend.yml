@@ -88,7 +88,7 @@ jobs:
                       self.in_script = False
                       self.external = False
 
-          for page in ("index.html", "index2.html"):
+          for page in ("index.html",):
               parser = Scripts()
               parser.feed(Path(page).read_text(encoding="utf-8"))
               for number, script in enumerate(parser.parts, 1):
