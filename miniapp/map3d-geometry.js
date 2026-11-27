@@ -317,25 +317,57 @@
         var hullPts = hull(outer);
         var convex = !hasHoles && Math.abs(signedArea(outer)) / Math.max(1e-6, Math.abs(signedArea(hullPts))) >= 0.88;
 
-        // massing: plinth, walls, floor ledges
-        if (h >= 4) { part(offsetRings(rings, 0.12), 0, 1.0, plinth); }
+        // Building massing follows the surveyed footprint exactly. Earlier
+        // bbox-scaled offsets distorted concave historic blocks and courtyards,
+        // creating oversized roof slabs at close zoom.
+        if (h >= 4) { part(rings, 0, 0.72, plinth); }
         part(rings, 0, h, wall);
-        for (var i = 1; i < floors; i++) { part(offsetRings(rings, 0.1), i * fh - 0.18, i * fh + 0.12, ledge); }
+        for (var i = 1; i < floors; i++) {
+          part(rings, i * fh - 0.09, i * fh + 0.09, ledge);
+        }
 
-        // roof
+        // Roofs retain the original footprint and all courtyard holes.
+        // Only explicitly tagged, convex roofs receive a restrained stepped
+        // profile; unknown roofs stay flat rather than inventing geometry.
         if (shaped && convex && minSide > 4) {
-          var rh = Math.max(2, Math.min(6, minSide * 0.3));
+          var rh = Math.max(1.2, Math.min(3.2, minSide * 0.16));
           var step = rh / 4;
           var cen = centroid(outer);
-          part([offsetRing(outer, 0.35)], h, h + 0.35, trim);
           for (var j = 0; j < 4; j++) {
-            var f = 1 - 0.24 * j;
-            var ring = scaleAbout(outer, f, f, cen[0], cen[1]);
-            part([ring], h + 0.35 + j * step, h + 0.35 + (j + 1) * step, lighten(roof, j * 0.03));
+            var f = 1 - 0.16 * j;
+            var roofRing = scaleAbout(outer, f, f, cen[0], cen[1]);
+            part([roofRing], h + j * step, h + (j + 1) * step, lighten(roof, j * 0.025));
           }
         } else {
-          part(offsetRings(rings, 0.3), h, h + 0.45, trim);
-          part(offsetRings(rings, -0.45), h + 0.45, h + 0.6, roof);
+          part(rings, h, h + 0.18, roof);
+        }
+
+        // The main historic Empire-style building gets restrained facade
+        // pilasters. These are decorative vertical strips, not guessed doors.
+        var isHistoric = !!(camp && camp.heritage && /ампир|empire/i.test(String(camp.heritage.style || '')));
+        if (isHistoric) {
+          outer.forEach(function (a, edge) {
+            var b = outer[(edge + 1) % outer.length];
+            var dx = b[0] - a[0], dy = b[1] - a[1];
+            var L = Math.sqrt(dx * dx + dy * dy);
+            if (L < 9) return;
+            var ux = dx / L, uy = dy / L;
+            var nx = (signedArea(outer) > 0 ? 1 : -1) * uy;
+            var ny = (signedArea(outer) > 0 ? -1 : 1) * ux;
+            var count = Math.floor(L / 8);
+            for (var pi = 0; pi <= count; pi++) {
+              var t = Math.min(L - 1.2, Math.max(1.2, (pi + 0.5) * L / (count + 1)));
+              var cx = a[0] + ux * t, cy = a[1] + uy * t;
+              var half = 0.16, depth = 0.11;
+              var strip = [
+                [cx - ux * half, cy - uy * half],
+                [cx + ux * half, cy + uy * half],
+                [cx + ux * half + nx * depth, cy + uy * half + ny * depth],
+                [cx - ux * half + nx * depth, cy - uy * half + ny * depth]
+              ];
+              part([strip], 0.8, Math.max(1.2, h - 0.25), lighten(wall, 0.13));
+            }
+          });
         }
 
         // ground shadow (hull of footprint and its shifted copy when the shape is convex)
