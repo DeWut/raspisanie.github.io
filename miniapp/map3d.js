@@ -283,6 +283,30 @@
   var campusData = null;
   var popup = null;
 
+  // Floor plans supplied by the user. Building 1 has room layouts; building 2 has evacuation plans.
+  var FLOOR_PLANS = {
+    '1': {
+      title: 'Планы помещений',
+      note: 'Справочные фотографии планов главного корпуса (литера У), предоставленные пользователем. Схемы помогают найти аудиторию, но не заменяют проверку указателей на месте.',
+      floors: [
+        { number: 1, image: './assets/floorplans/building-1-floor-1.webp' },
+        { number: 2, image: './assets/floorplans/building-1-floor-2.webp' },
+        { number: 3, image: './assets/floorplans/building-1-floor-3.webp' },
+        { number: 4, image: './assets/floorplans/building-1-floor-4.webp' }
+      ]
+    },
+    '2': {
+      title: 'Планы эвакуации',
+      note: 'Это планы эвакуации корпуса № 2 (литера Б), а не обычные планы кабинетов. При чрезвычайной ситуации следуйте актуальным указателям и указаниям сотрудников университета.',
+      floors: [
+        { number: 1, image: './assets/floorplans/building-2-evac-floor-1.webp' },
+        { number: 2, image: './assets/floorplans/building-2-evac-floor-2.webp' },
+        { number: 3, image: './assets/floorplans/building-2-evac-floor-3.webp' },
+        { number: 4, image: './assets/floorplans/building-2-evac-floor-4.webp' }
+      ]
+    }
+  };
+
   function applyAtmosphere() {
     try { map.setLight({ anchor: 'map', color: '#fff1d4', intensity: 0.5, position: [1.3, G.SUN_FROM_AZ, 42] }); } catch (e) { /* older/newer API */ }
     try {
@@ -338,7 +362,7 @@
       });
       html += '</ul>';
     }
-    if (camp && camp.units && camp.units.length) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Схема этажей и кабинеты</button></p>';
+    if (camp && FLOOR_PLANS[String(camp.number)]) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">' + esc(FLOOR_PLANS[String(camp.number)].title) + '</button></p>';
     if (p.src && /^https:\/\/www\.openstreetmap\.org\//.test(p.src)) {
       html += '<p class="muted"><a href="' + esc(p.src) + '" target="_blank" rel="noopener">Объект в OpenStreetMap</a></p>';
     }
@@ -352,47 +376,44 @@
     if (old) { old.remove(); }
   }
 
-  function floorForRoom(room) {
-    var value = String(room || '').trim();
-    var match = value.match(/^([1-9])[- ]?\\d{2,3}$/);
-    return match ? Number(match[1]) : null;
-  }
-
   function openFloorPlan(number) {
     var building = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(number); });
-    if (!building) return;
+    var plan = FLOOR_PLANS[String(number)];
     var panel = $('floorplan');
     var title = $('floorplan-title');
-    var content = $('floorplan-content');
-    if (!panel || !content) return;
-    title.textContent = building.name + ' · ' + (building.address || '');
-    var floors = {};
-    var unassigned = [];
-    (building.units || []).forEach(function (unit) {
-      var floor = floorForRoom(unit.room);
-      if (floor == null) unassigned.push(unit);
-      else (floors[floor] || (floors[floor] = [])).push(unit);
+    var tabs = $('floorplan-tabs');
+    var image = $('floorplan-image');
+    var note = $('floorplan-note');
+    var originalLink = $('floorplan-original');
+    if (!building || !plan || !panel || !tabs || !image || !note) return;
+
+    title.textContent = building.name + ' · ' + plan.title.toLocaleLowerCase('ru');
+    tabs.innerHTML = '';
+
+    function selectFloor(floor) {
+      image.src = floor.image;
+      image.alt = building.name + ', ' + floor.number + '-й этаж';
+      if (originalLink) originalLink.href = floor.image;
+      Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (button) {
+        var active = Number(button.getAttribute('data-floor')) === floor.number;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    plan.floors.forEach(function (floor, index) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'floor-tab';
+      button.textContent = floor.number + ' этаж';
+      button.setAttribute('data-floor', String(floor.number));
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', function () { selectFloor(floor); });
+      tabs.appendChild(button);
+      if (index === 0) selectFloor(floor);
     });
-    var keys = Object.keys(floors).sort(function (a, b) { return Number(a) - Number(b); });
-    var html = '';
-    if (keys.length) {
-      keys.forEach(function (floor) {
-        html += '<section class="floor-section"><h4>' + floor + '-й этаж</h4><div class="room-grid">';
-        floors[floor].forEach(function (unit) {
-          html += '<article class="room-card"><b>' + esc(unit.room) + '</b><span>' + esc(unit.name) + '</span></article>';
-        });
-        html += '</div></section>';
-      });
-    }
-    if (unassigned.length) {
-      html += '<section class="floor-section"><h4>Этаж не указан в данных</h4><div class="room-grid">';
-      unassigned.forEach(function (unit) {
-        html += '<article class="room-card"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></article>';
-      });
-      html += '</div></section>';
-    }
-    html += '<p class="floor-note">Это справочная схема размещения подразделений по номерам аудиторий, а не точный архитектурный план: координаты кабинетов и расположение лестниц пока не подтверждены.</p>';
-    content.innerHTML = html || '<p>Для этого корпуса пока нет опубликованных данных о кабинетах.</p>';
+
+    note.textContent = plan.note;
     panel.hidden = false;
     panel.setAttribute('aria-hidden', 'false');
   }
