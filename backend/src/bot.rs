@@ -94,10 +94,7 @@ fn ui_keyboard(
                 ui_button("7 дней", "ui:schedule:week"),
                 ui_button("Следующая пара", "ui:schedule:next"),
             ],
-            vec![
-                ui_button("⬅️ Назад", "ui:main"),
-                ui_button("🏠 В меню", "ui:main"),
-            ],
+            vec![ui_button("🏠 В меню", "ui:main")],
         ],
         "settings" => vec![
             vec![ui_button(
@@ -153,10 +150,7 @@ fn ui_keyboard(
                 ui_button("Выкл.", "ui:digest:off"),
             ],
             vec![ui_button("🔔 Изменения расписания", "ui:changes:toggle")],
-            vec![
-                ui_button("⬅️ Назад", "ui:main"),
-                ui_button("🏠 В меню", "ui:main"),
-            ],
+            vec![ui_button("🏠 В меню", "ui:main")],
         ],
         "deadlines" => vec![vec![
             ui_button("⬅️ Назад", "ui:main"),
@@ -164,10 +158,7 @@ fn ui_keyboard(
         ]],
         "help" => vec![
             vec![ui_button("📋 Список команд", "ui:commands")],
-            vec![
-                ui_button("⬅️ Назад", "ui:main"),
-                ui_button("🏠 В меню", "ui:main"),
-            ],
+            vec![ui_button("🏠 В меню", "ui:main")],
         ],
         _ => vec![
             vec![
@@ -473,18 +464,16 @@ async fn handle_ui_callback(
             .unwrap_or_default()
         }
         "ui:homework" => {
-            screen = "deadlines";
-            text = crate::services::student_tools::handle(
-                &state.db,
-                chat_id,
-                actor,
-                "/deadlines",
-                "",
-                None,
-                None,
-            )
-            .await
-            .unwrap_or_default();
+            if chat_id < 0 {
+                text = crate::services::group_content::handle_homework(
+                    &state.db, chat_id, actor, "/dz", "",
+                )
+                .await
+                .unwrap_or_else(|| "Домашние задания доступны в учебной группе.".into());
+            } else {
+                screen = "deadlines";
+                text = "Задания группы открываются в учебном чате. Здесь можно посмотреть личные дедлайны отдельной кнопкой.".into();
+            }
         }
         "ui:deadlines" => {
             screen = "deadlines";
