@@ -4704,6 +4704,7 @@ async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         FROM bot_homework h
         JOIN bot_chat_settings c ON c.chat_id = h.chat_id
         WHERE c.is_active = TRUE
+          AND c.homework_reminders_enabled = TRUE
           AND h.status = 'active'
           AND h.due_at BETWEEN now() + interval '23 hours'
                            AND now() + interval '24 hours'
@@ -4746,19 +4747,24 @@ async fn group_homework_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
             Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
             None => request,
         };
-        if let Err(error) = request.await {
-            tracing::warn!(
-                "Could not send homework reminder to chat {}: {}",
-                chat_id,
-                error
-            );
-            let _ = sqlx::query(
-                "DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type='homework' AND record_id=$2 AND telegram_id=0 AND reminder_key='day_before'"
-            )
-            .bind(chat_id)
-            .bind(homework_id)
-            .execute(&state.db)
-            .await;
+        match request.await {
+            Ok(_) => record_notification_delivery(
+                &state.db, "group_homework_reminder", "group", chat_id, true, None,
+            ).await,
+            Err(error) => {
+                let detail = error.to_string();
+                record_notification_delivery(
+                    &state.db, "group_homework_reminder", "group", chat_id, false, Some(&detail),
+                ).await;
+                tracing::warn!("Could not send homework reminder to chat {}: {}", chat_id, detail);
+                let _ = sqlx::query(
+                    "DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type='homework' AND record_id=$2 AND telegram_id=0 AND reminder_key='day_before'"
+                )
+                .bind(chat_id)
+                .bind(homework_id)
+                .execute(&state.db)
+                .await;
+            }
         }
     }
 }
@@ -4829,10 +4835,29 @@ async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         } else {
             request
         };
-        if let Err(error) = request.await {
-            tracing::warn!("Could not send {} reminder to {}: {}", kind, target, error);
-            let _=sqlx::query("DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type=$2 AND record_id=$3 AND telegram_id=$4 AND reminder_key=$5")
-                .bind(chat_id).bind(&kind).bind(record_id).bind(telegram_id).bind(&key).execute(&state.db).await;
+        match request.await {
+            Ok(_) => record_notification_delivery(
+                &state.db,
+                if kind == "exam" { "group_exam_reminder" } else { "personal_event_reminder" },
+                if kind == "exam" { "group" } else { "private" },
+                target,
+                true,
+                None,
+            ).await,
+            Err(error) => {
+                let detail = error.to_string();
+                record_notification_delivery(
+                    &state.db,
+                    if kind == "exam" { "group_exam_reminder" } else { "personal_event_reminder" },
+                    if kind == "exam" { "group" } else { "private" },
+                    target,
+                    false,
+                    Some(&detail),
+                ).await;
+                tracing::warn!("Could not send {} reminder to {}: {}", kind, target, detail);
+                let _=sqlx::query("DELETE FROM bot_group_reminder_deliveries WHERE chat_id=$1 AND record_type=$2 AND record_id=$3 AND telegram_id=$4 AND reminder_key=$5")
+                    .bind(chat_id).bind(&kind).bind(record_id).bind(telegram_id).bind(&key).execute(&state.db).await;
+            }
         }
     }
 }
