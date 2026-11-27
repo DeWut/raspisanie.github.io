@@ -691,7 +691,9 @@ async fn reply(
     text: String,
     webapp_url: &str,
 ) -> ResponseResult<()> {
-    let request = bot.send_message(message.chat.id, text);
+    // Make bot answers actual Telegram replies so users can keep a readable
+    // thread around a homework post, schedule post, or a previous question.
+    let request = bot.send_message(message.chat.id, text).reply_to(message.id);
     let request = if message.chat.is_private() {
         request.reply_markup(main_keyboard(webapp_url, true))
     } else {
@@ -1452,13 +1454,13 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     // to a bot message; private chats can use natural language directly.
     if !normalized_text.starts_with('/') {
         let lower_message = normalized_text.to_lowercase().replace('ё', "е");
-        let replied_to_bot = message.reply_to_message()
-            .and_then(|replied| replied.from.as_ref())
-            .is_some_and(|user| user.is_bot);
+        // A reply can target either a bot post or a student's message containing
+        // homework details. In both cases the reply supplies the conversational context.
+        let is_reply = message.reply_to_message().is_some();
         let explicitly_addressed = ["барни", "барней", "spbftu", "spbftuit"]
             .iter()
             .any(|token| lower_message.contains(token));
-        let may_answer = !is_group_chat || replied_to_bot || explicitly_addressed;
+        let may_answer = !is_group_chat || is_reply || explicitly_addressed;
 
         if may_answer {
             if let Some(intent) = crate::services::conversation::detect(normalized_text) {
@@ -1490,9 +1492,12 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                                 db, message.chat.id.0, telegram_id, "/dz", "",
                             ).await
                         } else {
-                            crate::services::student_tools::handle(
-                                db, message.chat.id.0, telegram_id, "/deadlines", "", None, None,
-                            ).await
+                            match selected_group(db, telegram_id, message.chat.id.0).await {
+                                Some(group_id) => Some(
+                                    crate::services::group_content::homework_for_group(db, group_id, telegram_id).await
+                                ),
+                                None => Some("Сначала выбери учебную группу командой /group название. После этого я смогу показать ДЗ, опубликованные в привязанном учебном чате.".into()),
+                            }
                         }
                     }
                     crate::services::conversation::Intent::Deadlines => {
