@@ -521,7 +521,7 @@
             var seed = String(f.properties.osmId || fi) + '|' + Math.round(x) + '|' + Math.round(y);
             var pt = [x + (rnd(seed + '|jx') - 0.5) * spacing * 0.42, y + (rnd(seed + '|jy') - 0.5) * spacing * 0.42];
             if (!pointInPolygon(pt, rings)) continue;
-            if (!isGarden && gardenPolygons.some(function (gr) { return pointInPolygon(pt, gr[0]) && !gr.slice(1).some(function (hole) { return pointInRing(pt, hole); }); })) continue;
+            if (!isGarden && gardenPolygons.some(function (gr) { return pointInPolygon(pt, gr); })) continue;
             if (nearPath(pt, 3.0) || nearBuilding(pt, 3.8) || nearExistingTree(pt, isGarden ? 6.0 : 11.5)) continue;
             addIllustrativeTree(pt[0], pt[1], seed);
           }
