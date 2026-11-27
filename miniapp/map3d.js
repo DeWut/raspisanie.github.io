@@ -433,6 +433,21 @@
   var activeFloorBuilding = null;
   var activeFloorNumber = 1;
   var floorPlanZoom = 1;
+  var floorPlanFitWidth = 100;
+  function fitFloorPlanDrawing() {
+    var content = $('floorplan-content');
+    var viewport = content && content.querySelector('.floorplan-viewport');
+    var drawing = content && content.querySelector('.floorplan-drawing');
+    var svg = drawing && drawing.querySelector('.floorplan-svg');
+    if (!viewport || !drawing || !svg || !viewport.clientWidth || !viewport.clientHeight) return;
+    var values = (svg.getAttribute('viewBox') || '0 0 1000 760').trim().split(/[ ,]+/).map(Number);
+    var width = values[2], height = values[3];
+    if (!(width > 0 && height > 0)) return;
+    var widthForFullHeight = viewport.clientHeight * width / height;
+    floorPlanFitWidth = Math.min(100, widthForFullHeight / viewport.clientWidth * 100);
+    drawing.style.width = (floorPlanFitWidth * floorPlanZoom) + '%';
+  }
+
   function renderFloorPlan(building, floor) {
     var content = $('floorplan-content');
     if (!content) return;
@@ -465,8 +480,7 @@
       }
       html += '</section><p class="floor-note">' + esc(custom.note) + '</p>';
       content.innerHTML = html;
-      var drawing = content.querySelector('.floorplan-drawing');
-      if (drawing) drawing.style.width = (floorPlanZoom * 100) + '%';
+      fitFloorPlanDrawing();
       return;
     }
 
@@ -508,9 +522,9 @@
       var found = (building.units || []).map(function (u) { return floorForRoom(u.room); }).filter(Boolean).sort(function(a,b){return a-b;});
       return found.length ? found[0] : 1;
     })();
-    renderFloorPlan(building, firstFloor);
     panel.hidden = false;
     panel.setAttribute('aria-hidden', 'false');
+    renderFloorPlan(building, firstFloor);
   }
 
   function closeFloorPlan() {
@@ -631,7 +645,7 @@
         var action = zoom.getAttribute('data-floor-zoom');
         floorPlanZoom = action === 'reset' ? 1 : Math.max(1, Math.min(3, floorPlanZoom + Number(action) * 0.25));
         var drawing = floorContent.querySelector('.floorplan-drawing');
-        if (drawing) drawing.style.width = (floorPlanZoom * 100) + '%';
+        if (drawing) drawing.style.width = (floorPlanFitWidth * floorPlanZoom) + '%';
         var zoomValue = floorContent.querySelector('[data-floor-zoom-value]');
         if (zoomValue) zoomValue.textContent = Math.round(floorPlanZoom * 100) + '%';
       }
