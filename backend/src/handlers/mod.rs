@@ -24,6 +24,7 @@ pub fn router() -> Router<SharedState> {
         .route("/api/presence", get(presence::count))
         .route("/api/presence/ping", post(presence::ping))
         .route("/api/me", get(me::get_me).put(me::update_me))
+        .route("/api/me/group", post(me::update_group))
         .route("/api/groups", get(groups::list_groups))
         .route("/api/groups/:group_id", get(groups::get_group))
         .route("/api/schedule/:group_id", get(schedule::group_schedule))
