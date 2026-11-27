@@ -91,6 +91,27 @@ test('named arboretum polygons generate clustered trees while respecting paths',
   assert.ok(out.trees.length >= out.stats.trees * 3, 'each generated tree should have layered canopy geometry');
 });
 
+test('flat roof and facade geometry preserve the original concave footprint', () => {
+  const historic = {
+    buildings: [{
+      number: '1', osm: { id: 77 },
+      heritage: { style: 'Ампир' }
+    }]
+  };
+  const footprint = ring([[0,0],[40,0],[40,12],[25,12],[25,28],[15,28],[15,12],[0,12]]);
+  const scene = { features: [{
+    id: 'way/77',
+    properties: { kind: 'building', osmId: '77', heightKnown: true, heightMeters: 12, levels: '3' },
+    geometry: { type: 'Polygon', coordinates: [footprint] }
+  }] };
+  const out = G.buildScene(scene, historic);
+  const roofs = out.solid.filter(f => f.properties.z0 === 12 && f.properties.z1 === 12.18);
+  assert.strictEqual(roofs.length, 1, 'unknown roof shape should remain a single flat roof');
+  assert.deepStrictEqual(roofs[0].geometry.coordinates[0], footprint);
+  const pilasters = out.solid.filter(f => f.properties.z0 === 0.8 && f.properties.z1 === 11.75);
+  assert.ok(pilasters.length > 0, 'historic facade should receive restrained vertical details');
+});
+
 test('window budget is respected', () => {
   const out = G.buildScene(sampleScene(), campus, { maxWindows: 50 });
   assert.ok(out.windows.length <= 50);
