@@ -589,7 +589,7 @@ fn dating_profile_screen(
             .collect::<Vec<_>>()
             .join(" · ")
     };
-    let text = format!("💚 МОЯ АНКЕТА\n\n{name} · 18+\n{}\n\nИнтересы: {tag_text}\nСтатус: {}\n\nАнкета показывается только взаимно подходящим участникам раздела знакомств.",
+    let text = format!("💚 МОЯ АНКЕТА\n\n{name} · 18+\n{}\n\nИнтересы: {tag_text}\nСтатус: {}\n💚 Входящие лайки: {incoming_likes}\n\nАнкета показывается только взаимно подходящим участникам раздела знакомств.",
         if bio.is_empty() { "Описание пока пустое" } else { &bio },
         if paused { "на паузе" } else { "активна" });
     let mut rows = vec![
@@ -1060,15 +1060,46 @@ async fn incoming_like_card(
     };
     let interests = if tags.is_empty() { "не указаны".to_owned() } else { tags.iter().map(|tag| tag_label(tag)).collect::<Vec<_>>().join(" · ") };
     let text = format!("💚 ТЕБЯ ЛАЙКНУЛИ\n\n{name} · 18+\n{}\n\nИнтересы: {interests}\n\nЕсли симпатия взаимная, поставь лайк в ответ.", if bio.is_empty() { "Без описания" } else { &bio });
-    Ok((
-        text,
-        InlineKeyboardMarkup::new(vec![
-            vec![button("💚 Ответить лайком", format!("dating:like:{liker}"))],
-            vec![button("Следующий лайк ▶️", format!("dating:likes:{}", page + 1))],
-            nav("dating:profile"),
-        ]),
-        None,
-    ))
+
+    // Keep card navigation aligned with the same filtered incoming-like list:
+    // inactive/paused profiles, mutual likes and blocked users are not browsable.
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1))"
+    )
+    .bind(actor)
+    .fetch_one(db)
+    .await?;
+    let previous = if page > 0 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT s.from_telegram_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1)) ORDER BY s.created_at DESC LIMIT 1 OFFSET $2"
+        )
+        .bind(actor)
+        .bind(page - 1)
+        .fetch_optional(db)
+        .await?
+    } else { None };
+    let next = if page + 1 < total {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT s.from_telegram_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1)) ORDER BY s.created_at DESC LIMIT 1 OFFSET $2"
+        )
+        .bind(actor)
+        .bind(page + 1)
+        .fetch_optional(db)
+        .await?
+    } else { None };
+
+    let mut rows = vec![vec![button("💚 Ответить лайком", format!("dating:like:{liker}"))]];
+    let mut navigation = Vec::new();
+    if let Some(previous_id) = previous {
+        navigation.push(button("◀️ Предыдущий лайк", format!("dating:likeview:{previous_id}:{}", page - 1)));
+    }
+    if let Some(next_id) = next {
+        navigation.push(button("Следующий лайк ▶️", format!("dating:likeview:{next_id}:{}", page + 1)));
+    }
+    if !navigation.is_empty() { rows.push(navigation); }
+    rows.push(nav("dating:likes"));
+    rows.push(nav("dating:profile"));
+    Ok((text, InlineKeyboardMarkup::new(rows), None))
 }
 
 async fn matches_screen(
