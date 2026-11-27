@@ -109,6 +109,8 @@
       { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.94, 'fill-outline-color': '#625e55' } },
       extrusion('bld', 'solid', 0, 1),
+      { id: 'hl-flat', type: 'fill', source: 'hl', layout: { visibility: 'none' },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.24, 'fill-outline-color': '#e0ad35' } },
       extrusion('hl', 'hl', 0, 0.55)
     ];
     return {
@@ -157,6 +159,12 @@
     if (map && map.getLayer('bld-footprint')) {
       map.setLayoutProperty('bld-footprint', 'visibility', buildings3D ? 'visible' : 'none');
     }
+    if (map && map.getLayer('hl')) {
+      map.setLayoutProperty('hl', 'visibility', buildings3D ? 'visible' : 'none');
+    }
+    if (map && map.getLayer('hl-flat')) {
+      map.setLayoutProperty('hl-flat', 'visibility', buildings3D ? 'none' : 'visible');
+    }
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
   map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
@@ -185,6 +193,8 @@
         layout: { visibility: 'visible' },
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#77736b' } },
       extrusion('bld', 'solid', 0, 1),
+      { id: 'hl-flat', type: 'fill', source: 'hl', layout: { visibility: 'none' },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.24, 'fill-outline-color': '#d99e27' } },
       extrusion('hl', 'hl', 0, 0.55)
     ];
     var layers = next.layers || [];
@@ -524,7 +534,7 @@
     if (campusData && campusData.map && campusData.map.center) { HOME.center = campusData.map.center; }
     setTimeout(function () {
       var drawn = 0;
-      try { drawn = map.queryRenderedFeatures({ layers: [buildings3D ? 'bld' : 'campus-bld-2d'] }).length; } catch (e) { drawn = -1; }
+      try { drawn = map.queryRenderedFeatures({ layers: buildings3D ? ['bld', 'bld-footprint'] : ['campus-bld-2d'] }).length; } catch (e) { drawn = -1; }
       if (drawn === 0 && scene.stats.buildings) {
         setStatus('Здания не отрисовались. Если страница открыта как файл (content:// или file://), браузер может блокировать Web Worker. Откройте её с сайта проекта.');
         setTimeout(function () { setStatus(''); }, 15000);
