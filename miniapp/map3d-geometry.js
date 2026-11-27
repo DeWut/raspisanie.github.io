@@ -352,7 +352,7 @@
     var sx = Math.sin(SHADOW_AZ * Math.PI / 180), sy = Math.cos(SHADOW_AZ * Math.PI / 180);
 
     var out = {
-      ground: [], solid: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
+      ground: [], footprints: [], solid: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
       stats: { buildings: 0, known: 0, levels: 0, assumed: 0, unknown: 0, windows: 0, trees: 0, mappedTrees: 0, estimatedTrees: 0, dropped: 0 }
     };
     var features = (scene && scene.features) || [];
@@ -454,6 +454,12 @@
         var b = bbox(outer);
         var minSide = Math.min(b.x1 - b.x0, b.y1 - b.y0);
         var hasHoles = rings.length > 1;
+        // A full, flat copy of every valid mapped building footprint is kept
+        // separately from the 3D mesh. This powers a clean 2D scheme mode.
+        add(out.footprints, rings, {
+          kind: 'campus-building', pid: pid, name: base.name, campus: base.campus,
+          col: wall, sourceUrl: base.src, heightQuality: hi.q
+        });
         var hullPts = hull(outer);
         var convex = !hasHoles && Math.abs(signedArea(outer)) / Math.max(1e-6, Math.abs(signedArea(hullPts))) >= 0.88;
 
@@ -655,6 +661,7 @@
     }
 
     // Final gate: nothing invalid or oversized reaches MapLibre.
+    out.footprints = sanitize(out.footprints, out.stats);
     out.solid = sanitize(out.solid, out.stats);
     out.windows = sanitize(out.windows, out.stats);
     out.windowFrames = sanitize(out.windowFrames, out.stats);
@@ -669,7 +676,7 @@
   /* Returns a list of human-readable problems found in a built scene (empty = fine). */
   function validateScene(out) {
     var problems = [];
-    var lists = { solid: out.solid, windows: out.windows, windowFrames: out.windowFrames, trees: out.trees, shadows: out.shadows };
+    var lists = { footprints: out.footprints || [], solid: out.solid, windows: out.windows, windowFrames: out.windowFrames, trees: out.trees, shadows: out.shadows };
     Object.keys(lists).forEach(function (name) {
       lists[name].forEach(function (f, i) {
         if (!featureIsSane(f)) { problems.push(name + '[' + i + '] is invalid or oversized'); return; }
