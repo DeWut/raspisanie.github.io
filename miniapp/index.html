@@ -9,11 +9,11 @@
     <title>SPBFTUIT — расписание</title>
     <link rel="icon" href="../favicon.png" />
     <link rel="manifest" href="../manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=20261127-51" />
+    <link rel="stylesheet" href="./styles.css?v=20261127-54" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script defer src="./campus-map-config.js?v=20261127-52"></script>
     <script defer src="./native-bridge.js"></script>
-    <script defer src="./app.js?v=20261127-53"></script>
+    <script defer src="./app.js?v=20261127-55"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -138,6 +138,9 @@
               <label class="settings-toggle-row"><span><strong>Групповой дайджест</strong><small>Расписание и активные задания отдельным сообщением</small></span><input id="chat-setting-digest" type="checkbox" /></label>
               <label class="control-field"><span>Время дайджеста · Москва</span><input id="chat-setting-digest-time" type="time" value="07:00" /></label>
               <label class="settings-toggle-row"><span><strong>Напоминать группе о начале пары</strong><small>Примерно за 10 минут до занятия</small></span><input id="chat-setting-lesson-notifications" type="checkbox" /></label>
+              <label class="settings-toggle-row"><span><strong>Напоминания о домашних заданиях</strong><small>За сутки до указанного срока</small></span><input id="chat-setting-homework-reminders" type="checkbox" /></label>
+              <label class="settings-toggle-row"><span><strong>Напоминания об экзаменах</strong><small>За 7 дней, 3 дня и 1 день</small></span><input id="chat-setting-exam-reminders" type="checkbox" /></label>
+              <label class="settings-toggle-row"><span><strong>Напоминания о мероприятиях</strong><small>Только участникам, которые записались и включили личные напоминания</small></span><input id="chat-setting-event-reminders" type="checkbox" /></label>
               <label class="settings-toggle-row"><span><strong>Публиковать изменения расписания</strong><small>Уведомлять группу об изменениях</small></span><input id="chat-setting-changes" type="checkbox" /></label>
 
               <div class="control-divider"></div>
