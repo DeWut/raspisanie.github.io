@@ -103,29 +103,6 @@
     .room-card b { font-size: 15px; }
     .room-card span { font-size: 12px; }
     .floor-note { margin: 14px 0 0; padding: 10px; border-radius: 9px; background: rgba(210,160,70,.13); color: var(--muted); font-size: 11px; }
-    @media (max-width: 600px) {
-      .title { top: calc(var(--safe-top) + 8px); left: 8px; max-width: calc(100% - 68px); padding: 7px 9px; }
-      .title b { font-size: 13px; }
-      .title span { display: block; max-width: 100%; font-size: 10px; line-height: 1.25; }
-      #btn-controls { top: calc(var(--safe-top) + 8px); right: 8px; min-width: 44px; min-height: 40px; font-size: 11px; }
-      .tools { top: calc(var(--safe-top) + 58px); right: 8px; width: min(230px, calc(100% - 16px)); gap: 5px; padding: 7px; }
-      .tools button { min-height: 40px; padding: 7px 6px; font-size: 11px; }
-      .chips { left: 8px; right: 8px; bottom: calc(var(--safe-bottom) + 12px); gap: 6px; }
-      .chip { min-height: 38px; padding: 7px 9px; font-size: 12px; }
-      #infoBtn { left: 8px; bottom: calc(var(--safe-bottom) + 60px); }
-      #info { left: 8px; right: 8px; bottom: calc(var(--safe-bottom) + 106px); max-height: 42dvh; }
-      .stats { left: 54px; right: 8px; bottom: calc(var(--safe-bottom) + 64px); font-size: 10px; }
-      .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); padding: 12px; }
-      .room-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
-      .maplibregl-ctrl-top-right { top: calc(var(--safe-top) + 58px); right: 8px; }
-      .maplibregl-ctrl-group button { width: 36px; height: 36px; }
-    }
-    @media (max-height: 520px) {
-      .title span { display: none; }
-      .tools { top: calc(var(--safe-top) + 54px); }
-      .chips { bottom: calc(var(--safe-bottom) + 4px); }
-      #info { max-height: 34dvh; }
-    }
     @media (min-width: 720px) {
       .chips { right: auto; max-width: 70%; }
       #info { right: auto; width: 420px; }
