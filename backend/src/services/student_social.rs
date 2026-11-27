@@ -73,14 +73,92 @@ pub async fn open_cabinet(
     Ok(())
 }
 
+async fn tracked_dating_screen_message(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    actor: i64,
+) -> ResponseResult<MessageId> {
+    let existing = sqlx::query_as::<_, (i64, i64)>(
+        "SELECT chat_id,message_id FROM bot_dating_ui_messages WHERE telegram_id=$1",
+    )
+    .bind(actor)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten();
+
+    if let Some((stored_chat_id, stored_message_id)) = existing {
+        if stored_chat_id == chat_id.0 {
+            if let Ok(raw_id) = i32::try_from(stored_message_id) {
+                let message_id = MessageId(raw_id);
+                match bot.edit_message_text(chat_id, message_id, "💚 МОЯ АНКЕТА").await {
+                    Ok(_) => return Ok(message_id),
+                    Err(error) if error.to_string().contains("message is not modified") => {
+                        return Ok(message_id);
+                    }
+                    Err(error)
+                        if error.to_string().contains("message to edit not found")
+                            || error.to_string().contains("message_id_invalid") =>
+                    {
+                        let _ = sqlx::query(
+                            "DELETE FROM bot_dating_ui_messages WHERE telegram_id=$1 AND chat_id=$2 AND message_id=$3",
+                        )
+                        .bind(actor)
+                        .bind(chat_id.0)
+                        .bind(stored_message_id)
+                        .execute(db)
+                        .await;
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+    }
+
+    let sent = bot.send_message(chat_id, "💚 МОЯ АНКЕТА").await?;
+    if let Err(error) = sqlx::query(
+        "INSERT INTO bot_dating_ui_messages(telegram_id,chat_id,message_id) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET chat_id=EXCLUDED.chat_id,message_id=EXCLUDED.message_id,updated_at=now()",
+    )
+    .bind(actor)
+    .bind(chat_id.0)
+    .bind(i64::from(sent.id.0))
+    .execute(db)
+    .await
+    {
+        tracing::warn!("Could not track dating screen message: {}", error);
+    }
+    Ok(sent.id)
+}
+
+async fn remember_dating_screen_message(
+    db: &PgPool,
+    actor: i64,
+    chat_id: ChatId,
+    message_id: MessageId,
+) {
+    if let Err(error) = sqlx::query(
+        "INSERT INTO bot_dating_ui_messages(telegram_id,chat_id,message_id) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET chat_id=EXCLUDED.chat_id,message_id=EXCLUDED.message_id,updated_at=now()",
+    )
+    .bind(actor)
+    .bind(chat_id.0)
+    .bind(i64::from(message_id.0))
+    .execute(db)
+    .await
+    {
+        tracing::warn!("Could not persist dating screen message ID: {}", error);
+    }
+}
+
 pub async fn open_dating(
     bot: &Bot,
     db: &PgPool,
     chat_id: ChatId,
     actor: i64,
 ) -> ResponseResult<()> {
+    let message_id = tracked_dating_screen_message(bot, db, chat_id, actor).await?;
     let (text, keyboard) = dating_home(db, actor).await;
-    bot.send_message(chat_id, text)
+    bot.edit_message_text(chat_id, message_id, text)
         .reply_markup(keyboard)
         .await?;
     Ok(())
@@ -199,17 +277,13 @@ pub async fn handle_callback(
             }
 
             if action.starts_with("dating:") {
-                // Inline-mode messages only carry inline_message_id and cannot be
-                // used as a normal chat message for multi-step dating screens.
-                // Continue in the same private conversation, not in another chat.
+                // Reuse one private message as the complete dating UI. Repeated
+                // inline callbacks update the same screen and never add notices.
                 let private_chat = ChatId(actor);
-                let message = match bot.send_message(
-                    private_chat,
-                    "Продолжение раздела знакомств находится в сообщении ниже — это тот же диалог с ботом.",
-                ).await {
-                    Ok(message) => message,
+                let message_id = match tracked_dating_screen_message(bot, db, private_chat, actor).await {
+                    Ok(message_id) => message_id,
                     Err(error) => {
-                        tracing::warn!(action = action, "Could not create same-chat dating screen: {}", error);
+                        tracing::warn!(action = action, "Could not open the saved dating screen: {}", error);
                         bot.answer_callback_query(query.id.clone())
                             .text("Открой личный чат с ботом командой /start, затем повтори действие.")
                             .show_alert(true)
@@ -218,23 +292,17 @@ pub async fn handle_callback(
                     }
                 };
                 if let Err(error) = dating_action(
-                    bot, db, actor, private_chat, message.id, action, admin_id,
+                    bot, db, actor, private_chat, message_id, action, admin_id,
                 ).await {
                     tracing::error!(action = action, "Inline dating action failed: {}", error);
-                    let _ = bot.edit_message_text(
-                        private_chat,
-                        message.id,
-                        "Не удалось выполнить действие знакомств. Попробуй ещё раз через /dating.",
-                    ).await;
                 }
                 let markup = InlineKeyboardMarkup::new(vec![vec![
-                    button("💚 Знакомства", "dating:open"),
-                    button("👤 Кабинет", "pc:open"),
+                    button("💚 Моя анкета", "dating:profile"),
                     button("🏠 Меню", "ui:main"),
                 ]]);
                 let _ = bot.edit_message_text_inline(
                     inline_message_id,
-                    "Раздел знакомств открыт в сообщении ниже этого экрана.",
+                    "💚 Моя анкета · управление открыто в личном чате с ботом.",
                 ).reply_markup(markup).await;
                 return Ok(true);
             }
@@ -347,6 +415,9 @@ pub async fn handle_callback(
             .show_alert(true)
             .await?;
         return Ok(true);
+    }
+    if action.starts_with("dating:") {
+        remember_dating_screen_message(db, actor, chat_id, message_id).await;
     }
     tracing::info!(
         action = action,
@@ -598,62 +669,67 @@ fn dating_profile_screen(
         if repeat_profiles_enabled { "включён (шанс 1/100)" } else { "выключен" },
         if bio.is_empty() { "Описание пока пустое" } else { &bio },
         if paused { "на паузе" } else { "активна" });
-    let mut rows = vec![
+    let rows = vec![
         vec![
             button("🔎 Смотреть анкеты", "dating:discover"),
-            button("💞 Мои совпадения", "dating:matches"),
+            button("💞 Совпадения", "dating:matches"),
         ],
         vec![
-            button(format!("{} М", if gender == Some("male") { "✅" } else { " " }), "dating:gender:male"),
-            button(format!("{} Ж", if gender == Some("female") { "✅" } else { " " }), "dating:gender:female"),
+            button(format!("{} М", if gender == Some("male") { "✅" } else { "" }), "dating:gender:male"),
+            button(format!("{} Ж", if gender == Some("female") { "✅" } else { "" }), "dating:gender:female"),
         ],
         vec![
-            button(format!("{} Мужские", if preferred_gender == "male" { "✅" } else { " " }), "dating:pref:male"),
-            button(format!("{} Женские", if preferred_gender == "female" { "✅" } else { " " }), "dating:pref:female"),
-            button(format!("{} Все", if preferred_gender == "any" { "✅" } else { " " }), "dating:pref:any"),
+            button(format!("{} Мужские", if preferred_gender == "male" { "✅" } else { "" }), "dating:pref:male"),
+            button(format!("{} Женские", if preferred_gender == "female" { "✅" } else { "" }), "dating:pref:female"),
+            button(format!("{} Все", if preferred_gender == "any" { "✅" } else { "" }), "dating:pref:any"),
         ],
-        vec![button(if repeat_profiles_enabled { "🔁 Повтор анкет: ВКЛ" } else { "🔁 Повтор анкет: ВЫКЛ" }, "dating:repeat")],
-        vec![
-            button("✏️ Имя", "dating:name"),
-            button("📝 Описание", "dating:bio"),
-        ],
+        vec![button(if repeat_profiles_enabled { "🔁 Повтор: ВКЛ · 1/100" } else { "🔁 Повтор: ВЫКЛ" }, "dating:repeat")],
+        vec![button("✏️ Редактировать анкету", "dating:edit")],
         vec![button(format!("💚 Кто меня лайкнул ({incoming_likes})"), "dating:likes")],
+        vec![
+            button(if paused { "▶️ Вернуть анкету" } else { "⏸ Пауза" }, "dating:pause"),
+            button("🗑 Удалить", "dating:delete"),
+        ],
+        nav("pc:open"),
+    ];
+    (text, InlineKeyboardMarkup::new(rows))
+}
+
+async fn dating_editor_home(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarkup) {
+    let row = sqlx::query_as::<_, (String, String, Vec<String>)>(
+        "SELECT display_name,bio,tags FROM bot_dating_profiles WHERE telegram_id=$1 AND is_active=TRUE AND age_confirmed_at IS NOT NULL",
+    )
+    .bind(actor)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten();
+
+    let Some((name, bio, tags)) = row else {
+        return dating_intro();
+    };
+    let interests = if tags.is_empty() {
+        "не выбраны".to_owned()
+    } else {
+        tags.iter().map(|tag| tag_label(tag)).collect::<Vec<_>>().join(" · ")
+    };
+    let mut rows = vec![
+        vec![button("✏️ Имя", "dating:name"), button("📝 Описание", "dating:bio")],
         vec![button("📷 Фото анкеты", "dating:photo")],
     ];
     for chunk in TAGS.chunks(2) {
-        rows.push(
-            chunk
-                .iter()
-                .map(|(key, label)| {
-                    button(
-                        format!(
-                            "{}{}",
-                            if tags.iter().any(|v| v == key) {
-                                "✅ "
-                            } else {
-                                ""
-                            },
-                            label
-                        ),
-                        format!("dating:tag:{key}"),
-                    )
-                })
-                .collect(),
-        );
+        rows.push(chunk.iter().map(|(key, label)| {
+            button(
+                format!("{}{}", if tags.iter().any(|value| value == key) { "✅ " } else { "" }, label),
+                format!("dating:tag:{key}"),
+            )
+        }).collect());
     }
-    rows.push(vec![
-        button(
-            if paused {
-                "▶️ Вернуть анкету"
-            } else {
-                "⏸ Пауза"
-            },
-            "dating:pause",
-        ),
-        button("🗑 Удалить анкету", "dating:delete"),
-    ]);
-    rows.push(nav("pc:open"));
-    (text, InlineKeyboardMarkup::new(rows))
+    rows.push(vec![button("⬅️ К моей анкете", "dating:profile"), button("🏠 Меню", "ui:main")]);
+    (
+        format!("✏️ РЕДАКТИРОВАНИЕ АНКЕТЫ\n\n{name} · 18+\n{}\n\nИнтересы: {interests}\n\nВыбери поля, которые хочешь изменить.", if bio.is_empty() { "Описание пока пустое" } else { &bio }),
+        InlineKeyboardMarkup::new(rows),
+    )
 }
 
 #[derive(Clone)]
@@ -726,6 +802,9 @@ async fn dating_action(
             .bind(actor).execute(db).await?;
         let (text, kb) = dating_home(db, actor).await;
         (text, kb, None)
+    } else if action == "dating:edit" {
+        let (text, keyboard) = dating_editor_home(db, actor).await;
+        (text, keyboard, None)
     } else if action == "dating:likes" {
         incoming_likes_screen(db, actor, 0).await?
     } else if let Some(page_text) = action.strip_prefix("dating:likes:") {
@@ -792,7 +871,7 @@ async fn dating_action(
             InlineKeyboardMarkup::new(vec![vec![button("Отмена","dating:cancel")]]),None)
     } else if action == "dating:cancel" {
         clear_flow(db, chat_id.0, actor).await?;
-        let (text, kb) = dating_home(db, actor).await;
+        let (text, kb) = dating_editor_home(db, actor).await;
         (text, kb, None)
     } else if let Some(tag) = action.strip_prefix("dating:tag:") {
         if !TAGS.iter().any(|(key, _)| *key == tag) {
@@ -804,7 +883,7 @@ async fn dating_action(
         } else {
             sqlx::query("UPDATE bot_dating_profiles SET tags=CASE WHEN $2=ANY(tags) THEN array_remove(tags,$2) ELSE array_append(tags,$2) END,updated_at=now() WHERE telegram_id=$1 AND is_active=TRUE")
                 .bind(actor).bind(tag).execute(db).await?;
-            let (text, kb) = dating_home(db, actor).await;
+            let (text, kb) = dating_editor_home(db, actor).await;
             (text, kb, None)
         }
     } else if action == "dating:discover" || action == "dating:next" {
@@ -1298,23 +1377,22 @@ pub async fn handle_text_flow(
                     .await?;
                 return Ok(true);
             }
-            bot.send_message(
-                message.chat.id,
-                "✅ Фото анкеты сохранено. Оно будет использоваться в карточках знакомств. Чтобы заменить фото, снова нажми «Фото анкеты».",
-            )
-            .reply_markup(InlineKeyboardMarkup::new(vec![
-                vec![button("💚 Моя анкета", "dating:profile")],
-                vec![button("🗑 Удалить фото", "dating:photo:delete")],
-                nav("pc:open"),
-            ]))
-            .await?;
+            let (screen, keyboard) = dating_editor_home(db, actor).await;
+            if source_id > 0 {
+                let _ = bot
+                    .edit_message_text(message.chat.id, MessageId(source_id as i32), screen)
+                    .reply_markup(keyboard)
+                    .await;
+            }
             return Ok(true);
         }
         if text.trim().eq_ignore_ascii_case("/cancel") {
             clear_flow(db, actor, actor).await?;
-            bot.send_message(message.chat.id, "Загрузка фото отменена.")
-                .reply_markup(InlineKeyboardMarkup::new(vec![vec![button("💚 Моя анкета", "dating:profile")]]))
-                .await?;
+            let (screen, keyboard) = dating_editor_home(db, actor).await;
+            if source_id > 0 {
+                let _ = bot.edit_message_text(message.chat.id, MessageId(source_id as i32), screen)
+                    .reply_markup(keyboard).await;
+            }
         } else {
             bot.send_message(message.chat.id, "Пришли изображение именно как фото, не как файл. Для отмены отправь /cancel.")
                 .await?;
@@ -1374,7 +1452,7 @@ pub async fn handle_text_flow(
     let (screen, kb) = if flow == "cabinet_name" {
         cabinet_screen(db, actor).await
     } else {
-        dating_home(db, actor).await
+        dating_editor_home(db, actor).await
     };
     if source_id > 0 {
         let _ = bot
