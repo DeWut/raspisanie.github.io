@@ -20,7 +20,7 @@
   const isWeekPage = document.body.dataset.page === 'week';
   const requestedDate = pageParams.get('date');
   const parsedRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? new Date(requestedDate + 'T12:00:00Z') : null;
-  const state = { groups: [], schedule: null, scheduleMeta: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null };
+  const state = { groups: [], schedule: null, scheduleMeta: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null, currentView: isWeekPage ? 'schedule' : 'home', account: null };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
@@ -72,7 +72,141 @@
     if (note) note.hidden = navigator.onLine;
     if (state.schedule) renderHero();
   }
-  const PRESENCE_API = (window.SMART_CAMPUS_API_URL || document.querySelector('meta[name="smart-campus-api"]')?.content || '').replace(new RegExp('/+$'), '');
+  const API_BASE = (window.SMART_CAMPUS_API_URL || document.querySelector('meta[name="smart-campus-api"]')?.content || '').trim().replace(/\/+$/, '');
+  const PRESENCE_API = API_BASE;
+  function hasTelegramAccountApi() {
+    return Boolean(API_BASE && tg?.initData);
+  }
+  async function accountApi(path, options = {}) {
+    if (!hasTelegramAccountApi()) throw new Error('telegram-account-api-unavailable');
+    const headers = new Headers(options.headers || {});
+    headers.set('x-telegram-init-data', tg.initData);
+    if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+    const response = await fetch(new URL(path, API_BASE), {
+      ...options,
+      headers,
+      cache: 'no-store',
+      credentials: 'omit',
+    });
+    if (!response.ok) {
+      const error = new Error('account-api-' + response.status);
+      error.status = response.status;
+      throw error;
+    }
+    return response.status === 204 ? null : response.json();
+  }
+  function showView(name) {
+    state.currentView = name;
+    $('#home-view')?.classList.toggle('hidden', name !== 'home');
+    $('#schedule-view')?.classList.toggle('hidden', name !== 'schedule');
+    $('#miniapp-settings-view')?.classList.toggle('hidden', name !== 'settings');
+    $('#refresh-button')?.classList.toggle('hidden', name !== 'schedule');
+    $('#quick-actions')?.classList.toggle('hidden', name !== 'schedule');
+    if (name === 'settings') {
+      updateSettingsGroupLabel();
+      void loadMiniAppAccount();
+    }
+    if (name === 'schedule' && !state.schedule && state.groups.length) openGroupDialog();
+  }
+  function updateSettingsGroupLabel() {
+    const group = state.schedule?.name || state.groups.find((item) => String(item.id) === safeStorageGet(GROUP_KEY))?.name;
+    $('#settings-group-name').textContent = group || 'Не выбрана';
+  }
+  async function loadMiniAppAccount() {
+    const status = $('#settings-save-status');
+    const note = $('#home-account-note');
+    const saveButton = $('#settings-save');
+    const controls = ['#settings-reminders', '#settings-digest', '#settings-changes'];
+    const online = hasTelegramAccountApi();
+    controls.forEach((selector) => { const el = $(selector); if (el) el.disabled = !online; });
+    saveButton.disabled = !online;
+    if (!online) {
+      const message = !tg?.initData
+        ? 'Открой Mini App через Telegram, чтобы настройки привязались к аккаунту.'
+        : 'Адрес backend не настроен. Расписание работает, синхронизация настроек с Neon пока отключена.';
+      status.textContent = message;
+      note.textContent = message;
+      return;
+    }
+    try {
+      const profile = await accountApi('/api/me');
+      state.account = profile;
+      const settings = profile.settings || {};
+      $('#settings-reminders').checked = settings.reminders_enabled === true;
+      $('#settings-digest').checked = settings.daily_digest_enabled === true;
+      $('#settings-changes').checked = settings.schedule_changes_enabled === true;
+      if (profile.group_id) {
+        try {
+          const linkedGroup = await accountApi('/api/groups/' + encodeURIComponent(profile.group_id));
+          const localGroup = state.groups.find((item) => String(item.id) === String(linkedGroup.external_id));
+          if (localGroup && String(state.schedule?.id) !== String(localGroup.id)) {
+            await selectGroup(localGroup.id, { persist: false, announce: false });
+          }
+          $('#settings-group-name').textContent = linkedGroup.name || localGroup?.name || 'Не выбрана';
+        } catch {
+          $('#settings-group-name').textContent = state.schedule?.name || 'Не выбрана';
+        }
+      } else {
+        updateSettingsGroupLabel();
+      }
+      status.textContent = 'Аккаунт Telegram связан. Изменения будут сохранены в Neon.';
+      note.textContent = 'Настройки аккаунта загружены из Neon.';
+    } catch (error) {
+      console.warn('Could not load Telegram account settings:', error);
+      status.textContent = error.status === 401
+        ? 'Telegram не подтвердил сессию. Закрой Mini App и открой его заново из бота.'
+        : 'Не удалось загрузить настройки из Neon. Проверь доступность backend.';
+      note.textContent = status.textContent;
+    }
+  }
+  async function saveMiniAppSettings() {
+    const status = $('#settings-save-status');
+    if (!hasTelegramAccountApi() || !state.account) {
+      status.textContent = 'Нет связи с Telegram-аккаунтом и Neon. Настройки не были сохранены.';
+      return;
+    }
+    const settings = {
+      ...(state.account.settings || {}),
+      reminders_enabled: $('#settings-reminders').checked,
+      daily_digest_enabled: $('#settings-digest').checked,
+      daily_digest_time: '07:00',
+      schedule_changes_enabled: $('#settings-changes').checked,
+    };
+    const saveButton = $('#settings-save');
+    saveButton.disabled = true;
+    status.textContent = 'Сохраняем в Neon…';
+    try {
+      const updated = await accountApi('/api/me', {
+        method: 'PUT',
+        body: JSON.stringify({ settings }),
+      });
+      state.account.settings = updated.settings || settings;
+      status.textContent = 'Настройки сохранены в Neon для твоего Telegram-аккаунта.';
+      showToast('Настройки сохранены');
+    } catch (error) {
+      console.error('Could not save Telegram account settings:', error);
+      status.textContent = error.status === 401
+        ? 'Telegram не подтвердил сессию. Открой Mini App заново.'
+        : 'Не удалось сохранить настройки. Проверь подключение к backend.';
+    } finally {
+      saveButton.disabled = !hasTelegramAccountApi();
+    }
+  }
+  async function saveSelectedGroupToAccount(externalId) {
+    if (!hasTelegramAccountApi()) return;
+    try {
+      const result = await accountApi('/api/me/group', {
+        method: 'POST',
+        body: JSON.stringify({ external_id: String(externalId) }),
+      });
+      if (state.account) state.account.group_id = result.group_id;
+      $('#settings-group-name').textContent = result.group_name || state.schedule?.name || 'Выбрана';
+      showToast('Группа привязана к Telegram-аккаунту в Neon');
+    } catch (error) {
+      console.warn('Could not bind selected group to Telegram account:', error);
+      $('#settings-save-status').textContent = 'Расписание сохранено локально, но группа не привязалась к аккаунту Neon.';
+    }
+  }
   function presenceSessionId() {
     const key = 'spbftuit-presence-session';
     let id = safeStorageGet(key);
@@ -610,7 +744,8 @@
     results.innerHTML = groups.slice(0, 100).map((group) => `<button class="group-option${String(group.id) === String(state.schedule?.id) ? ' selected' : ''}" data-id="${escapeHtml(group.id)}"><span>${escapeHtml(group.name)}</span><small>открыть</small></button>`).join('');
     results.querySelectorAll('[data-id]').forEach((button) => button.addEventListener('click', () => selectGroup(button.dataset.id)));
   }
-  async function selectGroup(id) {
+  async function selectGroup(id, options = {}) {
+    const { persist = true, announce = true } = options;
     const group = state.groups.find((item) => String(item.id) === String(id));
     if (!group) return;
     $('#group-results').innerHTML = '<p class="loading">Загружаем расписание…</p>';
@@ -621,8 +756,10 @@
       safeStorageSet(GROUP_KEY, String(group.id));
       $('#group-dialog').close();
       renderAll();
+      updateSettingsGroupLabel();
+      if (persist) await saveSelectedGroupToAccount(group.id);
       await syncLessonReminders();
-      showToast(`Группа ${group.name} сохранена`);
+      if (announce) showToast('Группа ' + group.name + ' сохранена');
     } catch {
       showToast('Не получилось загрузить расписание. Попробуй ещё раз.');
       renderGroupOptions($('#group-search').value);
@@ -642,7 +779,7 @@
       const saved = safeStorageGet(GROUP_KEY) || safeStorageGet('groupId');
       const match = state.groups.find((group) => String(group.id) === String(saved));
       if (match) await selectGroup(match.id);
-      else if (state.groups.length) { renderAll(); openGroupDialog(); }
+      else if (state.groups.length) { renderAll(); updateSettingsGroupLabel(); }
       else throw new Error('no-groups');
     } catch {
       $('#hero-title').textContent = 'Расписание пока недоступно';
@@ -1831,6 +1968,12 @@ async function addCampusParkLayers(map) {
   }
   function bindEvents() {
     $('#group-button').addEventListener('click', openGroupDialog);
+    $('#home-open-schedule')?.addEventListener('click', () => showView('schedule'));
+    $('#home-open-settings')?.addEventListener('click', () => showView('settings'));
+    $('#schedule-back-home')?.addEventListener('click', () => showView('home'));
+    $('#settings-back-home')?.addEventListener('click', () => showView('home'));
+    $('#settings-group-button')?.addEventListener('click', openGroupDialog);
+    $('#settings-save')?.addEventListener('click', () => void saveMiniAppSettings());
     document.querySelectorAll('[data-view-toggle]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewToggle)));
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
     $('#week-prev')?.addEventListener('click', () => { state.selectedDate = new Date(weekStart(state.selectedDate)); state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
@@ -1941,6 +2084,7 @@ async function addCampusParkLayers(map) {
     setGreeting();
     applyTheme(safeStorageGet(THEME_KEY) || 'light');
     if (isWeekPage) {
+      showView('schedule');
       document.body.classList.add('week-page');
       $('#welcome-date').textContent = 'РАСПИСАНИЕ';
       $('#greeting').textContent = 'Неделя';
@@ -1955,6 +2099,15 @@ async function addCampusParkLayers(map) {
     window.setInterval(updatePresence, 45_000);
     await loadTeacherDirectory();
     await loadData();
+    if (hasTelegramAccountApi()) await loadMiniAppAccount();
+    else {
+      const note = !tg?.initData
+        ? 'Открой Mini App через Telegram, чтобы настройки привязались к аккаунту.'
+        : 'Адрес backend не настроен. Доступно локальное расписание.';
+      $('#home-account-note').textContent = note;
+      $('#settings-save-status').textContent = note;
+    }
+    if (!isWeekPage) showView('home');
     await syncLessonReminders();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
   }
