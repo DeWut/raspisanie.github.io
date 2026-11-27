@@ -96,6 +96,15 @@
     .floorplan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .floorplan-head h3 { margin: 0 0 4px; font-size: 18px; }
     #floorplan-close { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 7px 11px; background: rgba(100,110,120,.16); color: inherit; font: inherit; }
+    .floorplan-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 14px 0 10px; }
+    .floor-tab { min-height: 38px; border: 1px solid rgba(100,110,120,.2); border-radius: 10px; background: rgba(100,110,120,.08); color: var(--ink); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+    .floor-tab.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .interior-toolbar { display:flex; gap:8px; margin:12px 0; }
+    .interior-toolbar button { flex:1; min-height:38px; border:1px solid rgba(100,110,120,.25); border-radius:9px; background:rgba(100,110,120,.08); color:var(--ink); font:inherit; }
+    .interior-toolbar button.active { background:var(--accent); color:#fff; }
+    .interior-stage { overflow:auto; border:1px solid rgba(100,110,120,.18); border-radius:12px; background:linear-gradient(145deg,#e8ece8,#d7dfd7); }
+    #interior-canvas { display:block; width:100%; min-width:520px; height:auto; }
+    #floorplan-note { margin-bottom:0; }
     .floor-section { margin-top: 14px; }
     .floor-section h4 { margin: 0 0 8px; font-size: 14px; }
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 7px; }
@@ -129,7 +138,10 @@
     <div id="floorplan" hidden aria-hidden="true">
       <section class="floorplan-card" role="dialog" aria-modal="true" aria-labelledby="floorplan-title">
         <div class="floorplan-head"><div><h3 id="floorplan-title">Схема корпуса</h3><div class="muted">Кабинеты и подразделения</div></div><button id="floorplan-close" type="button" aria-label="Закрыть">Закрыть</button></div>
-        <div id="floorplan-content"></div>
+        <div id="floorplan-tabs" class="floorplan-tabs" role="group" aria-label="Выбор этажа"></div>
+        <div class="interior-toolbar"><button type="button" id="interior-2d" class="active" aria-pressed="true">План 2D</button><button type="button" id="interior-3d" aria-pressed="false">Объём 3D</button></div>
+        <div class="interior-stage"><canvas id="interior-canvas" width="1000" height="660" aria-label="Векторная схема этажа"></canvas></div>
+        <p id="floorplan-note" class="floor-note"></p>
       </section>
     </div>
 
@@ -139,7 +151,7 @@
       <p><b>Здания.</b> Контуры взяты из картографических данных. Высота строится только по тегу height или оценивается по числу этажей. Если высоты и этажности нет, остаётся плоский контур — без выдуманного объёма. Крыша и материал учитываются только при наличии соответствующих тегов.</p>
       <p><b>Объекты.</b> «Объёмы: Выкл» показывает плоские контуры корпусов; «Вкл» — объёмы там, где в данных есть высота или этажность. Эти переключатели независимы от спутника и схемы.</p>
       
-      <p><b>Кабинеты.</b> Нажмите на корпус и откройте справочную схему этажей. Она показывает только кабинеты, присутствующие в данных кампуса; точные планы помещений пока не загружены.</p>
+      <p><b>Внутренние планы.</b> Для главного корпуса строится собственная векторная схема по предоставленным планам: можно переключать этажи и 2D/3D-вид. Геометрия схематическая, не является обмерным архитектурным чертежом.</p>
       <p><b>Спутник.</b> Снимки Esri World Imagery. На схеме используются картографические данные OpenStreetMap через OpenFreeMap; локальные корпуса дополнены источником Overture Maps.</p><p class="muted">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri/Maxar.</p>
     </div>
     <div class="stats" id="stats"></div>
@@ -163,6 +175,7 @@
   </script>
   <script src="./vendor/maplibre-gl.js"></script>
   <script src="./map3d-geometry.js"></script>
+  <script src="./interior-model.js"></script>
   <script src="./map3d.js"></script>
 </body>
 </html>

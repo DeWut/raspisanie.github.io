@@ -283,6 +283,14 @@
   var campusData = null;
   var popup = null;
 
+  // Main building interior is reconstructed as vector geometry in interior-model.js.
+  var FLOOR_PLANS = {
+    '1': {
+      title: 'План помещений',
+      note: 'Собственная схематическая реконструкция по фотографиям планов этажей. Номера помещений перенесены в векторную модель; размеры и точные координаты требуют сверки с обмерами.'
+    }
+  };
+
   function applyAtmosphere() {
     try { map.setLight({ anchor: 'map', color: '#fff1d4', intensity: 0.5, position: [1.3, G.SUN_FROM_AZ, 42] }); } catch (e) { /* older/newer API */ }
     try {
@@ -338,7 +346,7 @@
       });
       html += '</ul>';
     }
-    if (camp && camp.units && camp.units.length) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Схема этажей и кабинеты</button></p>';
+    if (camp && FLOOR_PLANS[String(camp.number)]) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">' + esc(FLOOR_PLANS[String(camp.number)].title) + '</button></p>';
     if (p.src && /^https:\/\/www\.openstreetmap\.org\//.test(p.src)) {
       html += '<p class="muted"><a href="' + esc(p.src) + '" target="_blank" rel="noopener">Объект в OpenStreetMap</a></p>';
     }
@@ -352,49 +360,28 @@
     if (old) { old.remove(); }
   }
 
-  function floorForRoom(room) {
-    var value = String(room || '').trim();
-    var match = value.match(/^([1-9])[- ]?\\d{2,3}$/);
-    return match ? Number(match[1]) : null;
-  }
-
   function openFloorPlan(number) {
     var building = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(number); });
-    if (!building) return;
-    var panel = $('floorplan');
+    var plan = FLOOR_PLANS[String(number)];
+    var panel = $('floorplan'), tabs = $('floorplan-tabs'), note = $('floorplan-note');
+    var canvas = $('interior-canvas'), button2d = $('interior-2d'), button3d = $('interior-3d');
+    if (!building || !plan || !window.InteriorModel || !panel || !tabs || !canvas || !note) return;
     var title = $('floorplan-title');
-    var content = $('floorplan-content');
-    if (!panel || !content) return;
-    title.textContent = building.name + ' · ' + (building.address || '');
-    var floors = {};
-    var unassigned = [];
-    (building.units || []).forEach(function (unit) {
-      var floor = floorForRoom(unit.room);
-      if (floor == null) unassigned.push(unit);
-      else (floors[floor] || (floors[floor] = [])).push(unit);
+    title.textContent = building.name + ' · ' + plan.title;
+    tabs.innerHTML = '';
+    var activeFloor = 1, mode = '2d';
+    function render() {
+      window.InteriorModel.draw(canvas, activeFloor, mode);
+      [button2d,button3d].forEach(function(b){ if(!b)return; var on=(b.id==='interior-2d'&&mode==='2d')||(b.id==='interior-3d'&&mode==='3d'); b.classList.toggle('active',on); b.setAttribute('aria-pressed',on?'true':'false'); });
+      Array.prototype.forEach.call(tabs.querySelectorAll('button'),function(b){var on=Number(b.getAttribute('data-floor'))===activeFloor;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');});
+    }
+    [1,2,3,4].forEach(function(floor){
+      var b=document.createElement('button');b.type='button';b.className='floor-tab';b.textContent=floor+' этаж';b.setAttribute('data-floor',String(floor));b.addEventListener('click',function(){activeFloor=floor;render();});tabs.appendChild(b);
     });
-    var keys = Object.keys(floors).sort(function (a, b) { return Number(a) - Number(b); });
-    var html = '';
-    if (keys.length) {
-      keys.forEach(function (floor) {
-        html += '<section class="floor-section"><h4>' + floor + '-й этаж</h4><div class="room-grid">';
-        floors[floor].forEach(function (unit) {
-          html += '<article class="room-card"><b>' + esc(unit.room) + '</b><span>' + esc(unit.name) + '</span></article>';
-        });
-        html += '</div></section>';
-      });
-    }
-    if (unassigned.length) {
-      html += '<section class="floor-section"><h4>Этаж не указан в данных</h4><div class="room-grid">';
-      unassigned.forEach(function (unit) {
-        html += '<article class="room-card"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></article>';
-      });
-      html += '</div></section>';
-    }
-    html += '<p class="floor-note">Это справочная схема размещения подразделений по номерам аудиторий, а не точный архитектурный план: координаты кабинетов и расположение лестниц пока не подтверждены.</p>';
-    content.innerHTML = html || '<p>Для этого корпуса пока нет опубликованных данных о кабинетах.</p>';
-    panel.hidden = false;
-    panel.setAttribute('aria-hidden', 'false');
+    if(button2d)button2d.onclick=function(){mode='2d';render();};
+    if(button3d)button3d.onclick=function(){mode='3d';render();};
+    note.textContent=plan.note;
+    panel.hidden=false;panel.setAttribute('aria-hidden','false');render();
   }
 
   function closeFloorPlan() {

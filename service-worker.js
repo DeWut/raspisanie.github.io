@@ -1,9 +1,9 @@
-const SHELL_CACHE = "spbftuit-shell-v24";
+const SHELL_CACHE = "spbftuit-shell-v27";
 const DATA_CACHE = "spbftuit-data-v1";
 const SHELL_FILES = [
   "./", "./index.html", "./miniapp/index.html", "./miniapp/week.html",
   "./miniapp/app.js", "./miniapp/styles.css", "./miniapp/native-bridge.js", "./miniapp/campus-map-config.js",
-  "./miniapp/map3d.html", "./miniapp/map3d.js", "./miniapp/map3d-geometry.js",
+  "./miniapp/map3d.html", "./miniapp/map3d.js", "./miniapp/map3d-geometry.js", "./miniapp/interior-model.js",
   "./week.html", "./manifest.webmanifest", "./offline.html", "./favicon.png",
   "./data/groups.json", "./data/teachers.json", "./data/campus.json",
   "./data/campus-park-scene.json", "./data/campus-open-data.geojson", "./miniapp/assets/campus-main-building-aerial.jpg", "./miniapp/vendor/maplibre-gl.js",
@@ -54,5 +54,5 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(request, SHELL_CACHE, true)); return;
   }
-  if (/\.(?:js|css|html|webmanifest|png|jpe?g|svg|ico)$/i.test(url.pathname)) event.respondWith(networkFirst(request, SHELL_CACHE));
+  if (/\.(?:js|css|html|webmanifest|png|jpe?g|webp|svg|ico)$/i.test(url.pathname)) event.respondWith(networkFirst(request, SHELL_CACHE));
 });
