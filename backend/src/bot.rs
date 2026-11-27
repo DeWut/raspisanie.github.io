@@ -2251,7 +2251,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     }
                 };
                 let answer = answer.or_else(|| {
-                    (is_group_chat && explicitly_addressed).then(|| {
+                    explicitly_addressed.then(|| {
                         "Я Барни, локальный учебный помощник. Пока понимаю вопросы о расписании, следующей паре, ДЗ, дедлайнах, преподавателях и свободных аудиториях. Сформулируй вопрос по одной из этих тем.".to_owned()
                     })
                 });
