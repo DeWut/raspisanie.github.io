@@ -4621,9 +4621,15 @@ async fn schedule_change_tick(bot: &Bot, state: &Arc<AppState>) {
         for recipient in recipients {
             let reserved = sqlx::query("INSERT INTO bot_schedule_change_deliveries(change_id,recipient_kind,recipient_id) VALUES($1,'private',$2) ON CONFLICT DO NOTHING")
                 .bind(change_id).bind(recipient).execute(&state.db).await.map(|r|r.rows_affected()==1).unwrap_or(false);
-            if reserved && bot.send_message(ChatId(recipient), &text).await.is_err() {
-                let _ = sqlx::query("DELETE FROM bot_schedule_change_deliveries WHERE change_id=$1 AND recipient_kind='private' AND recipient_id=$2")
-                    .bind(change_id).bind(recipient).execute(&state.db).await;
+            if reserved {
+                match bot.send_message(ChatId(recipient), &text).await {
+                    Ok(_) => record_notification_delivery(&state.db,"schedule_change","private",recipient,true,None).await,
+                    Err(error) => {
+                        record_notification_delivery(&state.db,"schedule_change","private",recipient,false,Some(&error.to_string())).await;
+                        let _ = sqlx::query("DELETE FROM bot_schedule_change_deliveries WHERE change_id=$1 AND recipient_kind='private' AND recipient_id=$2")
+                            .bind(change_id).bind(recipient).execute(&state.db).await;
+                    }
+                }
             }
         }
     }
@@ -4850,19 +4856,19 @@ async fn personal_digest_tick(bot: &Bot, state: &Arc<AppState>) {
                 ));
             }
         }
-        if let Err(error) = bot.send_message(ChatId(telegram_id), text).await {
-            tracing::warn!(
-                "Could not send personal digest to {}: {}",
-                telegram_id,
-                error
-            );
-            let _ = sqlx::query(
-                "DELETE FROM bot_user_daily_digests WHERE telegram_id=$1 AND local_date=$2",
-            )
-            .bind(telegram_id)
-            .bind(local_date)
-            .execute(&state.db)
-            .await;
+        match bot.send_message(ChatId(telegram_id), text).await {
+            Ok(_) => record_notification_delivery(&state.db,"personal_daily_digest","private",telegram_id,true,None).await,
+            Err(error) => {
+                record_notification_delivery(&state.db,"personal_daily_digest","private",telegram_id,false,Some(&error.to_string())).await;
+                tracing::warn!("Could not send personal digest to {}: {}",telegram_id,error);
+                let _ = sqlx::query(
+                    "DELETE FROM bot_user_daily_digests WHERE telegram_id=$1 AND local_date=$2",
+                )
+                .bind(telegram_id)
+                .bind(local_date)
+                .execute(&state.db)
+                .await;
+            }
         }
     }
 }
@@ -4872,6 +4878,12 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
 
     loop {
         tick.tick().await;
+
+        if let Err(error) = sqlx::query(
+            "INSERT INTO bot_notification_worker_state(worker,last_tick_at,updated_at) VALUES('telegram_reminders',now(),now()) ON CONFLICT(worker) DO UPDATE SET last_tick_at=now(),updated_at=now()",
+        ).execute(&state.db).await {
+            tracing::error!("Could not update notification worker heartbeat: {}", error);
+        }
 
         let _ = sqlx::query("DELETE FROM bot_chat_mutes WHERE muted_until <= now()")
             .execute(&state.db)
@@ -4944,13 +4956,10 @@ async fn reminder_loop(bot: Bot, state: Arc<AppState>) {
                             )
                             .await
                         {
-                            Ok(_) => {}
+                            Ok(_) => record_notification_delivery(&state.db,"personal_lesson_reminder","private",telegram_id,true,None).await,
                             Err(error) => {
-                                tracing::warn!(
-                                    "Could not deliver lesson reminder to {}: {}",
-                                    telegram_id,
-                                    error
-                                );
+                                record_notification_delivery(&state.db,"personal_lesson_reminder","private",telegram_id,false,Some(&error.to_string())).await;
+                                tracing::warn!("Could not deliver lesson reminder to {}: {}",telegram_id,error);
                                 let _ = sqlx::query(
                                     "DELETE FROM bot_reminder_deliveries WHERE telegram_id = $1 AND lesson_id = $2"
                                 ).bind(telegram_id).bind(id).execute(&state.db).await;
