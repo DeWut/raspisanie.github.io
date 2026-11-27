@@ -66,9 +66,28 @@ async fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
         report.groups_failed,
         report.lessons_imported
     );
-    if report.groups_total > 0 && report.groups_successful == 0 {
-        return Ok(ExitCode::FAILURE);
-    }
+
+    // Машиночитаемые итоги используются BAT/PowerShell-панелью:
+    // дата на сайте должна отражать подтверждённую запись в PostgreSQL.
+    let (database_status, database_last_synced_at): (
+        String,
+        Option<chrono::DateTime<chrono::Utc>>,
+    ) = sqlx::query_as(
+        "SELECT status, last_synced_at FROM sync_metadata WHERE source = 'eios_schedule'",
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    let database_last_synced_at = database_last_synced_at
+        .ok_or("PostgreSQL не вернула дату последней успешной синхронизации")?;
+
+    println!("SYNC_DATABASE_STATUS={database_status}");
+    println!("SYNC_DATABASE_LAST_SYNCED_AT={}", database_last_synced_at.to_rfc3339());
+    println!("SYNC_DATABASE_GROUPS_TOTAL={}", report.groups_total);
+    println!("SYNC_DATABASE_GROUPS_UPDATED={}", report.groups_successful);
+    println!("SYNC_DATABASE_GROUPS_FAILED={}", report.groups_failed);
+    println!("SYNC_DATABASE_LESSONS_IMPORTED={}", report.lessons_imported);
+
     if report.groups_failed > 0 {
         println!("Часть групп не обновилась; прежние данные для них сохранены.");
     }
