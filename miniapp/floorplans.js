@@ -57,7 +57,7 @@
     cfg.vertical.forEach(function (w) { out += verticalWing(w[0],w[1],w[2],w[3],w[4],w[5],w[6]); });
     cfg.stairs.forEach(function (s) { out += stair(s[0],s[1],s[2],s[3],s[4]); });
     out += '<g class="fp-north"><path d="M 925 92 v 42 m -12 -12 12 12 12 -12"/><text x="925" y="82">СЕВЕР</text></g>';
-    out += '<g class="fp-title-block"><path d="M40 670H960 M40 670V735H960V670 M650 670V735 M810 670V735"/><text x="55" y="695">ПЛАН ЭТАЖА</text><text x="55" y="718">Кабинеты и коридоры</text><text x="670" y="695">КОРПУС № 2</text><text x="670" y="718">ЭТАЖ '+floor+'</text><text x="830" y="695">СХЕМА</text><text x="830" y="718">УСЛОВНО</text></g>';
+    out += '<g class="fp-title-block"><path d="M40 670H960 M40 670V735H960V670 M650 670V735 M810 670V735"/><text x="55" y="695">ПЛАН ЭТАЖА</text><text x="55" y="718">Кабинеты и коридоры</text><text x="670" y="695">КОРПУС № 2</text><text x="670" y="718">ЭТАЖ '+floor+'</text><text x="830" y="695">МАСШТАБ</text><text x="830" y="718">УСЛОВНЫЙ</text></g>';
     out += '</svg>';
     return out;
   }
