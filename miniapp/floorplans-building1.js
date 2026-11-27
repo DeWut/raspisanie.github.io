@@ -6,7 +6,8 @@
   function room(x, y, w, h, label, kind) {
     var t = label == null ? '' : String(label).trim();
     var match = t.match(/^(\d+[А-Яа-яA-Za-z]?)\s*(?:[·:]\s*(.*))?$/);
-    var cx=x+w/2, cy=y+h/2, out='<g class="fp-room-shape' + (kind ? ' '+kind : '') + '">';
+    var cx=x+w/2, cy=y+h/2, roomAttrs = match ? ' data-room="' + esc(match[1]) + '" role="button" tabindex="0" aria-label="Аудитория ' + esc(match[1]) + '"' : '';
+    var out='<g class="fp-room-shape' + (kind ? ' '+kind : '') + '"' + roomAttrs + '>';
     out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
     if (match) {
       var radius=Math.max(9,Math.min(17,Math.min(w,h)*.25));
