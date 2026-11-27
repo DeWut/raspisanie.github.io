@@ -28,13 +28,24 @@ async fn user_group(db: &PgPool, chat_id: i64, actor: i64) -> Option<Uuid> {
 
 fn parse_room_time(value: &str, now: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>) {
     let local_now = now.with_timezone(&moscow());
-    let time = NaiveTime::parse_from_str(value.trim(), "%H:%M")
-        .ok()
-        .unwrap_or_else(|| {
-            let next_hour = (local_now.time().hour() + 1) % 24;
-            NaiveTime::from_hms_opt(next_hour, 0, 0).expect("valid hour")
-        });
-    let date: NaiveDate = local_now.date_naive();
+    let today = local_now.date_naive();
+    let (date, time): (NaiveDate, NaiveTime) =
+        match NaiveTime::parse_from_str(value.trim(), "%H:%M") {
+            Some(time) => (today, time),
+            None => {
+                let current_hour = local_now.time().hour();
+                let next_hour = (current_hour + 1) % 24;
+                let date = if next_hour == 0 {
+                    today.succ_opt().unwrap_or(today)
+                } else {
+                    today
+                };
+                (
+                    date,
+                    NaiveTime::from_hms_opt(next_hour, 0, 0).expect("valid hour"),
+                )
+            }
+        };
     let start = moscow()
         .from_local_datetime(&date.and_time(time))
         .single()
@@ -216,10 +227,15 @@ async fn deadlines(db: &PgPool, chat_id: i64, actor: i64) -> String {
     let chat_tasks = sqlx::query_as::<_, (String, Option<DateTime<Utc>>)>(
         r#"SELECT h.subject,h.due_at FROM bot_homework h
            JOIN bot_chat_settings c ON c.chat_id=h.chat_id
-           WHERE c.group_id=$1 AND h.status='active' AND (h.due_at IS NULL OR h.due_at>=now())
+           LEFT JOIN bot_homework_progress p
+             ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2
+           WHERE c.group_id=$1 AND c.is_active=TRUE AND h.status='active'
+             AND p.completed_at IS NULL
+             AND (h.due_at IS NULL OR h.due_at>=now())
            ORDER BY h.due_at NULLS LAST LIMIT 8"#,
     )
     .bind(group_id)
+    .bind(actor)
     .fetch_all(db)
     .await
     .unwrap_or_default();
@@ -230,7 +246,12 @@ async fn deadlines(db: &PgPool, chat_id: i64, actor: i64) -> String {
         .into_iter()
         .chain(chat_tasks)
         .collect::<Vec<_>>();
-    items.sort_by_key(|(_, due)| *due);
+    items.sort_by(|(_, left), (_, right)| match (left, right) {
+        (Some(left), Some(right)) => left.cmp(right),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
+    });
     let mut out = String::from("⏰ Дедлайны группы\n\n");
     for (subject, due) in items.into_iter().take(10) {
         let when = due
@@ -609,5 +630,15 @@ mod tests {
             from.with_timezone(&moscow()).time(),
             NaiveTime::from_hms_opt(15, 30, 0).unwrap()
         );
+
+        let late = moscow()
+            .with_ymd_and_hms(2026, 11, 27, 23, 30, 0)
+            .single()
+            .unwrap()
+            .with_timezone(&Utc);
+        let (from, _) = parse_room_time("", late);
+        let next_day = from.with_timezone(&moscow());
+        assert_eq!(next_day.date_naive(), NaiveDate::from_ymd_opt(2026, 11, 28).unwrap());
+        assert_eq!(next_day.time(), NaiveTime::from_hms_opt(0, 0, 0).unwrap());
     }
 }
