@@ -354,6 +354,10 @@
       setChecked('#chat-setting-assistant', settings.assistant_enabled);
       setChecked('#chat-setting-context', settings.context_enabled);
       setValue('#chat-setting-retention', settings.context_retention_days || 7);
+      const permissions = settings.content_permissions || {};
+      setValue('#chat-setting-permission-homework', permissions.homework || 'everyone');
+      setValue('#chat-setting-permission-exams', permissions.exams || 'everyone');
+      setValue('#chat-setting-permission-events', permissions.events || 'everyone');
       $('#chat-setting-consent').checked = false;
       if (settings.external_id) $('#managed-chat-group').value = settings.external_id;
       status.textContent = 'Настройки чата «' + settings.group_name + '» загружены. Часовой пояс: Москва.';
@@ -391,6 +395,11 @@
       homework_approver_role: $('#chat-setting-approver').value,
       spam_filter_enabled: $('#chat-setting-spam').checked,
       memes_enabled: $('#chat-setting-memes').checked,
+      content_permissions: {
+        homework: $('#chat-setting-permission-homework').value,
+        exams: $('#chat-setting-permission-exams').value,
+        events: $('#chat-setting-permission-events').value,
+      },
       assistant_enabled: $('#chat-setting-assistant').checked,
       context_enabled: contextEnabled,
       context_retention_days: Number($('#chat-setting-retention').value || 7),
