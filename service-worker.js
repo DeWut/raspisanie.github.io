@@ -1,9 +1,13 @@
-const SHELL_CACHE = "spbftuit-shell-v24";
+const SHELL_CACHE = "spbftuit-shell-v25";
 const DATA_CACHE = "spbftuit-data-v1";
 const SHELL_FILES = [
   "./", "./index.html", "./miniapp/index.html", "./miniapp/week.html",
   "./miniapp/app.js", "./miniapp/styles.css", "./miniapp/native-bridge.js", "./miniapp/campus-map-config.js",
   "./miniapp/map3d.html", "./miniapp/map3d.js", "./miniapp/map3d-geometry.js",
+  "./miniapp/assets/floorplans/building-1-floor-1.webp", "./miniapp/assets/floorplans/building-1-floor-2.webp",
+  "./miniapp/assets/floorplans/building-1-floor-3.webp", "./miniapp/assets/floorplans/building-1-floor-4.webp",
+  "./miniapp/assets/floorplans/building-2-evac-floor-1.webp", "./miniapp/assets/floorplans/building-2-evac-floor-2.webp",
+  "./miniapp/assets/floorplans/building-2-evac-floor-3.webp", "./miniapp/assets/floorplans/building-2-evac-floor-4.webp",
   "./week.html", "./manifest.webmanifest", "./offline.html", "./favicon.png",
   "./data/groups.json", "./data/teachers.json", "./data/campus.json",
   "./data/campus-park-scene.json", "./data/campus-open-data.geojson", "./miniapp/assets/campus-main-building-aerial.jpg", "./miniapp/vendor/maplibre-gl.js",
