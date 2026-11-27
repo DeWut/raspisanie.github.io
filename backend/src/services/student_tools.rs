@@ -30,7 +30,7 @@ fn parse_room_time(value: &str, now: DateTime<Utc>) -> (DateTime<Utc>, DateTime<
     let local_now = now.with_timezone(&moscow());
     let today = local_now.date_naive();
     let (date, time): (NaiveDate, NaiveTime) =
-        match NaiveTime::parse_from_str(value.trim(), "%H:%M") {
+        match NaiveTime::parse_from_str(value.trim(), "%H:%M").ok() {
             Some(time) => (today, time),
             None => {
                 let current_hour = local_now.time().hour();
