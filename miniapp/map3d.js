@@ -489,7 +489,7 @@
       '<div class="room-editor-actions">' +
       '<button type="button" data-room-place>' + (roomEditor.movingId ? 'Перерисовать место' : 'Нарисовать на плане') + '</button>' +
       (editing ? '<button type="button" data-room-save>Сохранить изменения</button><button type="button" data-room-delete class="danger">Удалить кабинет</button>' : '') +
-      '<button type="button" data-room-cancel' + (editing || roomEditor.placing ? '' : ' hidden') + '>Отмена</button>' +
+      '<button type="button" data-room-cancel>Отмена / сброс</button>' +
       '</div>' +
       '<div class="room-editor-tools"><button type="button" data-room-export>Экспорт JSON</button><button type="button" data-room-import>Импорт JSON</button><input data-room-file type="file" accept="application/json,.json" hidden></div>' +
       '<p class="room-editor-status" data-room-editor-status>' + (roomEditor.placing ? 'Проведите пальцем по плану, чтобы нарисовать прямоугольник кабинета.' : 'Введите номер и название, нажмите «Нарисовать на плане» и обведите комнату пальцем. Нажмите на добавленную комнату, чтобы изменить её.') + '</p>' +
@@ -545,7 +545,7 @@
         var source = parsed.rooms && typeof parsed.rooms === 'object' ? parsed.rooms : parsed;
         var clean = {};
         Object.keys(source).forEach(function (key) {
-          if (!/^\\d+:[1-9]$/.test(key) || !Array.isArray(source[key])) return;
+          if (!/^\d+:[1-9]$/.test(key) || !Array.isArray(source[key])) return;
           clean[key] = source[key].filter(function (item) {
             return item && String(item.number || '').trim() && [item.x,item.y,item.w,item.h].every(function (v) { return Number.isFinite(Number(v)); });
           }).map(function (item) {
@@ -768,16 +768,14 @@
         if (found) {
           roomEditor.editingId = String(found.id); roomEditor.movingId = String(found.id);
           roomEditor.draft = { number: found.number, name: found.name || '' };
+          renderFloorPlan(activeFloorBuilding, activeFloorNumber);
           var editor = floorContent.querySelector('.room-editor');
           if (editor) {
             var numberInput = editor.querySelector('[data-room-number]'), nameInput = editor.querySelector('[data-room-name]');
             if (numberInput) numberInput.value = found.number;
             if (nameInput) nameInput.value = found.name || '';
-            var save = editor.querySelector('[data-room-save]'), del = editor.querySelector('[data-room-delete]'), cancel = editor.querySelector('[data-room-cancel]');
-            if (save) save.hidden = false; if (del) del.hidden = false; if (cancel) cancel.hidden = false;
-            var place = editor.querySelector('[data-room-place]'); if (place) place.textContent = 'Перерисовать место';
-            setRoomEditorStatus('Выбран кабинет ' + found.number + '. Измените подпись, перерисуйте место или удалите запись.');
           }
+          setRoomEditorStatus('Выбран кабинет ' + found.number + '. Измените подпись, перерисуйте место или удалите запись.');
         }
         return;
       }
@@ -869,6 +867,8 @@
         if (roomEditor.movingId) {
           entries = entries.map(function(item) {
             if (String(item.id) !== String(roomEditor.movingId)) return item;
+            item.number = roomEditor.draft.number;
+            item.name = roomEditor.draft.name || '';
             item.x=x; item.y=y; item.w=width; item.h=height; return item;
           });
         } else {
