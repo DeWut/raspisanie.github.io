@@ -412,8 +412,12 @@ pub async fn handle_homework(
 /// Returns active homework for a study group in private bot conversations.
 /// The records themselves remain owned by the configured Telegram group chat.
 pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -> String {
-    let rows = sqlx::query_as::<_, (i64, String, String, Option<DateTime<Utc>>, String, i64)>(
-        r#"SELECT h.id,h.subject,h.description,h.due_at,h.priority,
+    let rows = sqlx::query_as::<_, (i64, String, String, Option<String>, String, i64)>(
+        r#"SELECT h.id,h.subject,h.description,
+                  CASE WHEN h.due_at IS NULL THEN NULL
+                       ELSE to_char(h.due_at AT TIME ZONE c.timezone, 'DD.MM.YYYY HH24:MI')
+                  END,
+                  h.priority,
                   (SELECT count(*) FROM bot_homework_attachments a
                    WHERE a.chat_id=h.chat_id AND a.homework_id=h.id)
            FROM bot_homework h
@@ -436,8 +440,7 @@ pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -
 
     let mut out = String::from("📚 ДОМАШНИЕ ЗАДАНИЯ ТВОЕЙ ГРУППЫ\n\n");
     for (id, subject, description, due, priority, attachments) in rows {
-        let due = due.map(|v| v.with_timezone(&moscow()).format("%d.%m %H:%M").to_string())
-            .unwrap_or_else(|| "срок не указан".into());
+        let due = due.unwrap_or_else(|| "срок не указан".into());
         out.push_str(&format!(
             "#{id} · {subject}{}\n{description}\nСрок: {due}{}\n\n",
             if priority == "urgent" { " 🔥" } else { "" },
