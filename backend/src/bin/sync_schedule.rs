@@ -29,11 +29,10 @@ fn direct_neon_url(database_url: &str) -> Result<String, Box<dyn std::error::Err
 async fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let database_url = env::var("DATABASE_URL")?;
-    let migration_url = env::var("DATABASE_URL_UNPOOLED")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .map(Ok)
-        .unwrap_or_else(|| direct_neon_url(&database_url))?;
+    let migration_url = match env::var("DATABASE_URL_UNPOOLED") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => direct_neon_url(&database_url)?,
+    };
 
     // Neon migrations must use the direct endpoint: SQLx migration locking
     // relies on session state and is not compatible with PgBouncer transaction pooling.
