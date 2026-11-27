@@ -10,6 +10,7 @@ const api = read('backend/src/handlers/miniapp.rs');
 const routes = read('backend/src/handlers/mod.rs');
 const bot = read('backend/src/bot.rs');
 const migration = read('backend/migrations/20261210000000_miniapp_control_center.sql');
+const reminderMigration = read('backend/migrations/20261211000000_group_reminder_controls.sql');
 const config = read('miniapp/campus-map-config.js');
 
 const requiredIds = [
@@ -96,9 +97,9 @@ assert.match(bot, /event_reminders_enabled/);
 assert.match(api, /homework_reminders_enabled/);
 assert.match(api, /exam_reminders_enabled/);
 assert.match(api, /event_reminders_enabled/);
-assert.match(migration, /homework_reminders_enabled/);
-assert.match(migration, /exam_reminders_enabled/);
-assert.match(migration, /event_reminders_enabled/);
+assert.match(reminderMigration, /homework_reminders_enabled/);
+assert.match(reminderMigration, /exam_reminders_enabled/);
+assert.match(reminderMigration, /event_reminders_enabled/);
 assert.match(bot, /last_tick_at/);
 assert.match(bot, /last_error/);
 assert.match(migration, /bot_notification_delivery_log/);
