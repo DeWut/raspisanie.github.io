@@ -170,7 +170,24 @@
     .floor-units { margin-top: 14px; }
     .floor-units h4 { margin: 0 0 8px; font-size: 14px; }
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 7px; }
-    .room-card { display: flex; flex-direction: column; gap: 4px; min-height: 62px; padding: 9px; border: 1px solid rgba(100,110,120,.2); border-radius: 10px; background: rgba(130,140,150,.08); }
+    .room-search-label { display: block; margin: 0 0 5px; font-size: 12px; font-weight: 700; }
+    .floor-room-search { display: block; width: 100%; min-height: 42px; margin: 0 0 7px; padding: 9px 11px; border: 1px solid rgba(80,100,90,.28); border-radius: 9px; background: var(--glass); color: var(--ink); font: inherit; font-size: 14px; }
+    .room-search-results { display: grid; gap: 5px; max-height: 190px; overflow: auto; margin: 0 0 9px; padding: 6px; border: 1px solid rgba(80,100,90,.2); border-radius: 9px; background: rgba(100,120,110,.07); }
+    .room-search-results[hidden] { display: none !important; }
+    .room-search-result { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 8px; border: 0; border-radius: 7px; background: var(--glass); color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+    .room-search-result b { white-space: nowrap; }
+    .room-search-result span { min-width: 0; font-size: 12px; }
+    .room-search-result small { color: var(--muted); white-space: nowrap; }
+    .room-selection { display: grid; gap: 3px; margin: 9px 0; padding: 10px; border: 1px solid var(--accent); border-radius: 9px; background: rgba(100,130,110,.10); }
+    .room-selection[hidden] { display: none !important; }
+    .room-selection span { font-size: 13px; }
+    .room-selection small { color: var(--muted); font-size: 11px; }
+    .room-card { display: flex; flex-direction: column; gap: 4px; min-height: 62px; padding: 9px; border: 1px solid rgba(100,110,120,.2); border-radius: 10px; background: rgba(130,140,150,.08); color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+    .room-card.is-selected, .room-search-result:focus-visible, .room-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .fp-room-shape[data-room] { cursor: pointer; }
+    .fp-room-shape[data-room]:focus .fp-room-number { fill: #f1d7b7; stroke: #8d5a32; stroke-width: 3; }
+    .fp-room-shape[data-room].is-selected .fp-room-number { fill: #f1d7b7; stroke: #8d5a32; stroke-width: 3.5; }
+
     .room-card b { font-size: 15px; }
     .room-card span { font-size: 12px; }
     .floor-note { margin: 14px 0 0; padding: 10px; border-radius: 9px; background: rgba(210,160,70,.13); color: var(--muted); font-size: 11px; line-height: 1.45; }
@@ -225,7 +242,7 @@
 
     <div id="floorplan" hidden aria-hidden="true">
       <section class="floorplan-card" role="dialog" aria-modal="true" aria-labelledby="floorplan-title">
-        <div class="floorplan-head"><div><h3 id="floorplan-title">Схема корпуса</h3><div class="muted">Кабинеты и помещения</div></div><button id="floorplan-close" type="button" aria-label="Закрыть">Закрыть</button></div>
+        <div class="floorplan-head"><div><h3 id="floorplan-title">Схема корпуса</h3><div class="muted">Кабинеты и помещения</div></div><button id="floorplan-close" type="button" aria-label="Вернуться к карте">На карту</button></div>
         <div id="floorplan-content"></div>
       </section>
     </div>
@@ -233,8 +250,8 @@
     <button class="hud" id="infoBtn" type="button" aria-label="О карте">i</button>
     <div class="hud" id="info" hidden>
       <p><b>Карта.</b> Корпуса, дорожки, парки и водоёмы.</p>
-      <p><b>Здания.</b> Высота указана там, где она известна. Для остальных показан контур.</p>
-      <p><b>Объёмы.</b> Включают трёхмерное отображение зданий, для которых известна высота.</p>
+      <p><b>Здания.</b> Выберите корпус, чтобы открыть его сведения и планы этажей.</p>
+      <p><b>Объёмы.</b> Переключают объёмное отображение корпусов.</p>
       
       <p><b>Планы этажей.</b> Номера кабинетов перенесены с предоставленных планов. Размеры на схемах условные.</p>
       <p><b>Спутник.</b> Снимки Esri World Imagery.</p><p class="muted">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri/Maxar.</p>
