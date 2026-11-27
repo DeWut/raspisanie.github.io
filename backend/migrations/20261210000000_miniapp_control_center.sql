@@ -42,3 +42,9 @@ CREATE TABLE IF NOT EXISTS bot_chat_daily_deliveries (
     delivered_at TIMESTAMPTZ,
     PRIMARY KEY (chat_id, local_date, post_kind)
 );
+
+-- Group-level switches for deadline, exam and event reminders.
+ALTER TABLE bot_chat_settings
+    ADD COLUMN IF NOT EXISTS homework_reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS exam_reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS event_reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE;
