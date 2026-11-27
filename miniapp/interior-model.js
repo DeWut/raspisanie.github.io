@@ -39,7 +39,7 @@
       ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); ctx.strokeStyle=stroke||'#35434b'; ctx.lineWidth=2; ctx.stroke();
     }
     // Main green circulation spine and cross-corridors.
-    var corridors=[[80,210,760,38],[80,390,760,38],[250,100,38,340],[650,100,38,340]];
+    var corridors=[[120,135,760,28],[120,470,760,28],[115,135,28,363],[850,135,28,363]];
     corridors.forEach(function(c){var x=c[0],y=c[1],cw=c[2],ch=c[3];poly([[x,y,0],[x+cw,y,0],[x+cw,y+ch,0],[x,y+ch,0]],'#d9e8d0','#8aa17d');});
     rooms.forEach(function(r){
       if(iso){
