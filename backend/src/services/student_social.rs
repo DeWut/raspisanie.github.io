@@ -551,7 +551,10 @@ async fn dating_home(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarkup) 
         if age_confirmed.is_none() || !active {
             return dating_intro();
         }
-        return dating_profile_screen(name, bio, tags, paused);
+        let incoming_likes: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1))"
+        ).bind(actor).fetch_one(db).await.unwrap_or(0);
+        return dating_profile_screen(name, bio, tags, paused, incoming_likes);
     }
     dating_intro()
 }
@@ -576,6 +579,7 @@ fn dating_profile_screen(
     bio: String,
     tags: Vec<String>,
     paused: bool,
+    incoming_likes: i64,
 ) -> (String, InlineKeyboardMarkup) {
     let tag_text = if tags.is_empty() {
         "пока не выбраны".into()
@@ -597,7 +601,7 @@ fn dating_profile_screen(
             button("✏️ Имя", "dating:name"),
             button("📝 Описание", "dating:bio"),
         ],
-        vec![button("💚 Кто меня лайкнул", "dating:likes")],
+        vec![button(format!("💚 Кто меня лайкнул ({incoming_likes})"), "dating:likes")],
         vec![button("📷 Фото анкеты", "dating:photo")],
     ];
     for chunk in TAGS.chunks(2) {
