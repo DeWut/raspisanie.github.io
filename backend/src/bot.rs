@@ -1283,7 +1283,7 @@ async fn maybe_answer_group_bot_reply(
 
     let mut intent = crate::services::conversation::detect(&user_text);
     if intent.is_none() {
-        let lower = user_text.to_lowercase().replace('ё','е');
+        let lower = user_text.to_lowercase().replace("ё","е");
         let follow_up = lower.starts_with("а ") || lower.starts_with("и ") || lower.starts_with("почему ")
             || lower.starts_with("а если") || lower.starts_with("а когда");
         if follow_up {
