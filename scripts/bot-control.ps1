@@ -111,6 +111,7 @@ switch ($Action) {
         Write-Host '  2/3  Downloading static timetable files for the website...' -ForegroundColor Cyan
         $python = Get-Command python -ErrorAction SilentlyContinue
         if (-not $python) { Write-Host '  [ERR] Python 3 is not in PATH. PostgreSQL was synced; GitHub was not updated.' -ForegroundColor Red; exit 1 }
+        $exportStartedAt = Get-Date
         Push-Location $repoRoot
         try { & $python.Source 'update_schedule.py' '--delay' '1'; $scrapeExit = $LASTEXITCODE }
         finally { Pop-Location }
@@ -120,6 +121,10 @@ switch ($Action) {
         }
         $metaPath = Join-Path $repoRoot 'data\schedule-meta.json'
         if (-not (Test-Path -LiteralPath $metaPath)) { Write-Host '  [ERR] No successful schedule export metadata. GitHub was not pushed.' -ForegroundColor Red; exit 1 }
+        if ((Get-Item -LiteralPath $metaPath).LastWriteTime -lt $exportStartedAt) {
+            Write-Host '  [ERR] The export did not create fresh metadata. Old website data will not be pushed.' -ForegroundColor Red
+            exit 1
+        }
         $meta = Get-Content -LiteralPath $metaPath -Raw | ConvertFrom-Json
         if ([int]$meta.groups_updated -lt 1) { Write-Host '  [ERR] No groups updated; old public timestamp was preserved.' -ForegroundColor Red; exit 1 }
 
