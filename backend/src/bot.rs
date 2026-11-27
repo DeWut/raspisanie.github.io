@@ -2228,6 +2228,11 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                         ).await
                     }
                 };
+                let answer = answer.or_else(|| {
+                    (is_group_chat && explicitly_addressed).then(|| {
+                        "Я Барни, локальный учебный помощник. Пока понимаю вопросы о расписании, следующей паре, ДЗ, дедлайнах, преподавателях и свободных аудиториях. Сформулируй вопрос по одной из этих тем.".to_owned()
+                    })
+                });
                 if let Some(answer) = answer {
                     reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
                     return Ok(());
@@ -4505,7 +4510,23 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
             None => request,
         };
         match request.await {
-            Ok(_) => {
+            Ok(sent) => {
+                if let Err(error) = sqlx::query(
+                    "INSERT INTO bot_messages(telegram_id,chat_id,message_id) VALUES(0,$1,$2)",
+                )
+                .bind(chat_id)
+                .bind(sent.id.0)
+                .execute(&state.db)
+                .await
+                {
+                    tracing::warn!("Could not track daily schedule message for replies: {}", error);
+                }
+                let _ = sqlx::query(
+                    "DELETE FROM bot_messages WHERE telegram_id=0 AND chat_id=$1 AND id NOT IN (SELECT id FROM bot_messages WHERE telegram_id=0 AND chat_id=$1 ORDER BY id DESC LIMIT 100)",
+                )
+                .bind(chat_id)
+                .execute(&state.db)
+                .await;
                 let _ = sqlx::query(
                     "UPDATE bot_chat_daily_deliveries SET delivered_at=now() WHERE chat_id=$1 AND local_date=$2 AND post_kind=$3",
                 )

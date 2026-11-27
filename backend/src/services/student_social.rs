@@ -210,9 +210,48 @@ pub async fn handle_callback(
             );
             bot.answer_callback_query(query.id.clone()).await?;
 
-            // Only text-input flows need a separate private-chat message.
-            // Non-interactive actions can be executed in-place and the source
-            // inline message should remain the actual screen the user is using.
+            // Dating text/photo edits reuse the single saved private screen too.
+            // A repeated tap changes the prompt in place instead of adding messages.
+            if ["dating:name", "dating:bio", "dating:photo"].contains(&action) {
+                let private_chat = ChatId(actor);
+                let message_id = match tracked_dating_screen_message(bot, db, private_chat, actor).await {
+                    Ok(message_id) => message_id,
+                    Err(error) => {
+                        tracing::warn!(action = action, "Could not open dating editor in private chat: {}", error);
+                        bot.answer_callback_query(query.id.clone())
+                            .text("Сначала открой личный чат с ботом командой /start.")
+                            .show_alert(true)
+                            .await?;
+                        return Ok(true);
+                    }
+                };
+                let (prompt, flow) = match action {
+                    "dating:name" => ("✏️ Отправь имя для анкеты (2–48 символов).", "dating_name"),
+                    "dating:bio" => ("📝 Отправь описание анкеты (до 280 символов).", "dating_bio"),
+                    _ => ("📷 Отправь фотографию следующим сообщением.", "dating_photo"),
+                };
+                if let Err(error) = start_flow(db, actor, actor, flow, message_id).await {
+                    tracing::error!(action = action, "Could not start dating input flow: {}", error);
+                    bot.answer_callback_query(query.id.clone())
+                        .text("Не удалось начать ввод. Попробуй ещё раз.")
+                        .show_alert(true)
+                        .await?;
+                    return Ok(true);
+                }
+                bot.edit_message_text(private_chat, message_id, prompt)
+                    .reply_markup(InlineKeyboardMarkup::new(vec![vec![button("Отмена", "dating:cancel")]]))
+                    .await?;
+                let _ = bot.edit_message_text_inline(
+                    inline_message_id,
+                    "✏️ Редактирование анкеты продолжится в личном чате с ботом.",
+                ).reply_markup(InlineKeyboardMarkup::new(vec![vec![
+                    button("💚 Моя анкета", "dating:open"),
+                ]])).await;
+                return Ok(true);
+            }
+
+            // Only cabinet text-input flows need a separate private-chat message.
+            // Other dating controls are handled by the single reusable screen.
             if action == "pc:name" || action == "pc:cancel"
                 || action == "dating:name" || action == "dating:bio"
                 || action == "dating:photo"
