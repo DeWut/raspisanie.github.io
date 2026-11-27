@@ -206,8 +206,10 @@ test('oversized or corrupted geometry is dropped by the sanitize gate', () => {
 });
 
 test('ground features are passed through and trees are built', () => {
-  const out = G.buildScene(sampleScene(), campus);
-  assert.strictEqual(out.ground.filter(f => f.properties.kind !== 'building-footprint').length, 2);
+  const input = sampleScene();
+  const expectedGround = input.features.filter(f => ['park-boundary', 'green-area', 'water', 'path'].includes(f.properties.kind)).length;
+  const out = G.buildScene(input, campus);
+  assert.strictEqual(out.ground.filter(f => f.properties.kind !== 'building-footprint').length, expectedGround);
   assert.strictEqual(out.ground.filter(f => f.properties.kind === 'building-footprint').length, 1);
   assert.strictEqual(out.stats.trees, 1);
   assert.ok(out.trees.length >= 4, 'a mapped tree point receives trunk and crown layers');
