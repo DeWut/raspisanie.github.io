@@ -557,6 +557,7 @@
   var floorPlanZoom = 1;
   var floorPlanFitWidth = 100;
   var selectedFloorRoom = '';
+  var floorPlanSearchQuery = '';
 
   function updateFloorRoute(building, floor, room) {
     if (!building || !window.history || !window.URLSearchParams) return;
