@@ -124,7 +124,8 @@
             <div class="control-section-title"><p class="eyebrow">ГРУППОВЫЕ ЧАТЫ</p><h2>Управление учебным чатом</h2></div>
             <p class="control-description">Здесь появятся чаты, где Telegram подтвердил, что ты владелец или администратор. Настройки сохраняются отдельно для каждого чата.</p>
             <label class="control-field"><span>Выбери чат</span><select id="managed-chat-select" disabled><option value="">Загрузка доступных чатов…</option></select></label>
-            <div id="managed-chat-empty" class="control-empty" hidden>Не найдено групповых чатов, где у твоего Telegram-аккаунта есть права администратора. Добавь бота в группу, настрой /setgroup и открой /chat_settings в этом чате.</div>
+            <div id="managed-chat-empty" class="control-empty" hidden>Не найдено учебных чатов для твоей группы. Сначала привяжи личную учебную группу и убедись, что бот добавлен в групповой чат.</div>
+            <div id="managed-chat-readonly" class="control-empty" hidden>Ты можешь пользоваться функциями этого учебного чата во вкладке «Функции», но настройки чата доступны только его администратору Telegram.</div>
             <div id="managed-chat-editor" hidden>
               <div class="control-group-picker">
                 <label class="control-field"><span>Учебная группа этого чата</span><select id="managed-chat-group"></select></label>
