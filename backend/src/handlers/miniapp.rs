@@ -141,19 +141,22 @@ pub async fn list_managed_chats(
     auth: AuthUser,
 ) -> Result<Json<Value>, AppError> {
     let (_, telegram_id) = telegram_user_id(&state, &auth).await?;
-    let rows = sqlx::query_as::<_, (i64, Option<String>, String, bool, bool, bool)>(
+    let rows = sqlx::query_as::<_, (i64, Option<String>, String, bool, bool, bool, bool)>(
         r#"
         SELECT c.chat_id, c.chat_title, g.name,
                c.daily_schedule_enabled, c.lesson_notifications_enabled,
-               c.daily_digest_enabled
+               c.daily_digest_enabled,
+               (c.owner_telegram_id=$1 OR m.telegram_status IN ('creator','administrator')) AS can_manage
         FROM bot_chat_settings c
         JOIN groups g ON g.id=c.group_id
         LEFT JOIN bot_chat_members m
           ON m.chat_id=c.chat_id AND m.telegram_id=$1
+        LEFT JOIN users u ON u.telegram_id=$1
         WHERE c.is_active=TRUE
           AND (
             c.owner_telegram_id=$1
-            OR m.telegram_status IN ('creator','administrator')
+            OR m.telegram_id IS NOT NULL
+            OR u.group_id=c.group_id
           )
         ORDER BY COALESCE(c.chat_title,g.name),c.chat_id
         "#,
@@ -164,14 +167,15 @@ pub async fn list_managed_chats(
 
     let chats = rows
         .into_iter()
-        .map(|(chat_id, title, group_name, daily, lesson, digest)| {
+        .map(|(chat_id, title, group_name, daily, lesson, digest, can_manage)| {
             json!({
                 "chat_id": chat_id,
                 "title": title.unwrap_or_else(|| group_name.clone()),
                 "group_name": group_name,
                 "daily_schedule_enabled": daily,
                 "lesson_notifications_enabled": lesson,
-                "daily_digest_enabled": digest
+                "daily_digest_enabled": digest,
+                "can_manage": can_manage
             })
         })
         .collect::<Vec<_>>();
@@ -415,21 +419,18 @@ pub async fn run_chat_command(
     if chat_id >= 0 {
         return Err(AppError::BadRequest);
     }
-    let member: bool = sqlx::query_scalar(
-        r#"
-        SELECT EXISTS(
-          SELECT 1 FROM bot_chat_settings c
-          LEFT JOIN bot_chat_members m ON m.chat_id=c.chat_id AND m.telegram_id=$2
-          WHERE c.chat_id=$1 AND c.is_active=TRUE
-            AND (c.owner_telegram_id=$2 OR m.telegram_id IS NOT NULL)
-        )
-        "#,
+    let bot_token = state.config.teloxide_token.as_deref().ok_or(AppError::Internal)?;
+    let bot = Bot::new(bot_token);
+    let role = crate::services::chat_roles::sync_member(
+        &bot,
+        &state.db,
+        ChatId(chat_id),
+        telegram_id,
+        None,
     )
-    .bind(chat_id)
-    .bind(telegram_id)
-    .fetch_one(&state.db)
-    .await?;
-    if !member {
+    .await
+    .map_err(|_| AppError::Forbidden)?;
+    if role.is_none() {
         return Err(AppError::Forbidden);
     }
 
@@ -458,8 +459,6 @@ pub async fn run_chat_command(
         return Err(AppError::BadRequest);
     }
 
-    let bot_token = state.config.teloxide_token.as_deref().ok_or(AppError::Internal)?;
-    let bot = Bot::new(bot_token);
     let response = if let Some(text) = crate::services::group_content::handle_homework(
         &state.db, chat_id, telegram_id, command, argument,
     ).await {
