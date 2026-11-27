@@ -888,14 +888,14 @@ fn candidate_text(candidate: &Candidate) -> String {
     let interests = if candidate.tags.is_empty() {
         "не указаны".into()
     } else {
-        candidate
-            .tags
-            .iter()
-            .map(|tag| tag_label(tag))
-            .collect::<Vec<_>>()
-            .join(" · ")
+        candidate.tags.iter().map(|tag| tag_label(tag)).collect::<Vec<_>>().join(" · ")
     };
-    format!("💚 АНКЕТА\n\n{} · 18+\n{}\n\nИнтересы: {}\n\nUsername будет скрыт; контакт откроется только после взаимного лайка.",candidate.name,if candidate.bio.is_empty(){"Без описания"}else{&candidate.bio},interests)
+    format!(
+        "💚 АНКЕТА\\n\\n{} · 18+\\n{}\\n\\nИнтересы: {}\\n\\nUsername будет скрыт; контакт откроется только после взаимного лайка.",
+        candidate.name,
+        if candidate.bio.is_empty() { "Без описания" } else { &candidate.bio },
+        interests
+    )
 }
 
 async fn next_candidate(db: &PgPool, actor: i64) -> Option<Candidate> {
@@ -962,10 +962,10 @@ async fn incoming_like_card(
     actor: i64,
     liker: i64,
 ) -> SocialResult<(String, InlineKeyboardMarkup, Option<(i64, String)>)> {
-    let card = sqlx::query_as::<_, (String, String, Vec<String>)>(
-        "SELECT p.display_name,p.bio,p.tags FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
+    let card = sqlx::query_as::<_, (String, String, Vec<String>, Option<String>)>(
+        "SELECT p.display_name,p.bio,p.tags,p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
     ).bind(actor).bind(liker).fetch_optional(db).await?;
-    let Some((name, bio, tags)) = card else {
+    let Some((name, bio, tags, _photo_file_id)) = card else {
         return Ok((
             "Этот лайк больше недоступен.".into(),
             InlineKeyboardMarkup::new(vec![nav("dating:likes")]),
