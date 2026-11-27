@@ -1232,7 +1232,7 @@ async fn reply(
     Ok(())
 }
 
-async fn maybe_answer_group_bot_reply(
+async fn maybe_answer_bot_reply(
     bot: &Bot,
     db: &PgPool,
     webapp_url: &str,
@@ -1240,7 +1240,7 @@ async fn maybe_answer_group_bot_reply(
     actor: i64,
     text: &str,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    if message.chat.id.0 >= 0 || text.trim().starts_with('/') || text.chars().count() > 4000 {
+    if text.trim().starts_with('/') || text.chars().count() > 4000 {
         return Ok(false);
     }
     let Some(replied) = message.reply_to_message() else {
@@ -1255,9 +1255,16 @@ async fn maybe_answer_group_bot_reply(
         return Ok(false);
     }
 
-    let settings = sqlx::query_as::<_, (Option<uuid::Uuid>, bool, bool, i16)>(
-        "SELECT group_id,assistant_enabled,context_enabled,context_retention_days FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
-    ).bind(chat_id).fetch_optional(db).await?;
+    let is_group_chat = chat_id < 0;
+    let settings = if is_group_chat {
+        sqlx::query_as::<_, (Option<uuid::Uuid>, bool, bool, i16)>(
+            "SELECT group_id,assistant_enabled,context_enabled,context_retention_days FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+        ).bind(chat_id).fetch_optional(db).await?
+    } else {
+        // Private conversations use the account's linked group but never persist
+        // reply history; the quoted bot message is sufficient for one-turn context.
+        Some((selected_group(db, actor, chat_id).await, true, false, 14_i16))
+    };
     let Some((group_id, assistant_enabled, context_enabled, retention_days)) = settings else {
         return Ok(false);
     };
@@ -1694,6 +1701,21 @@ fn escape_schedule_markdown(value: &str) -> String {
         .replace('[', "\\[")
 }
 
+fn schedule_room_label(room: Option<String>) -> String {
+    let room = room.unwrap_or_else(|| "Аудитория не указана".into());
+    let lower = room.to_lowercase();
+    if lower.contains("ауд")
+        || lower.contains("онлайн")
+        || lower.contains("дистант")
+        || lower.contains("zoom")
+        || lower.contains("teams")
+    {
+        room
+    } else {
+        format!("ауд. {room}")
+    }
+}
+
 pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> String {
     let now = Utc::now();
     let local_now = now.with_timezone(&moscow_offset());
@@ -1759,7 +1781,7 @@ pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> 
             escape_schedule_markdown(&subject),
             moscow_time(start, "%d.%m %H:%M"),
             moscow_time(end, "%H:%M"),
-            escape_schedule_markdown(&room.unwrap_or_else(|| "Аудитория не указана".into())),
+            escape_schedule_markdown(&schedule_room_label(room)),
             escape_schedule_markdown(&teacher.unwrap_or_else(|| "Преподаватель не указан".into())),
         ));
     }
@@ -2142,7 +2164,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     // Replies to the bot use opt-in, per-chat Neon context. A reply to another
     // participant is not collected and does not trigger the assistant.
     if is_group_chat && !normalized_text.starts_with('/') {
-        match maybe_answer_group_bot_reply(
+        match maybe_answer_bot_reply(
             &bot, db, &state.config.webapp_url, &message, telegram_id, normalized_text,
         ).await {
             Ok(true) => return Ok(()),
