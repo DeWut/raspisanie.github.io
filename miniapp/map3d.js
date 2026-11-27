@@ -167,8 +167,8 @@
     if (map && map.getLayer('hl-flat')) {
       map.setLayoutProperty('hl-flat', 'visibility', buildings3D ? 'none' : 'visible');
     }
-    // In schematic mode, turning volumes on tilts the camera so the
-    // extrusions are actually visible; flat mode stays north-up and top-down.
+    // Camera profiles: flat schematic = orthographic-like top-down; 3D massing
+    // = oblique view. The vector basemap itself remains north-up in both profiles.
     if (map && mode === 'scheme') {
       map.easeTo({ pitch: buildings3D ? 48 : 0, bearing: 0, duration: 500 });
     }
