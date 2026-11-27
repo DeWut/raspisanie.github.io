@@ -193,12 +193,6 @@
 
   /* ---------- popup / selection ---------- */
 
-  function heightText(p) {
-    if (p.hq === 'known') { return 'Высота по данным OSM: ' + esc(p.hm) + ' м'; }
-    if (p.hq === 'levels') { return 'Высота ≈ ' + esc(p.hm) + ' м (по этажности из OSM)'; }
-    return 'Высота в OSM не указана — показано условно ' + esc(p.hm) + ' м';
-  }
-
   function popupHtml(p) {
     var camp = null;
     ((campusData && campusData.buildings) || []).forEach(function (b) {
@@ -229,7 +223,6 @@
       if (heritage.heritageSourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(heritage.heritageSourceUrl)) html += '<p><a href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Материалы Wikimedia Commons</a></p>';
       if (heritage.historySourceUrl && /^https?:\/\//.test(heritage.historySourceUrl)) html += '<p><a href="' + esc(heritage.historySourceUrl) + '" target="_blank" rel="noopener noreferrer">Историческая справка</a></p>';
     }
-    html += '<p class="muted">' + heightText(p) + '</p>';
     if (camp && camp.units && camp.units.length) {
       html += '<ul>';
       camp.units.forEach(function (u) {
@@ -362,8 +355,7 @@
   function showStats(s) {
     var el = $('stats');
     if (!el) { return; }
-    el.textContent = 'Здания: ' + s.buildings + ' · высота из OSM: ' + s.known + ', по этажности: ' + s.levels +
-      ', условная: ' + s.assumed + ' · деревьев: ' + s.trees;
+    el.textContent = 'Зданий на карте: ' + s.buildings + ' · деревьев: ' + s.trees;
   }
 
   function whenStyleReady() {
