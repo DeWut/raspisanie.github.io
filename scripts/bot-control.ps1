@@ -48,77 +48,54 @@ switch ($Action) {
         [void](Show-Status)
     }
     'sync' {
-        if (-not (Test-Path -LiteralPath $envPath)) {
-            Write-Host "  [ERR] Missing settings file: $envPath" -ForegroundColor Red
-            exit 1
-        }
+        if (-not (Test-Path -LiteralPath $envPath)) { Write-Host "  [ERR] Missing settings file: $envPath" -ForegroundColor Red; exit 1 }
+        & git rev-parse --is-inside-work-tree *> $null
+        if ($LASTEXITCODE -ne 0) { Write-Host '  [ERR] This folder is not a Git repository.' -ForegroundColor Red; exit 1 }
+        $branch = (& git branch --show-current).Trim()
+        if (-not $branch) { Write-Host '  [ERR] Git is in detached HEAD state.' -ForegroundColor Red; exit 1 }
+        & git diff --cached --quiet
+        if ($LASTEXITCODE -ne 0) { Write-Host '  [ERR] Already staged changes exist. Commit or unstage them first.' -ForegroundColor Red; exit 1 }
+        $remote = @(& git remote)
+        if ($remote -notcontains 'origin') { Write-Host '  [ERR] Git remote origin is not configured.' -ForegroundColor Red; exit 1 }
 
         $syncOutputPath = Join-Path $env:TEMP ("spbftuit-sync-{0}.out" -f [guid]::NewGuid().ToString('N'))
         $syncErrorPath = Join-Path $env:TEMP ("spbftuit-sync-{0}.err" -f [guid]::NewGuid().ToString('N'))
         Write-Host ''
         Write-Host '  +--------------------------------------------------+' -ForegroundColor DarkCyan
-        Write-Host '  |         SPBFTUIT  EIOS DATABASE SYNC             |' -ForegroundColor Cyan
+        Write-Host '  |      SPBFTUIT  DATABASE + GITHUB SYNC            |' -ForegroundColor Cyan
         Write-Host '  +--------------------------------------------------+' -ForegroundColor DarkCyan
-        Write-Host '  Downloading groups and importing schedules...' -ForegroundColor Gray
+        Write-Host '  1/3  Syncing EIOS schedules into PostgreSQL...' -ForegroundColor Gray
 
         $syncExit = 0
         Push-Location $backendDir
         try {
-            $syncProcess = Start-Process -FilePath 'cargo' -ArgumentList @('run', '--quiet', '--bin', 'sync_schedule') `
-                -WorkingDirectory $backendDir -NoNewWindow -PassThru `
-                -RedirectStandardOutput $syncOutputPath -RedirectStandardError $syncErrorPath
-            $shownPercent = 0
-            $targetPercent = 0
-            $completedGroups = 0
-            $totalGroups = 0
-            $spinner = @('|', '/', '-', '\')
-            $frame = 0
-
+            $syncProcess = Start-Process -FilePath 'cargo' -ArgumentList @('run', '--quiet', '--bin', 'sync_schedule') -WorkingDirectory $backendDir -NoNewWindow -PassThru -RedirectStandardOutput $syncOutputPath -RedirectStandardError $syncErrorPath
+            $shownPercent = 0; $targetPercent = 0; $completedGroups = 0; $totalGroups = 0
+            $spinner = @('|', '/', '-', '\'); $frame = 0
             while (-not $syncProcess.HasExited) {
-                $lastProgress = Get-Content -LiteralPath $syncOutputPath -ErrorAction SilentlyContinue |
-                    Where-Object { $_ -match '^SYNC_PROGRESS=\d+/\d+$' } | Select-Object -Last 1
+                $lastProgress = Get-Content -LiteralPath $syncOutputPath -ErrorAction SilentlyContinue | Where-Object { $_ -match '^SYNC_PROGRESS=\d+/\d+$' } | Select-Object -Last 1
                 if ($lastProgress -match '^SYNC_PROGRESS=(\d+)/(\d+)$') {
-                    $completedGroups = [int]$Matches[1]
-                    $totalGroups = [int]$Matches[2]
+                    $completedGroups = [int]$Matches[1]; $totalGroups = [int]$Matches[2]
                     if ($totalGroups -gt 0) {
                         $actualPercent = [Math]::Floor(95 * $completedGroups / $totalGroups)
                         if ($completedGroups -lt $totalGroups) {
                             $nextPercent = [Math]::Floor(95 * ($completedGroups + 1) / $totalGroups)
-                            # Ease toward the next group milestone while its request is in flight.
                             $targetPercent = [Math]::Min(95, $actualPercent + [Math]::Max(1, [Math]::Floor(($nextPercent - $actualPercent) * 0.65)))
-                        } else {
-                            $targetPercent = 95
-                        }
+                        } else { $targetPercent = 95 }
                     }
-                } elseif ($targetPercent -lt 3) {
-                    $targetPercent = 3
-                }
-
+                } elseif ($targetPercent -lt 3) { $targetPercent = 3 }
                 if ($shownPercent -lt $targetPercent) { $shownPercent++ }
-                $barWidth = 32
-                $filled = [Math]::Floor($shownPercent * $barWidth / 100)
+                $barWidth = 32; $filled = [Math]::Floor($shownPercent * $barWidth / 100)
                 $bar = ('=' * $filled) + ('-' * ($barWidth - $filled))
                 $spin = $spinner[$frame % $spinner.Count]
-                $groupLabel = if ($totalGroups -gt 0) { "groups $completedGroups/$totalGroups" } else { 'connecting to database' }
-                Write-Host ("`r  [{0}] {1,3}%  {2}  {3}" -f $bar,$shownPercent,$groupLabel,$spin) -NoNewline -ForegroundColor Cyan
-                $frame++
-                Start-Sleep -Milliseconds 120
-                $syncProcess.Refresh()
+                $groupLabel = if ($totalGroups -gt 0) { "groups $completedGroups/$totalGroups" } else { 'connecting to Neon/PostgreSQL' }
+                Write-Host (([char]13).ToString() + "  [{0}] {1,3}%  {2}  {3}" -f $bar,$shownPercent,$groupLabel,$spin) -NoNewline -ForegroundColor Cyan
+                $frame++; Start-Sleep -Milliseconds 120; $syncProcess.Refresh()
             }
-
-            $syncProcess.WaitForExit()
-            $syncExit = $syncProcess.ExitCode
-            if ($syncExit -eq 0) {
-                $shownPercent = 100
-                Write-Host ("`r  [{0}] 100%  synchronization complete       " -f ('=' * 32)) -ForegroundColor Green
-            } else {
-                Write-Host ''
-                Write-Host "  [ERR] Database sync failed (exit code $syncExit)." -ForegroundColor Red
-            }
-        }
-        finally {
-            Pop-Location
-        }
+            $syncProcess.WaitForExit(); $syncExit = $syncProcess.ExitCode
+            if ($syncExit -eq 0) { Write-Host (([char]13).ToString() + "  [{0}] 100%  database synchronization complete       " -f ('=' * 32)) -ForegroundColor Green }
+            else { Write-Host ''; Write-Host "  [ERR] Database sync failed (exit code $syncExit). GitHub files were not changed." -ForegroundColor Red }
+        } finally { Pop-Location }
 
         if (Test-Path -LiteralPath $syncOutputPath) {
             Get-Content -LiteralPath $syncOutputPath | Where-Object { $_ -and $_ -notmatch '^SYNC_PROGRESS=' } | ForEach-Object { Write-Host "  $_" }
@@ -129,6 +106,46 @@ switch ($Action) {
             Remove-Item -LiteralPath $syncErrorPath -Force
         }
         if ($syncExit -ne 0) { exit $syncExit }
+
+        Write-Host ''
+        Write-Host '  2/3  Downloading static timetable files for the website...' -ForegroundColor Cyan
+        $python = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $python) { Write-Host '  [ERR] Python 3 is not in PATH. PostgreSQL was synced; GitHub was not updated.' -ForegroundColor Red; exit 1 }
+        Push-Location $repoRoot
+        try { & $python.Source 'update_schedule.py' '--delay' '1'; $scrapeExit = $LASTEXITCODE }
+        finally { Pop-Location }
+        if ($scrapeExit -ne 0 -and $scrapeExit -ne 2) {
+            Write-Host "  [ERR] Website export failed (exit code $scrapeExit). Database is synced; GitHub was not pushed." -ForegroundColor Red
+            exit $scrapeExit
+        }
+        $metaPath = Join-Path $repoRoot 'data\schedule-meta.json'
+        if (-not (Test-Path -LiteralPath $metaPath)) { Write-Host '  [ERR] No successful schedule export metadata. GitHub was not pushed.' -ForegroundColor Red; exit 1 }
+        $meta = Get-Content -LiteralPath $metaPath -Raw | ConvertFrom-Json
+        if ([int]$meta.groups_updated -lt 1) { Write-Host '  [ERR] No groups updated; old public timestamp was preserved.' -ForegroundColor Red; exit 1 }
+
+        Write-Host ''
+        Write-Host '  3/3  Publishing schedule files and timestamp to GitHub...' -ForegroundColor Cyan
+        $scheduleFiles = @('data/groups.json', 'data/schedule-meta.json')
+        $scheduleFiles += Get-ChildItem -LiteralPath (Join-Path $repoRoot 'data') -File -Filter '*.json' | Where-Object { $_.BaseName -match '^\d+$' } | ForEach-Object { 'data/' + $_.Name }
+        & git add -- $scheduleFiles
+        if ($LASTEXITCODE -ne 0) { Write-Host '  [ERR] Could not stage schedule files.' -ForegroundColor Red; exit 1 }
+        & git diff --cached --quiet
+        if ($LASTEXITCODE -ne 0) {
+            $stamp = [DateTimeOffset]::Now.ToString('yyyy-MM-dd HH:mm:ss zzz')
+            & git commit -m "Обновление расписания $stamp"
+            if ($LASTEXITCODE -ne 0) { Write-Host '  [ERR] Git commit failed; schedule files remain staged locally.' -ForegroundColor Red; exit 1 }
+        } else { Write-Host '  [-- ] Schedule data unchanged; no commit needed.' -ForegroundColor Yellow }
+
+        & git push origin $branch
+        if ($LASTEXITCODE -ne 0) { Write-Host "  [ERR] Push failed. Local commit is preserved on '$branch'; push it after fixing Git access." -ForegroundColor Red; exit 1 }
+        Write-Host ''
+        Write-Host "  [ OK ] PostgreSQL synchronized and website data pushed to origin/$branch." -ForegroundColor Green
+        Write-Host "         Groups updated: $($meta.groups_updated)/$($meta.groups_total)"
+        Write-Host "         Public timestamp: $($meta.updated_at)"
+        if ([int]$meta.groups_failed -gt 0 -or $scrapeExit -eq 2) {
+            Write-Host "  [WARN] Some groups failed ($($meta.groups_failed)); successful groups published, old files retained for failed groups." -ForegroundColor Yellow
+            exit 2
+        }
     }
     'start' {
         if (Show-Status) { exit 0 }
