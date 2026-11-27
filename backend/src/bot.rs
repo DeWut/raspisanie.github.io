@@ -2274,6 +2274,14 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 telegram_id,
             )
             .await?;
+        } else if argument == "dating_home" {
+            crate::services::student_social::open_dating(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await?;
         } else {
             start_onboarding(&bot, &state, &message).await?;
         }
