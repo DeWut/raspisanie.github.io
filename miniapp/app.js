@@ -356,6 +356,7 @@
       setChecked('#chat-setting-memes', settings.memes_enabled);
       setChecked('#chat-setting-assistant', settings.assistant_enabled);
       setChecked('#chat-setting-context', settings.context_enabled);
+      state.control.chatContextWasEnabled = settings.context_enabled === true;
       setValue('#chat-setting-retention', settings.context_retention_days || 7);
       const permissions = settings.content_permissions || {};
       setValue('#chat-setting-permission-homework', permissions.homework || 'everyone');
@@ -380,7 +381,7 @@
       return;
     }
     const contextEnabled = $('#chat-setting-context').checked;
-    if (contextEnabled && !$('#chat-setting-consent').checked) {
+    if (contextEnabled && !state.control.chatContextWasEnabled && !$('#chat-setting-consent').checked) {
       status.textContent = 'Для включения контекста подтверди согласие администратора и уведомление участников.';
       return;
     }
