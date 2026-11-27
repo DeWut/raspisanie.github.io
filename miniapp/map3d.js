@@ -145,6 +145,15 @@
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL)' }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
+  // The parent app opens this page inside a dialog; resize after the dialog becomes visible.
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || event.origin !== window.location.origin) return;
+    if (!event.data || event.data.type !== 'campus-map-resize') return;
+    map.resize();
+    requestAnimationFrame(function () { map.resize(); });
+  });
+  window.addEventListener('resize', function () { map.resize(); });
+
   function setBuildingMode(on) {
     buildings3D = !!on;
     var btn = $('btn-3d');
