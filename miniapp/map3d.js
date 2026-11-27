@@ -64,6 +64,9 @@
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
   var mode = 'sat';
   var buildings3D = true;
+  var satelliteCamera = null;
+  var styleRequest = 0;
+  var SCHEME_STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
   var GROUND_LAYERS = ['bg', 'park', 'green', 'water', 'path-casing', 'path'];
   var ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   var EMPTY = { type: 'FeatureCollection', features: [] };
@@ -101,6 +104,8 @@
       { id: 'path', type: 'line', source: 'ground', filter: ['==', ['get', 'kind'], 'path'],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 20, 1.6] } },
+      { id: 'campus-bld-2d', type: 'fill', source: 'footprints', layout: { visibility: 'none' },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#79766f' } },
       { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.94, 'fill-outline-color': '#625e55' } },
       extrusion('bld', 'solid', 0, 1),
@@ -112,6 +117,7 @@
         esri: { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 19,
           attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' },
         ground: { type: 'geojson', data: EMPTY },
+        footprints: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         solid: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         hl: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 }
       },
@@ -137,29 +143,114 @@
 
   function setBuildingMode(on) {
     buildings3D = !!on;
-    if (!map || !map.getLayer('bld')) return;
-    map.setLayoutProperty('bld', 'visibility', buildings3D ? 'visible' : 'none');
     var btn = $('btn-3d');
     if (btn) {
       btn.textContent = buildings3D ? 'Объёмы: Вкл' : 'Объёмы: Выкл';
       btn.setAttribute('aria-pressed', buildings3D ? 'true' : 'false');
     }
+    if (map && map.getLayer('bld')) {
+      map.setLayoutProperty('bld', 'visibility', buildings3D ? 'visible' : 'none');
+    }
+    if (map && map.getLayer('campus-bld-2d')) {
+      map.setLayoutProperty('campus-bld-2d', 'visibility', buildings3D ? 'none' : 'visible');
+    }
+    if (map && map.getLayer('bld-footprint')) {
+      map.setLayoutProperty('bld-footprint', 'visibility', buildings3D ? 'visible' : 'none');
+    }
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
+  map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
 
-  function setMode(next) {
-    mode = next;
-    var satellite = mode === 'sat';
-    map.setLayoutProperty('sat', 'visibility', 'visible');
-    map.setPaintProperty('sat', 'raster-opacity', satellite ? 1 : 0.28);
-    GROUND_LAYERS.forEach(function (id) {
-      map.setLayoutProperty(id, 'visibility', satellite ? 'none' : 'visible');
-    });
+  function updateModeButton() {
     var button = $('btn-mode');
     if (button) {
-      button.textContent = satellite ? 'Схема' : 'Спутник';
-      button.title = satellite ? 'Переключить на схему' : 'Переключить на спутниковую карту';
+      button.textContent = mode === 'sat' ? 'Схема' : 'Спутник';
+      button.title = mode === 'sat' ? 'Переключить на векторную схему' : 'Переключить на спутниковую карту';
+      button.setAttribute('aria-pressed', mode === 'scheme' ? 'true' : 'false');
     }
+  }
+
+  function addSchemeDataSourcesAndLayers(style) {
+    var next = JSON.parse(JSON.stringify(style));
+    next.sources = next.sources || {};
+    next.sources.ground = { type: 'geojson', data: EMPTY };
+    next.sources.footprints = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
+    next.sources.solid = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
+    next.sources.hl = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
+
+    var campusLayers = [
+      { id: 'campus-bld-2d', type: 'fill', source: 'footprints', layout: { visibility: 'none' },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#77736b' } },
+      { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
+        layout: { visibility: 'visible' },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#77736b' } },
+      extrusion('bld', 'solid', 0, 1),
+      extrusion('hl', 'hl', 0, 0.55)
+    ];
+    var layers = next.layers || [];
+    var firstSymbol = layers.findIndex(function (layer) { return layer.type === 'symbol'; });
+    if (firstSymbol < 0) firstSymbol = layers.length;
+    layers.splice.apply(layers, [firstSymbol, 0].concat(campusLayers));
+    next.layers = layers;
+    return next;
+  }
+
+  function syncSceneData() {
+    if (!scene || !map || !map.isStyleLoaded()) return;
+    var source = map.getSource('ground');
+    if (source) source.setData({ type: 'FeatureCollection', features: scene.ground || [] });
+    source = map.getSource('footprints');
+    if (source) source.setData({ type: 'FeatureCollection', features: scene.footprints || [] });
+    source = map.getSource('solid');
+    if (source) source.setData({ type: 'FeatureCollection', features: scene.solid || [] });
+    source = map.getSource('hl');
+    if (source) source.setData(EMPTY);
+    setBuildingMode(buildings3D);
+  }
+
+  function setMode(next) {
+    if (next !== 'sat' && next !== 'scheme') return;
+    var previous = mode;
+    if (next === previous) { updateModeButton(); return; }
+    mode = next;
+    updateModeButton();
+    var requestId = ++styleRequest;
+
+    if (next === 'scheme') {
+      satelliteCamera = { pitch: map.getPitch(), bearing: map.getBearing() };
+      setStatus('Загружаю схему улиц, зданий и парков…');
+      map.easeTo({ pitch: 0, bearing: 0, duration: 650 });
+      fetch(SCHEME_STYLE_URL).then(function (response) {
+        if (!response.ok) throw new Error('OpenFreeMap: HTTP ' + response.status);
+        return response.json();
+      }).then(function (style) {
+        if (requestId !== styleRequest || mode !== 'scheme') return;
+        map.once('style.load', function () {
+          syncSceneData();
+          setBuildingMode(buildings3D);
+          setStatus('');
+        });
+        map.setStyle(addSchemeDataSourcesAndLayers(style), { diff: false });
+      }).catch(function (error) {
+        if (requestId !== styleRequest || mode !== 'scheme') return;
+        mode = 'sat';
+        updateModeButton();
+        setStatus('Не удалось загрузить векторную схему: ' + (error.message || error), true);
+        setTimeout(function () { setStatus(''); }, 10000);
+      });
+      return;
+    }
+
+    setStatus('Возвращаю спутниковую подложку…');
+    map.once('style.load', function () {
+      syncSceneData();
+      setBuildingMode(buildings3D);
+      applyAtmosphere();
+      setStatus('');
+    });
+    map.setStyle(buildStyle(), { diff: false });
+    var camera = satelliteCamera || { pitch: HOME.pitch, bearing: HOME.bearing };
+    map.easeTo({ pitch: camera.pitch, bearing: camera.bearing, duration: 650 });
   }
 
   var scene = null;
@@ -299,12 +390,12 @@
   }
 
   map.on('click', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'bld-footprint'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'campus-bld-2d', 'bld-footprint'] });
     if (!hits.length) { clearSelection(); return; }
     selectBuilding(String(hits[0].properties.pid), e.lngLat);
   });
   map.on('mousemove', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'campus-bld-2d', 'bld-footprint'] });
     map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
   });
 
@@ -426,15 +517,14 @@
     wire();
     campusData = data[1];
     scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
-    map.getSource('ground').setData({ type: 'FeatureCollection', features: scene.ground });
-    map.getSource('solid').setData({ type: 'FeatureCollection', features: scene.solid });
+    syncSceneData();
     buildChips();
     showStats(scene.stats);
     setStatus('');
     if (campusData && campusData.map && campusData.map.center) { HOME.center = campusData.map.center; }
     setTimeout(function () {
       var drawn = 0;
-      try { drawn = map.queryRenderedFeatures({ layers: ['bld'] }).length; } catch (e) { drawn = -1; }
+      try { drawn = map.queryRenderedFeatures({ layers: [buildings3D ? 'bld' : 'campus-bld-2d'] }).length; } catch (e) { drawn = -1; }
       if (drawn === 0 && scene.stats.buildings) {
         setStatus('Здания не отрисовались. Если страница открыта как файл (content:// или file://), браузер может блокировать Web Worker. Откройте её с сайта проекта.');
         setTimeout(function () { setStatus(''); }, 15000);
