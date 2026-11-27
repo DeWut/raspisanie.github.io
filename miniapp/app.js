@@ -1821,6 +1821,9 @@ async function addCampusParkLayers(map) {
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
     $('#open-map').addEventListener('click', () => {
       closeQuickMenu();
+      // Keep the schedule completely out of the map's visual layer on mobile WebViews.
+      document.documentElement.classList.add('campus-map-open');
+      $('.app-shell')?.setAttribute('aria-hidden', 'true');
       $('#map-dialog').showModal();
       const frame = $('.campus-map-frame');
       if (frame && frame.contentWindow) {
@@ -1863,6 +1866,8 @@ async function addCampusParkLayers(map) {
       }
     });
     $('#map-dialog')?.addEventListener('close', () => {
+      document.documentElement.classList.remove('campus-map-open');
+      $('.app-shell')?.removeAttribute('aria-hidden');
       $('#map-dialog')?.classList.remove('campus-map-expanded');
       const expandButton = $('#campus-cesium-expand');
       if (expandButton) {
