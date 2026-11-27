@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::http::{HeaderValue, Method};
 use smart_campus_backend::{
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&migration_url)
         .await?;
     sqlx::migrate!("./migrations").run(&migration_pool).await?;
-    migration_pool.close().await?;
+    migration_pool.close().await;
 
     // Worker использует sync_metadata: запускается сразу только при отсутствии истории синхронизации,
     // а затем проверяет сохранённое время и обновляет расписание не чаще раза в 24 часа.
