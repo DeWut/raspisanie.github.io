@@ -24,11 +24,29 @@ cargo run
 
 При старте backend применяет новые SQLx migrations, проверяет соединение с Neon, запускает фоновую синхронизацию расписания и Telegram polling, если задан токен. Проверка API: `GET http://127.0.0.1:8080/health`. При недоступной базе ожидается HTTP 503.
 
-## Подключение Mini App к backend
+## Подключение Mini App к локальному backend
 
-Открой `miniapp/campus-map-config.js` и укажи origin backend (без `/api` и завершающего слеша) в `window.SMART_CAMPUS_API_URL`.
+GitHub Pages отдаёт только статические файлы. Rust/Axum backend и Telegram long polling должны работать отдельно. Для текущего локального этапа не нужно коммитить адрес туннеля в репозиторий: Mini App умеет сохранить его локально в Telegram WebView.
 
-Для локального теста Mini App, открываемого с HTTPS GitHub Pages или из Telegram, браузеру нужен доступный HTTPS-адрес backend. Адрес `http://localhost:8080` на компьютере пользователя не указывает на твой ноутбук, а браузеры блокируют смешанный HTTP-контент из HTTPS-страницы. Поэтому локальный Telegram-тест Mini App требует временного HTTPS-туннеля или отдельного HTTPS-хоста. Сам Telegram-бот можно проверять локально без публикации backend, если ноутбук и сеть доступны.
+1. В первом PowerShell из каталога `backend` запусти backend:
+
+```powershell
+cargo run
+```
+
+2. Во втором PowerShell открой HTTPS-туннель к локальному API:
+
+```powershell
+cloudflared tunnel --url http://127.0.0.1:8080
+```
+
+Cloudflare выдаст временный адрес вида `https://....trycloudflare.com`. В Mini App открой «Настройки» → блок «Подключение backend», вставь только этот origin и нажми «Подключить». Mini App проверит `/health`, сохранит адрес в локальном хранилище Telegram WebView и перезагрузится. Адрес не содержит секретов и не меняет код сайта.
+
+Временный Quick Tunnel предназначен для разработки: адрес меняется после перезапуска туннеля, работает только пока запущена команда `cloudflared`, а локальный backend должен оставаться запущенным. Не оставляй на компьютере секреты в общедоступном чате и выключай туннель после теста. Для пользователей сайта такой локальный URL не подходит; для общего доступа понадобится постоянный публичный HTTPS-хост backend.
+
+Когда появится постоянный HTTPS origin, его можно задать для всех пользователей в `miniapp/campus-map-config.js` как `window.SMART_CAMPUS_API_URL`. Указывай origin без `/api`, пути и завершающего слеша. Не записывай токены и пароль Neon в этот файл.
+
+CORS должен содержать origin сайта, например `https://dewut.github.io` — без пути репозитория и `/miniapp/`. Telegram Mini App должен открываться по HTTPS. Backend проверяет подписанный `Telegram.WebApp.initData`; не передавай Telegram ID как замену проверке подписи.
 
 CORS должен содержать только origin сайта, например `https://dewut.github.io` — без пути репозитория и `/miniapp/`. Telegram Mini App должен открываться по HTTPS. Backend проверяет подписанный `Telegram.WebApp.initData`; не передавай Telegram ID как замену проверке подписи.
 

@@ -15,6 +15,7 @@
   const SEMESTER_START = new Date(Date.UTC(2026, 7, 31, 12));
   const GROUP_KEY = 'smart-campus-group-id';
   const THEME_KEY = 'spbftuit-theme';
+  const API_STORAGE_KEY = 'spbftuit-backend-api-url';
   const NOTIFICATIONS_KEY = 'spbftuit-lesson-notifications';
   const pageParams = new URLSearchParams(location.search);
   const isWeekPage = document.body.dataset.page === 'week';
@@ -72,7 +73,37 @@
     if (note) note.hidden = navigator.onLine;
     if (state.schedule) renderHero();
   }
-  const API_BASE = (window.SMART_CAMPUS_API_URL || document.querySelector('meta[name="smart-campus-api"]')?.content || '').trim().replace(/\/+$/, '');
+  function normalizeBackendOrigin(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    const url = new URL(value);
+    const localHost = ['localhost', '127.0.0.1'].includes(url.hostname);
+    if (url.protocol !== 'https:' && !(localHost && url.protocol === 'http:')) {
+      throw new Error('Для Telegram Mini App нужен HTTPS-адрес backend.');
+    }
+    if (url.username || url.password || (url.pathname !== '/' && url.pathname !== '') || url.search || url.hash) {
+      throw new Error('Укажи только origin backend, без пути, логина, параметров и завершающих разделов.');
+    }
+    return url.origin;
+  }
+  function configuredBackendOrigin() {
+    const queryValue = pageParams.get('api');
+    let storedValue = '';
+    try { storedValue = localStorage.getItem(API_STORAGE_KEY) || ''; } catch {}
+    const configured = queryValue || storedValue || window.SMART_CAMPUS_API_URL
+      || document.querySelector('meta[name="smart-campus-api"]')?.content || '';
+    try {
+      const normalized = normalizeBackendOrigin(configured);
+      if (queryValue && normalized) {
+        try { localStorage.setItem(API_STORAGE_KEY, normalized); } catch {}
+      }
+      return normalized;
+    } catch (error) {
+      console.warn('Invalid Smart Campus backend origin:', error);
+      return '';
+    }
+  }
+  const API_BASE = configuredBackendOrigin();
   const PRESENCE_API = API_BASE;
   function hasTelegramAccountApi() {
     return Boolean(API_BASE && tg?.initData);
@@ -128,6 +159,7 @@
       note.textContent = message;
       const apiNote = $('#control-api-note');
       if (apiNote) { apiNote.textContent = message; apiNote.dataset.state = 'error'; }
+      setBackendSetupVisible(!API_BASE);
       return;
     }
     try {
@@ -168,6 +200,7 @@
         apiNote.textContent = 'Backend доступен. Настройки и действия будут сохраняться в Neon и использоваться Telegram-ботом.';
         apiNote.dataset.state = 'ok';
       }
+      setBackendSetupVisible(false);
       await loadManagedChats();
     } catch (error) {
       console.warn('Could not load Telegram account settings:', error);
@@ -178,7 +211,55 @@
       note.textContent = message;
       const apiNote = $('#control-api-note');
       if (apiNote) { apiNote.textContent = message; apiNote.dataset.state = 'error'; }
+      setBackendSetupVisible(true);
     }
+  }
+
+  function setBackendSetupVisible(visible) {
+    const panel = $('#control-api-setup');
+    if (!panel) return;
+    panel.hidden = !visible;
+    const reset = $('#control-api-reset');
+    if (reset) {
+      let hasSaved = false;
+      try { hasSaved = Boolean(localStorage.getItem(API_STORAGE_KEY)); } catch {}
+      reset.hidden = !hasSaved;
+    }
+    const input = $('#control-api-url');
+    if (input && !input.value) input.value = API_BASE;
+  }
+
+  async function connectBackendFromSettings() {
+    const input = $('#control-api-url');
+    const status = $('#control-api-setup-status');
+    if (!input || !status) return;
+    let origin;
+    try {
+      origin = normalizeBackendOrigin(input.value);
+      if (!origin) throw new Error('Введи HTTPS-адрес backend.');
+    } catch (error) {
+      status.textContent = error.message || 'Некорректный адрес backend.';
+      return;
+    }
+    status.textContent = 'Проверяем /health…';
+    try {
+      const response = await fetch(new URL('/health', origin), { cache: 'no-store', credentials: 'omit' });
+      if (!response.ok) throw new Error('Backend ответил HTTP ' + response.status + '. Проверь, что сервер запущен и база доступна.');
+      try {
+        localStorage.setItem(API_STORAGE_KEY, origin);
+      } catch {
+        throw new Error('Браузер Telegram не разрешил сохранить адрес. Разреши хранение данных и повтори.');
+      }
+      status.textContent = 'Backend отвечает. Перезагружаем Mini App…';
+      location.reload();
+    } catch (error) {
+      status.textContent = error.message || 'Не удалось подключиться. Проверь адрес, backend и CORS.';
+    }
+  }
+
+  function resetBackendFromSettings() {
+    try { localStorage.removeItem(API_STORAGE_KEY); } catch {}
+    location.reload();
   }
 
   async function saveMiniAppSettings() {
@@ -2408,6 +2489,11 @@ async function addCampusParkLayers(map) {
       }
     });
     $('#settings-save')?.addEventListener('click', () => void saveMiniAppSettings());
+    $('#control-api-connect')?.addEventListener('click', () => void connectBackendFromSettings());
+    $('#control-api-reset')?.addEventListener('click', resetBackendFromSettings);
+    $('#control-api-url')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') { event.preventDefault(); void connectBackendFromSettings(); }
+    });
     document.querySelectorAll('[data-control-tab]').forEach((button) => {
       button.addEventListener('click', () => switchControlPane(button.dataset.controlTab));
     });
@@ -2542,6 +2628,7 @@ async function addCampusParkLayers(map) {
     window.addEventListener('offline', () => { updateConnectivityState(); showToast('Нет интернета. Используются сохранённые данные.'); });
     window.addEventListener('online', () => { updateConnectivityState(); showToast('Соединение восстановлено. Обновляем данные…'); loadData(); });
     updateConnectivityState();
+    setBackendSetupVisible(!API_BASE);
     if (tg) {
       tg.ready();
       tg.expand();

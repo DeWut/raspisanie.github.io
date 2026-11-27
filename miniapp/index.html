@@ -63,6 +63,17 @@
         </div>
 
         <div class="control-center-status" id="control-api-note" role="status">Подключаемся к аккаунту…</div>
+        <section class="control-api-setup" id="control-api-setup" hidden aria-labelledby="control-api-title">
+          <h2 id="control-api-title">Подключение backend</h2>
+          <p>Для локального теста вставь HTTPS-адрес временного туннеля к своему компьютеру. Адрес нужен только в этом браузере Telegram и не заменяет запуск backend.</p>
+          <label for="control-api-url">HTTPS-адрес backend</label>
+          <div class="control-api-row">
+            <input id="control-api-url" type="url" inputmode="url" autocomplete="url" placeholder="https://example.trycloudflare.com" />
+            <button type="button" class="primary-button" id="control-api-connect">Подключить</button>
+          </div>
+          <button type="button" class="control-api-reset" id="control-api-reset" hidden>Сбросить сохранённый адрес</button>
+          <p id="control-api-setup-status" role="status" aria-live="polite"></p>
+        </section>
         <nav class="control-tabs" aria-label="Разделы управления">
           <button type="button" class="active" data-control-tab="personal">Личное</button>
           <button type="button" data-control-tab="groups">Группы</button>
