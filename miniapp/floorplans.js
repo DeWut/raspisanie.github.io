@@ -48,7 +48,7 @@
     return out;
   }
   function createSvg(floor, cfg) {
-    var out = '<svg class="floorplan-svg" viewBox="0 0 1000 760" role="img" aria-label="Схематический план второго корпуса, ' + floor + '-й этаж">';
+    var out = '<svg class="floorplan-svg" viewBox="0 0 1000 760" role="img" aria-label="План второго корпуса, ' + floor + '-й этаж">';
     out += '<rect width="1000" height="760" fill="#fff"/>';
     out += '<text class="fp-heading" x="40" y="42">ПЛАН ' + floor + '-ГО ЭТАЖА</text>';
     out += '<text class="fp-subheading" x="40" y="66">КОРПУС № 2 · ИНСТИТУТСКИЙ ПЕРЕУЛОК, 5, ЛИТЕРА Б</text>';
@@ -57,7 +57,7 @@
     cfg.vertical.forEach(function (w) { out += verticalWing(w[0],w[1],w[2],w[3],w[4],w[5],w[6]); });
     cfg.stairs.forEach(function (s) { out += stair(s[0],s[1],s[2],s[3],s[4]); });
     out += '<g class="fp-north"><path d="M 925 92 v 42 m -12 -12 12 12 12 -12"/><text x="925" y="82">СЕВЕР</text></g>';
-    out += '<g class="fp-title-block"><path d="M40 670H960 M40 670V735H960V670 M650 670V735 M810 670V735"/><text x="55" y="695">СПРАВОЧНЫЙ ПЛАН ЭТАЖА</text><text x="55" y="718">Кабинеты и навигация · схема по фото</text><text x="670" y="695">КОРПУС № 2</text><text x="670" y="718">ЭТАЖ '+floor+'</text><text x="830" y="695">МАСШТАБ</text><text x="830" y="718">НЕ ЗАДАН</text></g>';
+    out += '<g class="fp-title-block"><path d="M40 670H960 M40 670V735H960V670 M650 670V735 M810 670V735"/><text x="55" y="695">ПЛАН ЭТАЖА</text><text x="55" y="718">Кабинеты и коридоры</text><text x="670" y="695">КОРПУС № 2</text><text x="670" y="718">ЭТАЖ '+floor+'</text><text x="830" y="695">СХЕМА</text><text x="830" y="718">УСЛОВНО</text></g>';
     out += '</svg>';
     return out;
   }
@@ -97,5 +97,5 @@
     }
   };
   Object.keys(floors).forEach(function (floor) { floors[floor].svg = createSvg(floor, floors[floor]); });
-  window.CAMPUS_FLOORPLANS = { '2': { floors: floors, note: 'Авторская схематическая реконструкция по предоставленным фотографиям. Пропорции и внутреннее деление помещений ориентировочные; не является техническим или эвакуационным планом.' } };
+  window.CAMPUS_FLOORPLANS = { '2': { floors: floors, note: 'Схема составлена по фотографиям. Размеры и пропорции условные. Не является эвакуационным планом.' } };
 })();
