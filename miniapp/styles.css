@@ -630,6 +630,27 @@ button { font-family: inherit; }
 @media(max-width:520px) { .map-dialog { width:calc(100vw - 8px); height:calc(100dvh - 8px); max-height:calc(100dvh - 8px); padding:6px; } .map-dialog > .campus-map-frame { border-radius:10px; } }
 
 
+/* Keep the host schedule out of the map layer in Android WebView and mobile browsers. */
+html.campus-map-open,
+html.campus-map-open body {
+  overflow: hidden !important;
+}
+html.campus-map-open .app-shell {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.map-dialog[open] {
+  background: #dfe6d3 !important;
+  isolation: isolate;
+  opacity: 1;
+}
+.map-dialog > .campus-map-frame {
+  position: relative;
+  z-index: 1;
+  background: #dfe6d3 !important;
+  opacity: 1;
+}
+
 /* Map dialog must be a flex column so the embedded unified map fills the available viewport. */
 .map-dialog:not([open]) { display: none !important; }
 .map-dialog[open] {
