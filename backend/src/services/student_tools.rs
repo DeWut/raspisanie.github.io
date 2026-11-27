@@ -90,19 +90,24 @@ async fn teacher_schedule(db: &PgPool, query: &str) -> String {
 
 async fn free_rooms(db: &PgPool, query: &str) -> String {
     let (from, to) = parse_room_time(query, Utc::now());
+    // Room names from EIOS commonly encode the building as the prefix
+    // (for example 2.114). Use that when the source has no building label.
     let rows = sqlx::query_as::<_, (String, Option<String>)>(
-        r#"SELECT DISTINCT r.name, r.building
+        r#"SELECT DISTINCT r.name,
+                  COALESCE(NULLIF(r.building, ''), substring(r.name from '^([0-9]+)\.')) AS building
            FROM rooms r
            WHERE EXISTS (
                SELECT 1 FROM lessons known
-               WHERE known.room_id=r.id AND known.starts_at >= date_trunc('day',$1::timestamptz)
+               WHERE known.room_id=r.id
+                 AND known.starts_at >= date_trunc('day',$1::timestamptz)
                  AND known.starts_at < date_trunc('day',$1::timestamptz)+interval '1 day'
            )
            AND NOT EXISTS (
                SELECT 1 FROM lessons busy
                WHERE busy.room_id=r.id AND busy.starts_at < $2 AND busy.ends_at > $1
            )
-           ORDER BY r.name LIMIT 20"#,
+           ORDER BY building NULLS LAST, r.name
+           LIMIT 80"#
     )
     .bind(from)
     .bind(to)
@@ -116,18 +121,21 @@ async fn free_rooms(db: &PgPool, query: &str) -> String {
             from.with_timezone(&moscow()).format("%H:%M")
         );
     }
+
     let mut out = format!(
-        "🏫 Свободно на {} (проверка на 90 минут):\n\n",
+        "🏫 Свободные аудитории на {} (окно 90 минут)\n\n",
         from.with_timezone(&moscow()).format("%H:%M")
     );
+    let mut current_building = String::new();
     for (room, building) in rows {
-        out.push_str(&format!(
-            "• {}{}\n",
-            room,
-            building.map(|v| format!(" · {v}")).unwrap_or_default()
-        ));
+        let building = building.unwrap_or_else(|| "не определён".into());
+        if building != current_building {
+            current_building = building.clone();
+            out.push_str(&format!("\n🏢 Корпус {building}\n"));
+        }
+        out.push_str(&format!("• {room}\n"));
     }
-    out.push_str("\nСписок учитывает только аудитории, встречающиеся в загруженном расписании.");
+    out.push_str("\nПоказаны аудитории, встречающиеся в расписаниях всех групп. Данные обновляются при синхронизации ЕИОС.");
     out
 }
 
