@@ -169,11 +169,24 @@
     if (btn) { btn.textContent = sat ? 'Схема' : 'Спутник'; btn.title = sat ? 'Показать схему вместо спутника' : 'Показать спутниковую подложку'; }
   }
 
-  function toggleLayer(id, btnId) {
-    var visible = map.getLayoutProperty(id, 'visibility') !== 'none';
-    map.setLayoutProperty(id, 'visibility', visible ? 'none' : 'visible');
+  var layerStates = { shadow: true, tree: true, win: true };
+  var layerLabels = { shadow: 'Тени', tree: 'Деревья', win: 'Окна' };
+
+  function syncLayerButton(id, btnId) {
     var btn = $(btnId);
-    if (btn) { btn.setAttribute('aria-pressed', visible ? 'false' : 'true'); }
+    if (!btn) return;
+    var enabled = layerStates[id];
+    btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    btn.textContent = layerLabels[id] + (enabled ? ': Вкл' : ': Выкл');
+    btn.title = layerLabels[id] + (enabled ? ' включены' : ' выключены');
+  }
+
+  function toggleLayer(id, btnId) {
+    layerStates[id] = !layerStates[id];
+    map.setLayoutProperty(id, 'visibility', layerStates[id] ? 'visible' : 'none');
+    syncLayerButton(id, btnId);
+    // Repaint explicitly so the change is immediately visible on mobile WebViews.
+    map.triggerRepaint();
   }
 
   /* ---------- popup / selection ---------- */
@@ -267,7 +280,11 @@
   function setOrbit(on) {
     orbiting = on;
     var btn = $('btn-orbit');
-    if (btn) { btn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    if (btn) {
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.textContent = on ? 'Облёт: Вкл' : 'Облёт';
+      btn.title = on ? 'Остановить автоматический облёт' : 'Запустить автоматический облёт';
+    }
     if (on) { requestAnimationFrame(orbitStep); }
   }
   ['pointerdown', 'wheel', 'touchstart'].forEach(function (name) {
@@ -277,13 +294,38 @@
   /* ---------- UI wiring ---------- */
 
   function wire() {
-    $('btn-mode').addEventListener('click', function () { setMode(mode === 'sat' ? 'scheme' : 'sat'); });
-    $('btn-shadow').addEventListener('click', function () { toggleLayer('shadow', 'btn-shadow'); });
-    $('btn-tree').addEventListener('click', function () { toggleLayer('tree', 'btn-tree'); });
-    $('btn-win').addEventListener('click', function () { toggleLayer('win', 'btn-win'); });
-    $('btn-orbit').addEventListener('click', function () { setOrbit(!orbiting); });
-    $('btn-home').addEventListener('click', function () { setOrbit(false); map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: HOME.pitch, bearing: HOME.bearing, duration: 1800 }); });
-    $('infoBtn').addEventListener('click', function () { var box = $('info'); box.hidden = !box.hidden; });
+    var controls = $('tools');
+    if (controls) {
+      controls.addEventListener('click', function (event) {
+        var btn = event.target.closest('button');
+        if (!btn || !controls.contains(btn)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        switch (btn.id) {
+          case 'btn-mode': setMode(mode === 'sat' ? 'scheme' : 'sat'); break;
+          case 'btn-shadow': toggleLayer('shadow', 'btn-shadow'); break;
+          case 'btn-tree': toggleLayer('tree', 'btn-tree'); break;
+          case 'btn-win': toggleLayer('win', 'btn-win'); break;
+          case 'btn-orbit': setOrbit(!orbiting); break;
+          case 'btn-home':
+            setOrbit(false);
+            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: HOME.pitch, bearing: HOME.bearing, duration: 1800 });
+            break;
+        }
+      });
+    }
+    var infoButton = $('infoBtn');
+    if (infoButton) infoButton.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      var box = $('info');
+      box.hidden = !box.hidden;
+    });
+    ['shadow', 'tree', 'win'].forEach(function (id) {
+      map.setLayoutProperty(id, 'visibility', 'visible');
+      syncLayerButton(id, id === 'shadow' ? 'btn-shadow' : id === 'tree' ? 'btn-tree' : 'btn-win');
+    });
+    setOrbit(false);
   }
 
   function buildChips() {
