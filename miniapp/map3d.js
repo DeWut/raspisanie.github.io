@@ -772,6 +772,67 @@
     clearFloorRoute();
   }
 
+  function renderCampusSearch(query) {
+    var box = $('campus-search-results');
+    if (!box) return;
+    box.innerHTML = '';
+    var value = String(query || '').trim().toLocaleLowerCase('ru');
+    if (value.length < 1) { box.hidden = true; return; }
+    var results = [];
+    ((campusData && campusData.buildings) || []).forEach(function (building) {
+      var buildingText = [building.name, 'корпус ' + building.number, building.address].join(' ').toLocaleLowerCase('ru');
+      if (buildingText.indexOf(value) !== -1) {
+        results.push({ building: building, room: '', title: building.name || ('Корпус № ' + building.number), subtitle: building.address || 'Открыть сведения о корпусе' });
+      }
+      (building.units || []).forEach(function (unit) {
+        var text = [unit.room, unit.name].join(' ').toLocaleLowerCase('ru');
+        if (text.indexOf(value) !== -1) {
+          results.push({ building: building, room: unit.room || '', title: (unit.room ? 'Аудитория ' + unit.room : unit.name), subtitle: unit.name || building.name });
+        }
+      });
+    });
+    results = results.slice(0, 10);
+    box.hidden = false;
+    if (!results.length) {
+      box.textContent = 'Ничего не найдено. Попробуйте номер аудитории или корпуса.';
+      return;
+    }
+    results.forEach(function (result) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'campus-search-result';
+      button.setAttribute('data-search-building', String(result.building.number));
+      if (result.room) button.setAttribute('data-search-room', result.room);
+      var title = document.createElement('b');
+      title.textContent = result.title;
+      var subtitle = document.createElement('span');
+      subtitle.textContent = result.subtitle;
+      button.appendChild(title);
+      button.appendChild(subtitle);
+      box.appendChild(button);
+    });
+  }
+
+  function chooseCampusSearchResult(button) {
+    var number = button.getAttribute('data-search-building');
+    var building = ((campusData && campusData.buildings) || []).find(function (item) { return String(item.number) === String(number); });
+    if (!building) return;
+    var coordinate = [Number(building.longitude), Number(building.latitude)];
+    if (isFinite(coordinate[0]) && isFinite(coordinate[1])) {
+      map.flyTo({ center: coordinate, zoom: 18.2, pitch: buildings3D ? 48 : 0, duration: 750 });
+    }
+    var room = button.getAttribute('data-search-room') || '';
+    if (room) {
+      openFloorPlan(building.number, floorForRoom(room) || undefined, room);
+    } else {
+      selectCampusBuilding(building, coordinate);
+    }
+    var input = $('campus-search-input');
+    var box = $('campus-search-results');
+    if (input) input.value = room || building.name || '';
+    if (box) box.hidden = true;
+  }
+
   function openFloorPlanFromLocation() {
     var params = new URLSearchParams(location.search);
     var key = params.get('auditory') || params.get('building') || params.get('campus');
@@ -957,6 +1018,20 @@
     });
     var floorPanel = $('floorplan');
     if (floorPanel) floorPanel.addEventListener('click', function (event) { if (event.target === floorPanel) closeFloorPlan(); });
+    var campusSearch = $('campus-search-input');
+    var campusSearchResults = $('campus-search-results');
+    if (campusSearch) campusSearch.addEventListener('input', function () { renderCampusSearch(campusSearch.value); });
+    if (campusSearchResults) campusSearchResults.addEventListener('click', function (event) {
+      var result = event.target.closest('[data-search-building]');
+      if (result) chooseCampusSearchResult(result);
+    });
+    if (campusSearch) campusSearch.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        campusSearch.value = '';
+        if (campusSearchResults) campusSearchResults.hidden = true;
+        campusSearch.blur();
+      }
+    });
     var infoButton = $('infoBtn');
     if (infoButton) infoButton.addEventListener('click', function (event) {
       event.preventDefault();
