@@ -34,6 +34,8 @@ jobs:
           node --check miniapp/floorplans.js
           node --check miniapp/floorplans-building1.js
           node --check service-worker.js
+          node --check tests/map3d-geometry.test.cjs
+          node tests/map3d-geometry.test.cjs
           node --check scripts/prepare-mobile.mjs
 
       - name: Check inline page scripts
