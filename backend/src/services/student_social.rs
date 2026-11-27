@@ -198,6 +198,47 @@ pub async fn handle_callback(
                 return Ok(true);
             }
 
+            if action.starts_with("dating:") {
+                // Inline-mode messages only carry inline_message_id and cannot be
+                // used as a normal chat message for multi-step dating screens.
+                // Continue in the same private conversation, not in another chat.
+                let private_chat = ChatId(actor);
+                let message = match bot.send_message(
+                    private_chat,
+                    "Продолжение раздела знакомств находится в сообщении ниже — это тот же диалог с ботом.",
+                ).await {
+                    Ok(message) => message,
+                    Err(error) => {
+                        tracing::warn!(action = action, "Could not create same-chat dating screen: {}", error);
+                        bot.answer_callback_query(query.id.clone())
+                            .text("Открой личный чат с ботом командой /start, затем повтори действие.")
+                            .show_alert(true)
+                            .await?;
+                        return Ok(true);
+                    }
+                };
+                if let Err(error) = dating_action(
+                    bot, db, actor, private_chat, message.id, action, admin_id,
+                ).await {
+                    tracing::error!(action = action, "Inline dating action failed: {}", error);
+                    let _ = bot.edit_message_text(
+                        private_chat,
+                        message.id,
+                        "Не удалось выполнить действие знакомств. Попробуй ещё раз через /dating.",
+                    ).await;
+                }
+                let markup = InlineKeyboardMarkup::new(vec![vec![
+                    button("💚 Знакомства", "dating:open"),
+                    button("👤 Кабинет", "pc:open"),
+                    button("🏠 Меню", "ui:main"),
+                ]]);
+                let _ = bot.edit_message_text_inline(
+                    inline_message_id,
+                    "Раздел знакомств открыт в сообщении ниже этого экрана.",
+                ).reply_markup(markup).await;
+                return Ok(true);
+            }
+
             let screen = if action == "pc:open" {
                 Some(Ok(cabinet_screen(db, actor).await))
             } else if action == "pc:groups" || action.starts_with("pc:groups:") {
