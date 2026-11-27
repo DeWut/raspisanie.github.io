@@ -304,8 +304,7 @@
           if (glass.length >= cap) { return; }
           var z0 = f * fh + fh * 0.32;
           add(frames, [box(cx, cy, fw, 0.01, 0.07)], { pid: pid, col: '#e4dac6', z0: z0 - 0.08, z1: z0 + wh + 0.1 });
-          var r = rnd(seed + '|' + i + '|' + k + '|' + f);
-          var col = r < 0.1 ? '#263849' : r < 0.45 ? '#40566c' : r < 0.8 ? '#34495d' : '#526b82';
+          var col = '#40566c';
           add(glass, [box(cx, cy, gw, 0.07, 0.11)], { pid: pid, col: col, z0: z0, z1: z0 + wh });
         }
         if (deco && deco.pilaster && k % 4 === 3 && k + 1 < count) {
@@ -489,10 +488,9 @@
     });
     out.stats.windows = out.windows.length;
 
-    // Mapped trees are kept as-is. The OSM tree layer is sparse, so mapped woodland
-    // and arboretum polygons are filled with deterministic illustrative trees.
-    // These visualise vegetation density; they are not surveyed individual trees.
-    // Rounded illustrative crown bands, anchored only at mapped OSM tree points.
+    // Only individual OSM tree points become 3D tree symbols. Green-area polygons
+    // remain ground cover; they do not imply surveyed individual tree locations.
+    // Crown bands are illustrative because tree height and crown profiles are not mapped.
     var TIERS = [
       { f: 0.92, z0: 2.2, z1: 3.4, l: 0 },
       { f: 1.00, z0: 3.4, z1: 4.5, l: 0.025 },
@@ -501,7 +499,6 @@
       { f: 0.30, z0: 6.2, z1: 6.6, l: 0.13 }
     ];
     var TREE_SHADOW = 5.5;
-    var mappedTreePoints = [];
     features.forEach(function (f) {
       var p = f && f.properties;
       if (!p || !f.geometry || f.geometry.type !== 'Polygon') return;
@@ -510,13 +507,11 @@
       var osmId = String(p.osmId || f.id);
       if (p.kind === 'tree-trunk') {
         var tc = centroid(ring);
-        mappedTreePoints.push(tc);
         add(out.trees, [circle(tc[0], tc[1], 0.32, 8)], { col: '#6b5640', z0: 0, z1: 2.4 });
       } else if (p.kind === 'tree-canopy') {
         var cen = centroid(ring);
         var v = 1; // mapped position; crown dimensions stay explicitly illustrative
         var col = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
-        mappedTreePoints.push(cen);
         TIERS.forEach(function (t) {
           add(out.trees, [scaleAbout(ring, t.f * v, t.f * v, cen[0], cen[1])], { col: lighten(col, t.l), z0: t.z0 * v, z1: t.z1 * v });
         });
@@ -524,130 +519,6 @@
         add(out.shadows, [hull(ring.concat(sh))], { k: 't' });
         out.stats.trees++;
       }
-    });
-
-    function pointInRing(pt, ring) {
-      var inside = false;
-      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        var a = ring[i], b = ring[j];
-        var crosses = ((a[1] > pt[1]) !== (b[1] > pt[1])) &&
-          (pt[0] < (b[0] - a[0]) * (pt[1] - a[1]) / ((b[1] - a[1]) || 1e-12) + a[0]);
-        if (crosses) inside = !inside;
-      }
-      return inside;
-    }
-    function pointInPolygon(pt, rings) {
-      if (!rings.length || !pointInRing(pt, rings[0])) return false;
-      for (var h = 1; h < rings.length; h++) if (pointInRing(pt, rings[h])) return false;
-      return true;
-    }
-    function distanceToSegment(pt, a, b) {
-      var dx = b[0] - a[0], dy = b[1] - a[1];
-      var den = dx * dx + dy * dy;
-      var t = den ? Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / den)) : 0;
-      var x = a[0] + t * dx, y = a[1] + t * dy;
-      var ex = pt[0] - x, ey = pt[1] - y;
-      return Math.sqrt(ex * ex + ey * ey);
-    }
-    function ringDistance(pt, ring) {
-      var best = Infinity;
-      for (var i = 0; i < ring.length; i++) {
-        best = Math.min(best, distanceToSegment(pt, ring[i], ring[(i + 1) % ring.length]));
-      }
-      return best;
-    }
-    var pathSegments = [];
-    var buildingRings = [];
-    features.forEach(function (f) {
-      if (!f || !f.geometry) return;
-      var p = f.properties || {};
-      if (p.kind === 'path' && f.geometry.type === 'LineString') {
-        var line = f.geometry.coordinates.map(P.toM);
-        for (var i = 1; i < line.length; i++) pathSegments.push([line[i - 1], line[i]]);
-      } else if (p.kind === 'building') {
-        polygonsOf(f.geometry).forEach(function (poly) {
-          poly.forEach(function (r) { buildingRings.push(stripClose(r.map(P.toM))); });
-        });
-      }
-    });
-    var GARDEN_RE = /дендролог|дендропарк|сад/i;
-    var greenFeatures = features.filter(function (f) {
-      return f && f.properties && f.properties.kind === 'green-area' &&
-        (/wood|forest|orchard|garden|grass|meadow/i.test(String(f.properties.areaType || 'wood')) ||
-         GARDEN_RE.test(String(f.properties.name || '')));
-    });
-    var gardenPolygons = [];
-    greenFeatures.filter(function (f) { return GARDEN_RE.test(String(f.properties.name || '')); }).forEach(function (f) {
-      polygonsOf(f.geometry).forEach(function (poly) {
-        gardenPolygons.push(poly.map(function (r) { return stripClose(r.map(P.toM)); }));
-      });
-    });
-    var generatedPoints = [];
-    var generatedLimit = 0; // do not scatter fictional trees; retain only mapped OSM tree points
-    function addIllustrativeTree(x, y, seed) {
-      var radius = 3.0 + rnd(seed + '|radius') * 1.15;
-      var v = 0.86 + rnd(seed + '|height') * 0.28;
-      var col = pick(['#356c3d', '#477e43', '#5a874b', '#3f7548', '#668c50'], seed);
-      var crown = circle(x, y, radius, 10);
-      add(out.trees, [circle(x, y, 0.18, 7)], { col: '#66513b', z0: 0, z1: 3.0 * v });
-      TIERS.forEach(function (t) {
-        add(out.trees, [scaleAbout(crown, t.f, t.f, x, y)], { col: lighten(col, t.l), z0: t.z0 * v, z1: t.z1 * v });
-      });
-      var sh = crown.map(function (q) { return [q[0] + sx * TREE_SHADOW * v, q[1] + sy * TREE_SHADOW * v]; });
-      add(out.shadows, [hull(crown.concat(sh))], { k: 't' });
-      generatedPoints.push([x, y]);
-      out.stats.trees++;
-    }
-    function nearPath(pt, limit) {
-      for (var i = 0; i < pathSegments.length; i++) {
-        if (distanceToSegment(pt, pathSegments[i][0], pathSegments[i][1]) < limit) return true;
-      }
-      return false;
-    }
-    function nearBuilding(pt, limit) {
-      for (var i = 0; i < buildingRings.length; i++) {
-        if (pointInRing(pt, buildingRings[i]) || ringDistance(pt, buildingRings[i]) < limit) return true;
-      }
-      return false;
-    }
-    function nearExistingTree(pt, limit) {
-      for (var i = 0; i < mappedTreePoints.length; i++) {
-        var dx = pt[0] - mappedTreePoints[i][0], dy = pt[1] - mappedTreePoints[i][1];
-        if (dx * dx + dy * dy < limit * limit) return true;
-      }
-      for (var j = 0; j < generatedPoints.length; j++) {
-        var gx = pt[0] - generatedPoints[j][0], gy = pt[1] - generatedPoints[j][1];
-        if (gx * gx + gy * gy < limit * limit) return true;
-      }
-      return false;
-    }
-    // Named arboretums get a dense planting pattern; the surrounding mapped
-    // woodland gets a looser pattern so the park does not look empty or overplanted.
-    greenFeatures.sort(function (a, b) {
-      var ag = GARDEN_RE.test(String(a.properties.name || '')) ? 0 : 1;
-      var bg = GARDEN_RE.test(String(b.properties.name || '')) ? 0 : 1;
-      return ag - bg;
-    }).forEach(function (f, fi) {
-      if (generatedPoints.length >= generatedLimit) return;
-      var isGarden = GARDEN_RE.test(String(f.properties.name || ''));
-      var spacing = isGarden ? 10.5 : 19;
-      polygonsOf(f.geometry).forEach(function (poly, pi) {
-        if (!poly.length || generatedPoints.length >= generatedLimit) return;
-        var rings = poly.map(function (r) { return stripClose(r.map(P.toM)); });
-        var b = bbox(rings[0]);
-        var jitterX = rnd(String(f.properties.osmId) + '|x|' + pi) * spacing;
-        var jitterY = rnd(String(f.properties.osmId) + '|y|' + pi) * spacing;
-        for (var x = b.x0 + jitterX; x <= b.x1 && generatedPoints.length < generatedLimit; x += spacing) {
-          for (var y = b.y0 + jitterY; y <= b.y1 && generatedPoints.length < generatedLimit; y += spacing) {
-            var seed = String(f.properties.osmId || fi) + '|' + Math.round(x) + '|' + Math.round(y);
-            var pt = [x + (rnd(seed + '|jx') - 0.5) * spacing * 0.42, y + (rnd(seed + '|jy') - 0.5) * spacing * 0.42];
-            if (!pointInPolygon(pt, rings)) continue;
-            if (!isGarden && gardenPolygons.some(function (gr) { return pointInPolygon(pt, gr); })) continue;
-            if (nearPath(pt, 3.0) || nearBuilding(pt, 3.8) || nearExistingTree(pt, isGarden ? 6.0 : 11.5)) continue;
-            addIllustrativeTree(pt[0], pt[1], seed);
-          }
-        }
-      });
     });
 
     // Final gate: nothing invalid or oversized reaches MapLibre.
