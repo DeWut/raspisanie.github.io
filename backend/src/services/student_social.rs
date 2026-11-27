@@ -132,98 +132,54 @@ pub async fn handle_callback(
             );
             bot.answer_callback_query(query.id.clone()).await?;
 
-            // Inline-mode messages have no private chat context. Actions that
-            // need text input or the multi-step dating flow are continued in a
-            // regular private-chat message, where Telegram can deliver replies.
-            if action == "pc:name" || action == "pc:cancel" || action.starts_with("dating:") {
+            // Only text-input flows need a separate private-chat message.
+            // Non-interactive actions can be executed in-place and the source
+            // inline message should remain the actual screen the user is using.
+            if action == "pc:name" || action == "pc:cancel"
+                || action == "dating:name" || action == "dating:bio"
+                || action == "dating:photo"
+            {
                 let private_chat = ChatId(actor);
-                let placeholder = match bot
-                    .send_message(private_chat, "Открываю раздел в личном чате…")
-                    .await
-                {
-                    Ok(message) => message,
-                    Err(error) => {
-                        tracing::warn!(
-                            action = action,
-                            actor = actor,
-                            "Could not open private continuation for inline callback: {}",
-                            error
-                        );
+                if action == "pc:cancel" {
+                    clear_flow(db, actor, actor).await?;
+                    let (screen, keyboard) = cabinet_screen(db, actor).await;
+                    let _ = bot.send_message(private_chat, screen).reply_markup(keyboard).await;
+                } else {
+                    let prompt = match action {
+                        "pc:name" => "✏️ Отправь новое имя для личного кабинета (2–48 символов).",
+                        "dating:name" => "✏️ Отправь имя для анкеты знакомств (2–48 символов).",
+                        "dating:bio" => "📝 Отправь описание анкеты (до 280 символов).",
+                        "dating:photo" => "📷 Отправь фотографию следующим сообщением. Она будет прикреплена только к твоей анкете.",
+                        _ => "Продолжи действие в личном чате.",
+                    };
+                    let flow = match action {
+                        "pc:name" => Some("cabinet_name"),
+                        "dating:name" => Some("dating_name"),
+                        "dating:bio" => Some("dating_bio"),
+                        "dating:photo" => Some("dating_photo"),
+                        _ => None,
+                    };
+                    let placeholder = bot.send_message(private_chat, prompt).await;
+                    if let Ok(message) = placeholder {
+                        if let Some(flow) = flow {
+                            start_flow(db, actor, actor, flow, message.id).await?;
+                        }
+                    } else {
                         bot.answer_callback_query(query.id.clone())
-                            .text("Сначала открой личный чат с ботом командой /start, затем повтори действие.")
+                            .text("Открой личный чат с ботом командой /start, затем повтори действие.")
                             .show_alert(true)
                             .await?;
                         return Ok(true);
                     }
-                };
-
-                let result = if action.starts_with("dating:") {
-                    dating_action(
-                        bot,
-                        db,
-                        actor,
-                        private_chat,
-                        placeholder.id,
-                        action,
-                        admin_id,
-                    )
-                    .await
-                } else {
-                    profile_action(
-                        bot,
-                        db,
-                        actor,
-                        private_chat,
-                        placeholder.id,
-                        action,
-                    )
-                    .await
-                };
-
-                if let Err(error) = result {
-                    tracing::error!(
-                        action = action,
-                        actor = actor,
-                        "Could not continue inline action in private chat: {}",
-                        error
-                    );
-                    let _ = bot
-                        .edit_message_text(
-                            private_chat,
-                            placeholder.id,
-                            "Не удалось открыть раздел. Попробуй ещё раз через /profile или /dating.",
-                        )
-                        .await;
                 }
-
-                let status = if action == "pc:name" {
-                    "✏️ Отправил запрос на изменение имени в личный чат с ботом."
-                } else if action.starts_with("dating:") {
-                    "💚 Раздел знакомств открыт в личном чате с ботом. Продолжай там."
-                } else {
-                    "Личный кабинет открыт в личном чате с ботом."
-                };
-                let inline_keyboard = InlineKeyboardMarkup::new(vec![vec![
+                let status = "Запрос отправлен в этот личный чат.";
+                let markup = InlineKeyboardMarkup::new(vec![vec![
                     button("👤 Личный кабинет", "pc:open"),
+                    button("💚 Знакомства", "dating:open"),
                     button("🏠 Меню", "ui:main"),
                 ]]);
-                if let Err(error) = bot
-                    .edit_message_text_inline(inline_message_id, status)
-                    .reply_markup(inline_keyboard)
-                    .await
-                {
-                    if !error.to_string().contains("message is not modified") {
-                        tracing::warn!(
-                            action = action,
-                            "Could not update source inline message after private continuation: {}",
-                            error
-                        );
-                    }
-                }
-                tracing::info!(
-                    action = action,
-                    "Student social inline action continued in private chat"
-                );
+                let _ = bot.edit_message_text_inline(inline_message_id, status)
+                    .reply_markup(markup).await;
                 return Ok(true);
             }
 
