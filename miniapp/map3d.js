@@ -306,6 +306,15 @@
     });
   }
 
+  function resolveBuildingPid(building) {
+    if (!building || !building.osm || !scene) return null;
+    var candidates = [building.osm.id, building.osm.outerWayId].filter(function (id) { return id != null; });
+    for (var i = 0; i < candidates.length; i++) {
+      if (scene.index[String(candidates[i])]) return String(candidates[i]);
+    }
+    return null;
+  }
+
   function buildCampusMarkers() {
     campusMarkers.forEach(function (marker) { marker.remove(); });
     campusMarkers = [];
@@ -327,9 +336,8 @@
         setOrbit(false);
         var coordinate = [Number(building.longitude), Number(building.latitude)];
         map.flyTo({ center: coordinate, zoom: 18.4, pitch: buildings3D ? 58 : 0, bearing: buildings3D ? map.getBearing() : 0, duration: 1100 });
-        if (building.osm && scene && scene.index[String(building.osm.id)]) {
-          setTimeout(function () { selectBuilding(String(building.osm.id), coordinate); }, 1150);
-        }
+        var buildingPid = resolveBuildingPid(building);
+        if (buildingPid) setTimeout(function () { selectBuilding(buildingPid, coordinate); }, 1150);
       });
       var marker = new maplibregl.Marker({ element: markerButton, anchor: 'center' })
         .setLngLat([Number(building.longitude), Number(building.latitude)])
@@ -356,7 +364,7 @@
   function popupHtml(p) {
     var camp = null;
     ((campusData && campusData.buildings) || []).forEach(function (b) {
-      if (String(b.number) === String(p.campus) || (b.osm && String(b.osm.id) === String(p.pid))) { camp = b; }
+      if (String(b.number) === String(p.campus) || (b.osm && (String(b.osm.id) === String(p.pid) || String(b.osm.outerWayId || '') === String(p.pid)))) { camp = b; }
     });
     var html = '<div class="pop">';
     var title = camp ? camp.name : (p.name || 'Здание');
@@ -562,9 +570,8 @@
       btn.addEventListener('click', function () {
         setOrbit(false);
         map.flyTo({ center: [b.longitude, b.latitude], zoom: 18.4, pitch: mode === 'scheme' && !buildings3D ? 0 : 64, bearing: mode === 'scheme' ? 0 : map.getBearing(), duration: 1600 });
-        if (b.osm && scene && scene.index[String(b.osm.id)]) {
-          setTimeout(function () { selectBuilding(String(b.osm.id), [b.longitude, b.latitude]); }, 1700);
-        }
+        var buildingPid = resolveBuildingPid(b);
+        if (buildingPid) setTimeout(function () { selectBuilding(buildingPid, [b.longitude, b.latitude]); }, 1700);
       });
       host.appendChild(btn);
     });
