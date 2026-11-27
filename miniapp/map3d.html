@@ -104,7 +104,7 @@
     .floor-open { border: 0; border-radius: 8px; padding: 8px 11px; background: #2f6fb3; color: white; font: inherit; cursor: pointer; }
     #floorplan { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(10,18,25,.58); backdrop-filter: blur(5px); }
     #floorplan[hidden] { display: none !important; }
-    .floorplan-card { width: min(900px, 100%); max-height: min(90vh, 900px); overflow: auto; border-radius: 16px; padding: 16px; background: var(--glass); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.32); }
+    .floorplan-card { width: min(960px, 100%); max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); overflow: auto; border-radius: 16px; padding: 16px; background: var(--glass); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.32); }
     .floorplan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
     .floorplan-head h3 { margin: 0 0 4px; font-size: 18px; }
     #floorplan-close { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 7px 11px; background: rgba(100,110,120,.16); color: inherit; font: inherit; min-height: 38px; }
@@ -114,8 +114,8 @@
     .floor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 13px; font-weight: 700; }
     .floor-toolbar > div { display: flex; gap: 5px; }
     .floor-toolbar button { min-width: 38px; padding: 6px 10px; }
-    .floorplan-viewport { width: 100%; max-height: 62vh; min-height: 280px; overflow: auto; border: 1px solid #aeb5ba; border-radius: 4px; background: #fff; overscroll-behavior: contain; }
-    .floorplan-drawing { min-width: 100%; transition: width .15s ease; }
+    .floorplan-viewport { width: 100%; max-height: min(64dvh, 680px); min-height: 180px; overflow: auto; border: 1px solid #aeb5ba; border-radius: 8px; background: #fff; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+    .floorplan-drawing { width: 100%; min-width: 0; transition: width .15s ease; }
     .floorplan-svg { display: block; width: 100%; height: auto; background: #fff; }
     /* SPDS/GOST-inspired monochrome drafting hierarchy for a readable campus directory. */
     .fp-shell { fill: none; stroke: #111; stroke-width: 5; vector-effect: non-scaling-stroke; }
@@ -144,13 +144,6 @@
     .fp-title-block path { fill: none; stroke: #111; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
     .fp-title-block text { fill: #111; font: 650 12px system-ui, sans-serif; }
     .fp-title-block text:first-of-type { font-weight: 800; }
-    .fp-user-room { cursor: pointer; }
-    .fp-user-room rect { fill: rgba(255,226,124,.72); stroke: #b34a32; stroke-width: 4; stroke-dasharray: 8 4; vector-effect: non-scaling-stroke; }
-    .fp-user-room text { fill: #843321; font: 850 20px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
-    .fp-user-room .fp-user-room-name { font-size: 10px; font-weight: 700; }
-    .fp-user-room:focus rect { stroke: #145b93; stroke-width: 6; }
-    .fp-room-preview-rect { fill: rgba(83,145,206,.24); stroke: #1f76b6; stroke-width: 4; stroke-dasharray: 9 5; vector-effect: non-scaling-stroke; }
-    .floorplan-svg.is-placing-room { cursor: crosshair; touch-action: none; user-select: none; }
     .fp-north { fill: #111; font-size: 12px; font-weight: 800; text-anchor: middle; stroke: #111; stroke-width: 1.5; }
     .fp-north text { stroke: none; }
     .fp-legend rect:first-child { fill: #fff; stroke: #111; stroke-width: 1.2; }
@@ -164,20 +157,6 @@
     .room-card b { font-size: 15px; }
     .room-card span { font-size: 12px; }
     .floor-note { margin: 14px 0 0; padding: 10px; border-radius: 9px; background: rgba(210,160,70,.13); color: var(--muted); font-size: 11px; line-height: 1.45; }
-    .room-editor { margin-top: 14px; padding: 12px; border: 1px solid rgba(55,100,75,.2); border-radius: 13px; background: rgba(100,135,110,.08); }
-    .room-editor-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 9px; }
-    .room-editor-heading b { font-size: 13px; }
-    .room-editor-heading span, .room-editor-note { color: var(--muted); font-size: 10px; line-height: 1.45; }
-    .room-editor-fields { display: grid; grid-template-columns: minmax(100px,.65fr) minmax(170px,1.35fr); gap: 8px; }
-    .room-editor-fields label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; font-weight: 700; }
-    .room-editor-fields input { width: 100%; min-width: 0; min-height: 39px; padding: 8px 10px; border: 1px solid rgba(55,90,70,.24); border-radius: 9px; background: #fff; color: #20382b; font: inherit; font-size: 13px; }
-    .room-editor-actions, .room-editor-tools { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
-    .room-editor-actions button, .room-editor-tools button { min-height: 36px; padding: 7px 11px; border: 1px solid rgba(55,90,70,.2); border-radius: 9px; background: #216c50; color: #fff; font: inherit; font-size: 11px; font-weight: 750; }
-    .room-editor-actions button.danger { background: #9c4037; }
-    .room-editor-actions button:active, .room-editor-tools button:active { transform: scale(.98); }
-    .room-editor-tools button { background: rgba(100,130,110,.14); color: #284a39; }
-    .room-editor-status { margin: 9px 0 0; color: #225d43; font-size: 11px; font-weight: 700; line-height: 1.45; }
-    .room-editor-note { margin: 6px 0 0; }
     @media (max-width: 600px) {
       .title { top: calc(var(--safe-top) + 8px); left: 8px; max-width: calc(100% - 68px); padding: 7px 9px; }
       .title b { font-size: 13px; }
@@ -188,12 +167,11 @@
       #infoBtn { left: 8px; bottom: calc(var(--safe-bottom) + 10px); }
       #info { left: 8px; right: 8px; bottom: calc(var(--safe-bottom) + 56px); max-height: 42dvh; }
       .stats { left: 54px; right: 8px; bottom: calc(var(--safe-bottom) + 20px); font-size: 10px; }
-      .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); padding: 12px; }
-      .floorplan-viewport { max-height: 58dvh; min-height: 240px; }
-      .floorplan-drawing { min-width: 760px; }
-      .floor-toolbar { align-items: flex-start; flex-direction: column; }
-      .room-editor-fields { grid-template-columns: minmax(0,1fr); }
-      .room-editor-actions button, .room-editor-tools button { flex: 1 1 auto; }
+      .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 16px); padding: 10px; }
+      .floorplan-viewport { max-height: 56dvh; min-height: 160px; }
+      .floorplan-drawing { min-width: 0; }
+      .floor-toolbar { align-items: center; flex-direction: row; }
+      .floor-toolbar button { min-width: 42px; min-height: 40px; }
       .room-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
       .maplibregl-ctrl-top-right { top: calc(var(--safe-top) + 58px); right: 8px; }
       .maplibregl-ctrl-group button { width: 36px; height: 36px; }
@@ -239,7 +217,7 @@
       <p><b>Здания.</b> Контуры взяты из картографических данных. Высота строится только по тегу height или оценивается по числу этажей. Если высоты и этажности нет, остаётся плоский контур — без выдуманного объёма. Крыша и материал учитываются только при наличии соответствующих тегов.</p>
       <p><b>Объекты.</b> «Объёмы: Выкл» показывает плоские контуры корпусов; «Вкл» — объёмы там, где в данных есть высота или этажность. Эти переключатели независимы от спутника и схемы.</p>
       
-      <p><b>Поэтажные схемы.</b> Чертежи оформлены в сдержанной графике по принципам СПДС: иерархия линий, маркировка помещений, север, штамп и легенда. Это навигационные реконструкции по фотографиям, а не рабочая документация по ГОСТ: точные оси, размеры, толщины стен и проёмы требуют исходного обмерного плана. Для корпуса № 1 номера кабинетов перенесены с фотографий; для обоих корпусов доступно ручное добавление помещений.</p>
+      <p><b>Поэтажные схемы.</b> Чертежи оформлены в сдержанной графике по принципам СПДС: иерархия линий, маркировка помещений, север, штамп и легенда. Это навигационные реконструкции по фотографиям, а не рабочая документация по ГОСТ: точные оси, размеры, толщины стен и проёмы требуют исходного обмерного плана. Для корпуса № 1 номера кабинетов перенесены с фотографий. Уточнения помещений вносятся централизованно в данные проекта.</p>
       <p><b>Спутник.</b> Снимки Esri World Imagery. На схеме используются картографические данные OpenStreetMap через OpenFreeMap; локальные корпуса дополнены источником Overture Maps.</p><p class="muted">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri/Maxar.</p>
     </div>
     <div class="stats" id="stats"></div>
