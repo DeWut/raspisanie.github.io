@@ -1186,6 +1186,133 @@ async fn reply(
     Ok(())
 }
 
+async fn maybe_answer_group_bot_reply(
+    bot: &Bot,
+    db: &PgPool,
+    webapp_url: &str,
+    message: &Message,
+    actor: i64,
+    text: &str,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    if message.chat.id.0 >= 0 || text.trim().starts_with('/') || text.chars().count() > 4000 {
+        return Ok(false);
+    }
+    let Some(replied) = message.reply_to_message() else {
+        return Ok(false);
+    };
+    let chat_id = message.chat.id.0;
+    let source_message_id = i64::from(replied.id.0);
+    let is_bot_message: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM bot_messages WHERE chat_id=$1 AND message_id=$2)"
+    ).bind(chat_id).bind(replied.id.0).fetch_one(db).await?;
+    if !is_bot_message {
+        return Ok(false);
+    }
+
+    let settings = sqlx::query_as::<_, (Option<uuid::Uuid>, bool, bool, i16)>(
+        "SELECT group_id,assistant_enabled,context_enabled,context_retention_days FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+    ).bind(chat_id).fetch_optional(db).await?;
+    let Some((group_id, assistant_enabled, context_enabled, retention_days)) = settings else {
+        return Ok(false);
+    };
+    if !assistant_enabled || !context_enabled {
+        return Ok(false);
+    }
+
+    let original = replied.text().or_else(|| replied.caption()).unwrap_or("[сообщение бота без текста]");
+    let original: String = original.chars().take(4000).collect();
+    let user_text: String = text.trim().chars().take(4000).collect();
+    let mut tx = db.begin().await?;
+    sqlx::query(
+        "INSERT INTO bot_chat_context_messages(chat_id,message_id,sender_role,message_kind,content) VALUES($1,$2,'bot','text',$3) ON CONFLICT(chat_id,message_id) DO NOTHING"
+    ).bind(chat_id).bind(source_message_id).bind(original).execute(&mut *tx).await?;
+    sqlx::query(
+        "INSERT INTO bot_chat_context_messages(chat_id,message_id,reply_to_message_id,sender_telegram_id,sender_role,message_kind,content) VALUES($1,$2,$3,$4,'member','text',$5) ON CONFLICT(chat_id,message_id) DO NOTHING"
+    ).bind(chat_id).bind(i64::from(message.id.0)).bind(source_message_id).bind(actor).bind(&user_text).execute(&mut *tx).await?;
+
+    sqlx::query(
+        "DELETE FROM bot_chat_context_messages WHERE chat_id=$1 AND created_at < now() - make_interval(days => $2::int)"
+    ).bind(chat_id).bind(i32::from(retention_days)).execute(&mut *tx).await?;
+    sqlx::query(
+        "DELETE FROM bot_chat_context_messages WHERE chat_id=$1 AND id IN (SELECT id FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC OFFSET 100)"
+    ).bind(chat_id).execute(&mut *tx).await?;
+    let history = sqlx::query_as::<_, (String,String)>(
+        "SELECT sender_role,content FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC LIMIT 10"
+    ).bind(chat_id).fetch_all(&mut *tx).await?;
+    tx.commit().await?;
+
+    let mut intent = crate::services::conversation::detect(&user_text);
+    if intent.is_none() {
+        let lower = user_text.to_lowercase().replace('ё','е');
+        let follow_up = lower.starts_with("а ") || lower.starts_with("и ") || lower.starts_with("почему ")
+            || lower.starts_with("а если") || lower.starts_with("а когда");
+        if follow_up {
+            if let Some((_, previous_bot)) = history.iter().find(|(role, _)| role == "bot") {
+                let topic = previous_bot.to_lowercase();
+                if topic.contains("расписан") || topic.contains("пара") {
+                    intent = Some(crate::services::conversation::Intent::Tomorrow);
+                } else if topic.contains("домаш") || topic.contains("задан") {
+                    intent = Some(crate::services::conversation::Intent::Homework);
+                } else if topic.contains("дедлайн") || topic.contains("срок") {
+                    intent = Some(crate::services::conversation::Intent::Deadlines);
+                }
+            }
+        }
+    }
+
+    let answer = match intent {
+        Some(crate::services::conversation::Intent::Greeting) => Some(
+            "Привет! Я могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и аудиториями.".to_owned()
+        ),
+        Some(crate::services::conversation::Intent::Help) => Some(commands_text(true)),
+        Some(crate::services::conversation::Intent::Today) => {
+            group_id.map(|group| schedule_text(db, group, "/today"))
+        },
+        Some(crate::services::conversation::Intent::Tomorrow) => {
+            group_id.map(|group| schedule_text(db, group, "/tomorrow"))
+        },
+        Some(crate::services::conversation::Intent::Week) => {
+            group_id.map(|group| schedule_text(db, group, "/week"))
+        },
+        Some(crate::services::conversation::Intent::NextLesson) => {
+            group_id.map(|group| schedule_text(db, group, "/next"))
+        },
+        Some(crate::services::conversation::Intent::Homework) => {
+            if let Some(group) = group_id {
+                Some(crate::services::group_content::homework_for_group(db, group, actor).await)
+            } else {
+                Some("Сначала администратор должен привязать учебную группу к этому чату командой /setgroup.".into())
+            }
+        }
+        Some(crate::services::conversation::Intent::Deadlines) => {
+            crate::services::student_tools::handle(db, chat_id, actor, "/deadlines", "", None, None).await
+        }
+        Some(crate::services::conversation::Intent::FreeRooms(time)) => {
+            crate::services::student_tools::handle(db, chat_id, actor, "/free_rooms", time.as_deref().unwrap_or(""), None, None).await
+        }
+        Some(crate::services::conversation::Intent::Teacher(query)) => {
+            crate::services::student_tools::handle(db, chat_id, actor, "/teacher", &query, None, None).await
+        }
+        None => {
+            let recent_bot = history.iter().find(|(role, _)| role == "bot").map(|(_, text)| text.as_str()).unwrap_or("");
+            let excerpt: String = recent_bot.chars().take(180).collect();
+            Some(if excerpt.is_empty() {
+                "Я сохранил контекст этого ответа в истории чата, но не распознал вопрос. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и аудиториями — уточни, что именно нужно.".into()
+            } else {
+                format!("Продолжаем тему моего предыдущего ответа: «{excerpt}». Уточни, какую информацию нужно найти — я умею искать расписание, ДЗ, дедлайны, преподавателей и аудитории.")
+            })
+        }
+    };
+
+    let answer = answer.unwrap_or_else(|| {
+        "Для этого вопроса нужна привязанная учебная группа. Администратор может настроить её командой /setgroup.".into()
+    });
+    reply(bot, db, message, answer, webapp_url)
+        .await
+        .map_err(|error| Box::new(error) as Box<dyn std::error::Error + Send + Sync>)?;
+    Ok(true)
+}
+
 async fn parse_target_and_tail(
     db: &PgPool,
     chat_id: i64,
@@ -1902,19 +2029,38 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         return Ok(());
     }
 
+    // Replies to the bot use opt-in, per-chat Neon context. A reply to another
+    // participant is not collected and does not trigger the assistant.
+    if is_group_chat && !normalized_text.starts_with('/') {
+        match maybe_answer_group_bot_reply(
+            &bot, db, &state.config.webapp_url, &message, telegram_id, normalized_text,
+        ).await {
+            Ok(true) => return Ok(()),
+            Ok(false) => {}
+            Err(error) => {
+                tracing::warn!("Group reply assistant failed: {}", error);
+                return Ok(());
+            }
+        }
+    }
+
     // Deterministic conversational interface: answer ordinary natural-language
     // requests from the existing schedule and group data, without calling an LLM.
-    // In group chats only respond when explicitly addressed or when someone replies
-    // to a bot message; private chats can use natural language directly.
+    // In group chats it responds only to explicit bot mentions when the assistant
+    // was enabled by an administrator; replies to bot posts are handled above.
     if !normalized_text.starts_with('/') {
         let lower_message = normalized_text.to_lowercase().replace('ё', "е");
-        // A reply can target either a bot post or a student's message containing
-        // homework details. In both cases the reply supplies the conversational context.
-        let is_reply = message.reply_to_message().is_some();
         let explicitly_addressed = ["барни", "барней", "spbftu", "spbftuit"]
             .iter()
             .any(|token| lower_message.contains(token));
-        let may_answer = !is_group_chat || is_reply || explicitly_addressed;
+        let assistant_enabled = if is_group_chat {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT assistant_enabled AND context_enabled FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(message.chat.id.0).fetch_optional(db).await.ok().flatten().unwrap_or(false)
+        } else {
+            true
+        };
+        let may_answer = !is_group_chat || (assistant_enabled && explicitly_addressed);
 
         if may_answer {
             if let Some(intent) = crate::services::conversation::detect(normalized_text) {
