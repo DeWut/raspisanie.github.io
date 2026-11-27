@@ -37,6 +37,7 @@ jobs:
           node --check tests/map3d-geometry.test.cjs
           node tests/map3d-geometry.test.cjs
           node tests/miniapp-control-center.test.cjs
+          node tests/dating-discovery.test.cjs
           node --check scripts/prepare-mobile.mjs
 
       - name: Verify floor-plan registries
