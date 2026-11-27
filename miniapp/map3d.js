@@ -103,9 +103,9 @@
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 14, 0.6, 20, 46] } },
       { id: 'shadow', type: 'fill', source: 'shadow',
-        paint: { 'fill-color': '#16231a', 'fill-opacity': ['match', ['get', 'k'], 't', 0.16, 0.3] } },
+        paint: { 'fill-color': '#16231a', 'fill-opacity': ['match', ['get', 'k'], 't', 0.24, 0.42] } },
       extrusion('bld', 'solid', 0, 1),
-      extrusion('win', 'win', 17.2, 1),
+      extrusion('win', 'win', 16.4, 1),
       extrusion('tree', 'tree', 0, 0.96),
       extrusion('hl', 'hl', 0, 0.55)
     ];
@@ -295,6 +295,15 @@
 
   function wire() {
     var controls = $('tools');
+    var controlsButton = $('btn-controls');
+    if (controlsButton && controls) {
+      controlsButton.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        controls.hidden = !controls.hidden;
+        controlsButton.setAttribute('aria-expanded', controls.hidden ? 'false' : 'true');
+      });
+    }
     if (controls) {
       controls.addEventListener('click', function (event) {
         var btn = event.target.closest('button');
