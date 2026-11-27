@@ -22,7 +22,7 @@
   }
 
   if (!window.maplibregl || !G) {
-    setStatus('Не загрузились библиотеки карты (MapLibre или map3d-geometry.js).', true);
+    setStatus('Не удалось загрузить карту.', true);
     return;
   }
   setStatus('Загружаю данные кампуса…');
@@ -139,7 +139,7 @@
       attributionControl: false
     });
   } catch (e) {
-    setStatus('3D-карта требует WebGL, а он недоступен: ' + e.message, true);
+    setStatus('3D-режим недоступен: ' + e.message, true);
     return;
   }
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL)' }), 'bottom-right');
@@ -239,7 +239,7 @@
 
     if (next === 'scheme') {
       satelliteCamera = { pitch: map.getPitch(), bearing: map.getBearing() };
-      setStatus('Загружаю схему улиц, зданий и парков…');
+      setStatus('Загрузка карты…');
       map.easeTo({ pitch: 0, bearing: 0, duration: 650 });
       fetch(SCHEME_STYLE_URL).then(function (response) {
         if (!response.ok) throw new Error('OpenFreeMap: HTTP ' + response.status);
@@ -393,7 +393,7 @@
     html += '<section class="wiki-card"><b>Справка Wikipedia</b><p data-wikipedia-summary>Загружаем краткую справку…</p><a data-wikipedia-link href="' + esc(WIKIPEDIA_PAGE) + '" target="_blank" rel="noopener noreferrer">Открыть статью в Wikipedia</a></section>';
     if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'по данным карты') + ')</p>'; }
     else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по этажности') + ')</p>'; }
-    else if (p.hq === 'unknown') { html += '<p><b>Высота не указана; показан контур</p>'; }
+    else if (p.hq === 'unknown') { html += '<p><b>Высота:</b> не указана</p>'; }
     if (heritage) {
       if (heritage.built) html += '<p><b>Построен:</b> ' + esc(heritage.built) + '</p>';
       if (heritage.style) html += '<p><b>Стиль:</b> ' + esc(heritage.style) + '</p>';
