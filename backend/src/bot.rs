@@ -277,6 +277,106 @@ async fn start_onboarding(
     Ok(())
 }
 
+async fn handle_group_setup_callback(
+    bot: &Bot,
+    state: &AppState,
+    query: &CallbackQuery,
+) -> ResponseResult<bool> {
+    let Some(data) = query.data.as_deref() else { return Ok(false); };
+    if !data.starts_with("chatgroup:") { return Ok(false); }
+    let Some(message) = query.regular_message() else {
+        bot.answer_callback_query(query.id.clone())
+            .text("Открой настройку группы непосредственно в Telegram-чате.")
+            .show_alert(true).await?;
+        return Ok(true);
+    };
+    let chat_id = message.chat.id;
+    let actor = i64::try_from(query.from.id.0).unwrap_or_default();
+    if chat_id.0 >= 0 {
+        bot.answer_callback_query(query.id.clone())
+            .text("Эта настройка доступна только в групповом чате.")
+            .show_alert(true).await?;
+        return Ok(true);
+    }
+    let role = crate::services::chat_roles::sync_member(
+        bot, &state.db, chat_id, actor, None
+    ).await.ok().flatten();
+    if !matches!(role.as_deref(), Some("owner" | "admin")) {
+        bot.answer_callback_query(query.id.clone())
+            .text("Менять учебную группу могут только администраторы чата.")
+            .show_alert(true).await?;
+        return Ok(true);
+    }
+
+    if data == "chatgroup:open" || data.starts_with("chatgroup:page:") {
+        let page = data.strip_prefix("chatgroup:page:")
+            .and_then(|v| v.parse::<i64>().ok()).unwrap_or(0).clamp(0, 1000);
+        const PAGE_SIZE: i64 = 8;
+        let total: i64 = sqlx::query_scalar("SELECT count(*) FROM groups WHERE is_active=TRUE")
+            .fetch_one(&state.db).await.unwrap_or(0);
+        let pages = ((total + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
+        let page = page.min(pages - 1);
+        let rows = sqlx::query_as::<_, (uuid::Uuid, String)>(
+            "SELECT id,name FROM groups WHERE is_active=TRUE ORDER BY name LIMIT $1 OFFSET $2"
+        ).bind(PAGE_SIZE).bind(page * PAGE_SIZE).fetch_all(&state.db).await;
+        let Ok(groups) = rows else {
+            bot.answer_callback_query(query.id.clone())
+                .text("Не удалось загрузить список групп.")
+                .show_alert(true).await?;
+            return Ok(true);
+        };
+        let mut keyboard = groups.into_iter().map(|(id,name)| vec![
+            ui_button(&name, &format!("chatgroup:select:{id}"))
+        ]).collect::<Vec<_>>();
+        let mut page_row = Vec::new();
+        if page > 0 { page_row.push(ui_button("◀️ Назад", &format!("chatgroup:page:{}", page-1))); }
+        if page+1 < pages { page_row.push(ui_button("Далее ▶️", &format!("chatgroup:page:{}", page+1))); }
+        if !page_row.is_empty() { keyboard.push(page_row); }
+        keyboard.push(vec![ui_button("🏠 Меню", "ui:main")]);
+        bot.answer_callback_query(query.id.clone()).await?;
+        let text = format!("🏫 Выбери учебную группу для этого чата. Страница {} из {} · групп: {}",page+1,pages,total);
+        let edit = bot.edit_message_text(chat_id, message.id, text)
+            .reply_markup(InlineKeyboardMarkup::new(keyboard)).await;
+        if let Err(error)=edit {
+            if !error.to_string().contains("message is not modified") { return Err(error.into()); }
+        }
+        return Ok(true);
+    }
+
+    if let Some(id_text)=data.strip_prefix("chatgroup:select:") {
+        let Ok(group_id)=uuid::Uuid::parse_str(id_text) else {
+            bot.answer_callback_query(query.id.clone()).text("Некорректный ID группы.").show_alert(true).await?;
+            return Ok(true);
+        };
+        let group = sqlx::query_as::<_,(String,)>(
+            "SELECT name FROM groups WHERE id=$1 AND is_active=TRUE"
+        ).bind(group_id).fetch_optional(&state.db).await;
+        let Ok(Some((name,)))=group else {
+            bot.answer_callback_query(query.id.clone()).text("Группа не найдена или неактивна.").show_alert(true).await?;
+            return Ok(true);
+        };
+        let saved=sqlx::query(
+            "INSERT INTO bot_chat_settings(chat_id,group_id,configured_by,updated_at) VALUES($1,$2,$3,now()) ON CONFLICT(chat_id) DO UPDATE SET group_id=EXCLUDED.group_id,configured_by=EXCLUDED.configured_by,updated_at=now()"
+        ).bind(chat_id.0).bind(group_id).bind(actor).execute(&state.db).await;
+        if let Err(error)=saved {
+            tracing::error!("Could not save chat group selection: {}",error);
+            bot.answer_callback_query(query.id.clone()).text("Не удалось сохранить группу в Neon.").show_alert(true).await?;
+            return Ok(true);
+        }
+        bot.answer_callback_query(query.id.clone()).text("Группа чата сохранена.").await?;
+        bot.edit_message_text(chat_id,message.id,format!("✅ Учебная группа этого чата: {name}"))
+            .reply_markup(InlineKeyboardMarkup::new(vec![vec![
+                ui_button("🏫 Изменить группу","chatgroup:open"),
+                ui_button("⚙️ Настройки чата","chatsettings:open"),
+            ],vec![ui_button("🏠 Меню","ui:main")]]))
+            .await?;
+        return Ok(true);
+    }
+
+    bot.answer_callback_query(query.id.clone()).text("Кнопка устарела.").await?;
+    Ok(true)
+}
+
 async fn handle_ui_callback(
     bot: Bot,
     state: Arc<AppState>,
@@ -286,6 +386,9 @@ async fn handle_ui_callback(
         bot.answer_callback_query(query.id.clone()).await?;
         return Ok(());
     };
+    if handle_group_setup_callback(&bot, &state, &query).await? {
+        return Ok(());
+    }
     if data.starts_with("pc:") || data.starts_with("dating:") {
         crate::services::student_social::handle_callback(
             &bot,
@@ -2304,7 +2407,13 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 "⛔ Менять учебную группу чата может только владелец SMART CAMPUS, создатель или администратор Telegram."
                     .into()
             } else if argument.is_empty() {
-                "Укажи группу: /setgroup ЛПб-ИСИТ-26-1".into()
+                let current = sqlx::query_scalar::<_, String>(
+                    "SELECT g.name FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1"
+                ).bind(message.chat.id.0).fetch_optional(db).await.ok().flatten();
+                let text = format!("🏫 Настройка учебной группы чата\\nТекущая группа: {}\\nВыбери новую группу ниже.",current.unwrap_or_else(||"не выбрана".into()));
+                let keyboard = InlineKeyboardMarkup::new(vec![vec![ui_button("📚 Выбрать группу","chatgroup:open")],vec![ui_button("🏠 Меню","ui:main")]]);
+                bot.send_message(message.chat.id,text).reply_markup(keyboard).await?;
+                return Ok(());
             } else {
                 match find_group(db, argument).await {
                     Ok(Some((group_id, name))) => {
