@@ -262,6 +262,7 @@
   }
 
   var scene = null;
+  var sceneSourceData = null;
   var campusData = null;
   var popup = null;
   var campusMarkers = [];
@@ -287,7 +288,7 @@
   }
 
   function buildingAnchor(building) {
-    var features = scene && scene.features ? scene.features : [];
+    var features = sceneSourceData && sceneSourceData.features ? sceneSourceData.features : [];
     var feature = features.find(function (item) {
       var props = item.properties || {};
       return props.kind === 'building' && String(props.campusNumber || '') === String(building.number);
@@ -975,6 +976,7 @@ external map links    return html + '</div>';
 
   Promise.all([dataReady, whenStyleReady()]).then(function (res) {
     var data = res[0];
+    sceneSourceData = data;
     setStatus('Строю 3D-сцену…');
     applyAtmosphere();
     wire();
