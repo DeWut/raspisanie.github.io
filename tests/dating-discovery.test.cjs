@@ -40,6 +40,14 @@ assert.match(social, /pub async fn open_dating_editor/);
 assert.match(bot, /argument == "dating_edit"/);
 assert.match(bot, /argument == "dating_home"/);
 assert.match(social, /render_tracked_dating_screen/);
+const inlineDatingBranch = social.slice(
+  social.indexOf('if action.starts_with("dating:")', social.indexOf('pub async fn handle_callback')),
+  social.indexOf('// Non-dating inline actions remain handled', social.indexOf('pub async fn handle_callback')),
+);
+assert.match(inlineDatingBranch, /dating_action\(/);
+assert.match(inlineDatingBranch, /render_tracked_dating_screen\(/);
+assert.doesNotMatch(inlineDatingBranch, /Открой личный чат|Открыть редактор|start=dating_edit/,
+  'Inline dating callbacks must operate in the current user private chat without a handoff');
 assert.match(social, /Описание: \{\}/);
 assert.match(social, /Фото: \{\}/);
 assert.match(social, /message to edit not found/);
