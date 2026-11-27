@@ -384,6 +384,21 @@ def main():
     merged.sort(key=lambda g: g["name"].lower())
     (DATA_DIR / "groups.json").write_text(json.dumps(merged, ensure_ascii=False, indent=1), "utf-8")
 
+    # Public status consumed by the website. Update only when at least one group
+    # was fetched successfully; a fully failed run must not make stale data look fresh.
+    if ok:
+        metadata = {
+            "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "groups_total": len(groups),
+            "groups_updated": len(ok),
+            "groups_failed": len(failed),
+            "status": "success" if not failed else "partial",
+        }
+        (DATA_DIR / "schedule-meta.json").write_text(
+            json.dumps(metadata, ensure_ascii=False, indent=2) + "\\n", "utf-8"
+        )
+        print(f"Метка расписания обновлена: {metadata['updated_at']} · групп {len(ok)}/{len(groups)}")
+
     print(f"\nГотово: сохранено {len(ok)}, не удалось {len(failed)}.")
     if failed:
         print("Проблемные ID:", ", ".join(failed), "\nЗапусти с --dump и пришли dump/<id>.html, подстрою парсер.")
