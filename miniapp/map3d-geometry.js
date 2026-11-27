@@ -492,10 +492,13 @@
     // Mapped trees are kept as-is. The OSM tree layer is sparse, so mapped woodland
     // and arboretum polygons are filled with deterministic illustrative trees.
     // These visualise vegetation density; they are not surveyed individual trees.
+    // Rounded illustrative crown bands, anchored only at mapped OSM tree points.
     var TIERS = [
-      { f: 1.0, z0: 2.2, z1: 5.0, l: 0 },
-      { f: 0.74, z0: 5.0, z1: 7.8, l: 0.07 },
-      { f: 0.46, z0: 7.8, z1: 10.4, l: 0.14 }
+      { f: 0.92, z0: 2.2, z1: 3.4, l: 0 },
+      { f: 1.00, z0: 3.4, z1: 4.5, l: 0.025 },
+      { f: 0.84, z0: 4.5, z1: 5.5, l: 0.055 },
+      { f: 0.60, z0: 5.5, z1: 6.2, l: 0.09 },
+      { f: 0.30, z0: 6.2, z1: 6.6, l: 0.13 }
     ];
     var TREE_SHADOW = 5.5;
     var mappedTreePoints = [];
