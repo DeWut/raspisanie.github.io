@@ -5,6 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const social = read('backend/src/services/student_social.rs');
+const bot = read('backend/src/bot.rs');
 const migration = read('backend/migrations/20261212000000_dating_discovery_preferences.sql');
 const docs = read('docs/deployment-miniapp.md');
 
@@ -30,6 +31,13 @@ assert.match(social, /bot_dating_seen_profiles/);
 assert.match(social, /bot_dating_browse_state/);
 assert.match(social, /previous_candidate\(db, actor\)/);
 assert.match(social, /displayed_photo/);
+
+// Inline-mode edit callbacks must link into the bot's private chat and open
+// the tracked editor there, rather than leaving the user on a generic notice.
+assert.match(social, /start=dating_edit/);
+assert.match(social, /InlineKeyboardButton::url\("✏️ Открыть редактор", url\)/);
+assert.match(social, /pub async fn open_dating_editor/);
+assert.match(bot, /argument == "dating_edit"/);
 
 assert.match(migration, /gender IN \('male', 'female'\)/);
 assert.match(migration, /preferred_gender IN \('male', 'female', 'any'\)/);
