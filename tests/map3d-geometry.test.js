@@ -207,7 +207,8 @@ test('oversized or corrupted geometry is dropped by the sanitize gate', () => {
 
 test('ground features are passed through and trees are built', () => {
   const out = G.buildScene(sampleScene(), campus);
-  assert.strictEqual(out.ground.length, 2);
+  assert.strictEqual(out.ground.filter(f => f.properties.kind !== 'building-footprint').length, 2);
+  assert.strictEqual(out.ground.filter(f => f.properties.kind === 'building-footprint').length, 1);
   assert.strictEqual(out.stats.trees, 1);
   assert.ok(out.trees.length >= 4, 'a mapped tree point receives trunk and crown layers');
 });
