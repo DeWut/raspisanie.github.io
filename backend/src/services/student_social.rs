@@ -691,8 +691,10 @@ async fn dating_action(
         let page = page_text.parse::<i64>().unwrap_or(0).clamp(0, 10_000);
         incoming_likes_screen(db, actor, page).await?
     } else if let Some(liker_text) = action.strip_prefix("dating:likeview:") {
-        let liker = liker_text.parse::<i64>().unwrap_or_default();
-        incoming_like_card(db, actor, liker).await?
+        let mut parts = liker_text.split(':');
+        let liker = parts.next().and_then(|value| value.parse::<i64>().ok()).unwrap_or_default();
+        let page = parts.next().and_then(|value| value.parse::<i64>().ok()).unwrap_or(0).clamp(0, 10_000);
+        incoming_like_card(db, actor, liker, page).await?
     } else if action == "dating:photo" {
         (
             "📷 Отправь фотографию следующим сообщением в этот личный чат. Она будет показываться только в анкете знакомств. Не отправляй чужие фотографии без согласия человека.".into(),
@@ -991,16 +993,16 @@ async fn incoming_likes_screen(
     page: i64,
 ) -> SocialResult<(String, InlineKeyboardMarkup, Option<(i64, String)>)> {
     let total: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1))"
+        "SELECT count(*) FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1))"
     ).bind(actor).fetch_one(db).await?;
     let pages = total.max(1);
     let page = page.clamp(0, pages - 1);
     let liker = sqlx::query_scalar::<_, i64>(
-        "SELECT s.from_telegram_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1)) ORDER BY s.created_at DESC LIMIT 1 OFFSET $2"
+        "SELECT s.from_telegram_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1)) ORDER BY s.created_at DESC LIMIT 1 OFFSET $2"
     ).bind(actor).bind(page).fetch_optional(db).await?;
     let mut rows = Vec::new();
     if let Some(liker) = liker {
-        rows.push(vec![button("Открыть анкету", format!("dating:likeview:{liker}"))]);
+        rows.push(vec![button("Открыть анкету", format!("dating:likeview:{liker}:{page}"))]);
     }
     if page > 0 {
         rows.push(vec![button("◀️ Предыдущий лайк", format!("dating:likes:{}", page - 1))]);
@@ -1021,11 +1023,12 @@ async fn incoming_like_card(
     db: &PgPool,
     actor: i64,
     liker: i64,
+    page: i64,
 ) -> SocialResult<(String, InlineKeyboardMarkup, Option<(i64, String)>)> {
     let card = sqlx::query_as::<_, (String, String, Vec<String>, Option<String>)>(
         "SELECT p.display_name,p.bio,p.tags,p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
     ).bind(actor).bind(liker).fetch_optional(db).await?;
-    let Some((name, bio, tags, _photo_file_id)) = card else {
+    let Some((name, bio, tags, photo_file_id)) = card else {
         return Ok((
             "Этот лайк больше недоступен.".into(),
             InlineKeyboardMarkup::new(vec![nav("dating:likes")]),
@@ -1038,7 +1041,7 @@ async fn incoming_like_card(
         text,
         InlineKeyboardMarkup::new(vec![
             vec![button("💚 Ответить лайком", format!("dating:like:{liker}"))],
-            vec![button("Следующий лайк ▶️", "dating:likes:1")],
+            vec![button("Следующий лайк ▶️", format!("dating:likes:{}", page + 1))],
             nav("dating:profile"),
         ]),
         None,
