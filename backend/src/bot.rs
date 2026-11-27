@@ -1004,12 +1004,13 @@ async fn find_group(
         r#"
         SELECT id, name
         FROM groups
-        WHERE is_active = true AND name ILIKE $1
-        ORDER BY name
+        WHERE is_active = true AND name ILIKE $2
+        ORDER BY CASE WHEN lower(name) = lower($1) THEN 0 ELSE 1 END, name
         LIMIT 1
         "#,
     )
-    .bind(format!("%{}%", argument))
+    .bind(argument.trim())
+    .bind(format!("%{}%", argument.trim()))
     .fetch_optional(db)
     .await
 }
@@ -1017,7 +1018,7 @@ async fn find_group(
 async fn selected_group(db: &PgPool, telegram_id: i64, chat_id: i64) -> Option<uuid::Uuid> {
     if chat_id < 0 {
         sqlx::query_scalar::<_, uuid::Uuid>(
-            "SELECT group_id FROM bot_chat_settings WHERE chat_id = $1",
+            "SELECT group_id FROM bot_chat_settings WHERE chat_id = $1 AND is_active = TRUE",
         )
         .bind(chat_id)
         .fetch_optional(db)
