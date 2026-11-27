@@ -31,6 +31,8 @@ jobs:
           node --check miniapp/app.js
           node --check miniapp/map3d.js
           node --check miniapp/map3d-geometry.js
+          node --check miniapp/floorplans.js
+          node --check miniapp/floorplans-building1.js
           node --check service-worker.js
           node --check scripts/prepare-mobile.mjs
 
