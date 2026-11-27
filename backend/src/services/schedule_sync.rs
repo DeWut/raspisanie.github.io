@@ -115,33 +115,32 @@ where
     let _guard = SYNC_LOCK
         .try_lock()
         .map_err(|_| "Синхронизация уже выполняется".to_owned())?;
-    // A PostgreSQL advisory lock also prevents a CLI sync and /sync from
-    // running at the same time in separate local processes.
-    let mut lock_connection = pool.acquire().await.map_err(|error| error.to_string())?;
-    let locked: bool = sqlx::query_scalar("SELECT pg_try_advisory_lock($1)")
+    // Use a transaction-scoped advisory lock. Unlike session-level locks,
+    // pg_try_advisory_xact_lock works through Neon's PgBouncer transaction pool.
+    // The transaction is kept alive with a lightweight SELECT between EIOS requests.
+    let mut lock_tx = pool.begin().await.map_err(|error| error.to_string())?;
+    let locked: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
         .bind(DATABASE_SYNC_LOCK_KEY)
-        .fetch_one(&mut *lock_connection)
+        .fetch_one(&mut *lock_tx)
         .await
         .map_err(|error| error.to_string())?;
     if !locked {
+        lock_tx.rollback().await.map_err(|error| error.to_string())?;
         return Err("Синхронизация уже выполняется в другом процессе".to_owned());
     }
 
-    let result = sync_all_groups_inner(pool, eios, &mut on_progress).await;
-    let unlocked: Result<bool, sqlx::Error> = sqlx::query_scalar("SELECT pg_advisory_unlock($1)")
-        .bind(DATABASE_SYNC_LOCK_KEY)
-        .fetch_one(&mut *lock_connection)
-        .await;
-    if let Err(error) = unlocked {
-        tracing::warn!("Could not explicitly release EIOS sync lock: {}", error);
+    let result = sync_all_groups_inner(pool, eios, &mut on_progress, &mut lock_tx).await;
+    match lock_tx.commit().await {
+        Ok(()) => result,
+        Err(error) => Err(format!("Не удалось корректно завершить транзакцию блокировки синхронизации: {error}")),
     }
-    result
 }
 
 async fn sync_all_groups_inner<F>(
     pool: &sqlx::PgPool,
     eios: &EiosSync,
     on_progress: &mut F,
+    lock_tx: &mut sqlx::Transaction<'_, Postgres>,
 ) -> Result<SyncReport, String>
 where
     F: FnMut(usize, usize),
@@ -186,6 +185,8 @@ where
     tracing::info!("Active groups found for schedule sync: {}", rows.len());
 
     for row in rows {
+        // Keep the lock transaction active while a potentially slow EIOS request runs.
+        sqlx::query("SELECT 1").execute(&mut **lock_tx).await.map_err(|error| error.to_string())?;
         let group_id: Uuid = row.try_get("id").map_err(|e| e.to_string())?;
         let external_id: String = row.try_get("external_id").map_err(|e| e.to_string())?;
         let group_name: String = row.try_get("name").map_err(|e| e.to_string())?;
