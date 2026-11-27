@@ -91,6 +91,26 @@ test('named arboretum polygons generate clustered trees while respecting paths',
   assert.ok(out.trees.length >= out.stats.trees * 3, 'each generated tree should have layered canopy geometry');
 });
 
+test('GeoJSON polygon winding preserves courtyard holes for 3D extrusions', () => {
+  const outer = ring([[0,0],[0,50],[50,50],[50,0]]); // deliberately clockwise
+  const hole = ring([[15,15],[35,15],[35,35],[15,35]]); // deliberately counter-clockwise
+  const scene = { features: [{
+    id: 'relation/courtyard',
+    properties: { kind: 'building', osmId: 'courtyard', heightKnown: true, heightMeters: 9, levels: '3' },
+    geometry: { type: 'Polygon', coordinates: [outer, hole] }
+  }] };
+  const out = G.buildScene(scene, null);
+  const roof = out.solid.find(f => f.properties.z0 === 9 && f.properties.z1 === 9.18);
+  assert.ok(roof, 'flat roof should be generated');
+  const area = ringCoords => ringCoords.slice(0, -1).reduce((sum, p, i, pts) => {
+    const q = pts[(i + 1) % pts.length];
+    return sum + p[0] * q[1] - q[0] * p[1];
+  }, 0) / 2;
+  assert.ok(area(roof.geometry.coordinates[0]) > 0, 'outer ring must be counter-clockwise');
+  assert.ok(area(roof.geometry.coordinates[1]) < 0, 'courtyard hole must be clockwise');
+  assert.strictEqual(roof.geometry.coordinates.length, 2, 'courtyard must remain a real hole');
+});
+
 test('flat roof and facade geometry preserve the original concave footprint', () => {
   const historic = {
     buildings: [{
