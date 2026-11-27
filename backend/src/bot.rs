@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 use teloxide::{
     prelude::*,
     types::{
-        BotCommand, BotCommandScope, ButtonRequest, CallbackQuery, ChatPermissions,
+        BotCommand, BotCommandScope, ButtonRequest, CallbackQuery, ChatPermissions, ParseMode,
         InlineKeyboardButton, InlineKeyboardMarkup, InlineQuery, InlineQueryResult,
         InlineQueryResultArticle, InputFile, InputMessageContent, InputMessageContentText,
         KeyboardButton, KeyboardMarkup, Message, MessageId, Recipient, ReplyParameters, ThreadId, UserId,
@@ -1170,7 +1170,13 @@ async fn reply(
 ) -> ResponseResult<()> {
     // Make bot answers actual Telegram replies so users can keep a readable
     // thread around a homework post, schedule post, or a previous question.
+    let is_schedule = text.contains("*РАСПИСАНИЕ") || text.contains("*СЛЕДУЮЩАЯ ПАРА*");
     let request = bot.send_message(message.chat.id, text).reply_parameters(ReplyParameters::new(message.id));
+    let request = if is_schedule {
+        request.parse_mode(ParseMode::Markdown)
+    } else {
+        request
+    };
     let request = if message.chat.is_private() {
         request.reply_markup(main_keyboard(webapp_url, true))
     } else {
@@ -1255,31 +1261,43 @@ async fn maybe_answer_group_bot_reply(
     let Some((group_id, assistant_enabled, context_enabled, retention_days)) = settings else {
         return Ok(false);
     };
-    if !assistant_enabled || !context_enabled {
+    if !assistant_enabled {
         return Ok(false);
     }
 
     let original = replied.text().or_else(|| replied.caption()).unwrap_or("[сообщение бота без текста]");
     let original: String = original.chars().take(4000).collect();
     let user_text: String = text.trim().chars().take(4000).collect();
-    let mut tx = db.begin().await?;
-    sqlx::query(
-        "INSERT INTO bot_chat_context_messages(chat_id,message_id,sender_role,message_kind,content) VALUES($1,$2,'bot','text',$3) ON CONFLICT(chat_id,message_id) DO NOTHING"
-    ).bind(chat_id).bind(source_message_id).bind(original).execute(&mut *tx).await?;
-    sqlx::query(
-        "INSERT INTO bot_chat_context_messages(chat_id,message_id,reply_to_message_id,sender_telegram_id,sender_role,message_kind,content) VALUES($1,$2,$3,$4,'member','text',$5) ON CONFLICT(chat_id,message_id) DO NOTHING"
-    ).bind(chat_id).bind(i64::from(message.id.0)).bind(source_message_id).bind(actor).bind(&user_text).execute(&mut *tx).await?;
+    // Saving chat context is optional and remains disabled without admin consent.
+    // A direct reply can still use the quoted bot message for this one answer.
+    let history = if context_enabled {
+        let mut tx = db.begin().await?;
+        sqlx::query(
+            "INSERT INTO bot_chat_context_messages(chat_id,message_id,sender_role,message_kind,content) VALUES($1,$2,'bot','text',$3) ON CONFLICT(chat_id,message_id) DO NOTHING"
+        ).bind(chat_id).bind(source_message_id).bind(&original).execute(&mut *tx).await?;
+        sqlx::query(
+            "INSERT INTO bot_chat_context_messages(chat_id,message_id,reply_to_message_id,sender_telegram_id,sender_role,message_kind,content) VALUES($1,$2,$3,$4,'member','text',$5) ON CONFLICT(chat_id,message_id) DO NOTHING"
+        ).bind(chat_id).bind(i64::from(message.id.0)).bind(source_message_id).bind(actor).bind(&user_text).execute(&mut *tx).await?;
 
-    sqlx::query(
-        "DELETE FROM bot_chat_context_messages WHERE chat_id=$1 AND created_at < now() - make_interval(days => $2::int)"
-    ).bind(chat_id).bind(i32::from(retention_days)).execute(&mut *tx).await?;
-    sqlx::query(
-        "DELETE FROM bot_chat_context_messages WHERE chat_id=$1 AND id IN (SELECT id FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC OFFSET 100)"
-    ).bind(chat_id).execute(&mut *tx).await?;
-    let history = sqlx::query_as::<_, (String,String)>(
-        "SELECT sender_role,content FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC LIMIT 10"
-    ).bind(chat_id).fetch_all(&mut *tx).await?;
-    tx.commit().await?;
+        sqlx::query(
+            "DELETE FROM bot_chat_context_messages WHERE chat_id=$1 AND created_at < now() - make_interval(days => $2::int)"
+        ).bind(chat_id).bind(i32::from(retention_days)).execute(&mut *tx).await?;
+        sqlx::query(
+            "DELETE FROM bot_chat_context_messages WHERE chat_id=$1 AND id IN (SELECT id FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC OFFSET 100)"
+        ).bind(chat_id).execute(&mut *tx).await?;
+        let rows = sqlx::query_as::<_, (String,String)>(
+            "SELECT sender_role,content FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC LIMIT 10"
+        ).bind(chat_id).fetch_all(&mut *tx).await?;
+        tx.commit().await?;
+        rows
+    } else {
+        Vec::new()
+    };
+    let previous_bot_text = history
+        .iter()
+        .find(|(role, _)| role == "bot")
+        .map(|(_, content)| content.as_str())
+        .unwrap_or(original.as_str());
 
     let mut intent = crate::services::conversation::detect(&user_text);
     if intent.is_none() {
@@ -1287,8 +1305,8 @@ async fn maybe_answer_group_bot_reply(
         let follow_up = lower.starts_with("а ") || lower.starts_with("и ") || lower.starts_with("почему ")
             || lower.starts_with("а если") || lower.starts_with("а когда");
         if follow_up {
-            if let Some((_, previous_bot)) = history.iter().find(|(role, _)| role == "bot") {
-                let topic = previous_bot.to_lowercase();
+            if !previous_bot_text.is_empty() {
+                let topic = previous_bot_text.to_lowercase();
                 if topic.contains("расписан") || topic.contains("пара") {
                     intent = Some(crate::services::conversation::Intent::Tomorrow);
                 } else if topic.contains("домаш") || topic.contains("задан") {
@@ -1346,12 +1364,11 @@ async fn maybe_answer_group_bot_reply(
             crate::services::student_tools::handle(db, chat_id, actor, "/teacher", &query, None, None).await
         }
         None => {
-            let recent_bot = history.iter().find(|(role, _)| role == "bot").map(|(_, text)| text.as_str()).unwrap_or("");
-            let excerpt: String = recent_bot.chars().take(180).collect();
+            let excerpt: String = previous_bot_text.chars().take(180).collect();
             Some(if excerpt.is_empty() {
-                "Я сохранил контекст этого ответа в истории чата, но не распознал вопрос. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и аудиториями — уточни, что именно нужно.".into()
+                "Я проверил ответ, на который ты ответил, но не распознал тему нового вопроса. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и аудиториями — уточни, что именно нужно.".into()
             } else {
-                format!("Продолжаем тему моего предыдущего ответа: «{excerpt}». Уточни, какую информацию нужно найти — я умею искать расписание, ДЗ, дедлайны, преподавателей и аудитории.")
+                format!("Продолжаем тему сообщения «{excerpt}». Уточни, какую информацию нужно найти — я умею искать расписание, ДЗ, дедлайны, преподавателей и аудитории.")
             })
         }
     };
@@ -1668,6 +1685,15 @@ async fn load_schedule_rows(
     query.fetch_all(db).await.unwrap_or_default()
 }
 
+fn escape_schedule_markdown(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('_', "\\_")
+        .replace('*', "\\*")
+        .replace('`', "\\`")
+        .replace('[', "\\[")
+}
+
 pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> String {
     let now = Utc::now();
     let local_now = now.with_timezone(&moscow_offset());
@@ -1697,23 +1723,23 @@ pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> 
 
     if rows.is_empty() {
         let message = if is_today {
-            "📭 *РАСПИСАНИЕ НА СЕГОДНЯ*\\n\\nНа сегодня пары уже закончились или занятий нет. На ближайшие 30 дней новых занятий не найдено."
+            "📭 *РАСПИСАНИЕ НА СЕГОДНЯ*\n\nНа сегодня пары уже закончились или занятий нет. На ближайшие 30 дней новых занятий не найдено."
         } else if is_tomorrow {
-            "📭 *РАСПИСАНИЕ НА ЗАВТРА*\\n\\nНа завтра занятий нет, и ближайший учебный день не найден в следующих 30 днях."
+            "📭 *РАСПИСАНИЕ НА ЗАВТРА*\n\nНа завтра занятий нет, и ближайший учебный день не найден в следующих 30 днях."
         } else if command == "/next" || command == "⏭ Следующая пара" {
-            "⏭ *СЛЕДУЮЩАЯ ПАРА*\\n\\nНа ближайшие 30 дней занятий не найдено."
+            "⏭ *СЛЕДУЮЩАЯ ПАРА*\n\nНа ближайшие 30 дней занятий не найдено."
         } else if command == "/week" || command == "🗓 Неделя" {
-            "📭 *РАСПИСАНИЕ НА 7 ДНЕЙ*\\n\\nНа ближайшие семь дней занятий не найдено."
+            "📭 *РАСПИСАНИЕ НА 7 ДНЕЙ*\n\nНа ближайшие семь дней занятий не найдено."
         } else {
-            "📭 *РАСПИСАНИЕ*\\n\\nНа выбранный период занятий не найдено."
+            "📭 *РАСПИСАНИЕ*\n\nНа выбранный период занятий не найдено."
         };
-        return format!("{}\\nВозможно, расписание ещё не обновилось.", message);
+        return format!("{}\nВозможно, расписание ещё не обновилось.", message);
     }
 
     let is_next = command == "/next" || command == "⏭ Следующая пара";
     let selected = if is_next { rows.into_iter().take(1).collect::<Vec<_>>() } else { rows };
     let heading = if let Some(label) = nearest_day_label {
-        format!("📅 *РАСПИСАНИЕ НА БЛИЖАЙШИЙ УЧЕБНЫЙ ДЕНЬ*\\n{label}")
+        format!("📅 *РАСПИСАНИЕ НА БЛИЖАЙШИЙ УЧЕБНЫЙ ДЕНЬ*\n{label}")
     } else {
         match command {
             "/today" | "📅 Сегодня" => "📅 *РАСПИСАНИЕ НА СЕГОДНЯ*".to_owned(),
@@ -1723,18 +1749,18 @@ pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> 
             _ => "🎓 *РАСПИСАНИЕ*".to_owned(),
         }
     };
-    let mut output = format!("{}\\n\\n", heading);
+    let mut output = format!("{}\n\n", heading);
     if is_today && selected.iter().any(|(_, start, end, _, _)| *start <= now && *end > now) {
-        output.push_str("Сейчас идёт пара. Ниже показаны текущая и оставшиеся пары.\\n");
+        output.push_str("Сейчас идёт пара. Ниже показаны текущая и оставшиеся пары.\n");
     }
     for (subject, start, end, room, teacher) in selected {
         output.push_str(&format!(
-            "━━━━━━━━━━━━━━\\n📚 *{}*\\n🕒 {}–{}\\n📍 {}\\n👨‍🏫 {}\\n",
-            subject,
+            "━━━━━━━━━━━━━━\n📚 *{}*\n🕒 {}–{}\n📍 {}\n👨‍🏫 {}\n",
+            escape_schedule_markdown(&subject),
             moscow_time(start, "%d.%m %H:%M"),
             moscow_time(end, "%H:%M"),
-            room.unwrap_or_else(|| "Аудитория не указана".into()),
-            teacher.unwrap_or_else(|| "Преподаватель не указан".into()),
+            escape_schedule_markdown(&room.unwrap_or_else(|| "Аудитория не указана".into())),
+            escape_schedule_markdown(&teacher.unwrap_or_else(|| "Преподаватель не указан".into())),
         ));
     }
     output
@@ -2139,7 +2165,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             .any(|token| lower_message.contains(token));
         let assistant_enabled = if is_group_chat {
             sqlx::query_scalar::<_, bool>(
-                "SELECT assistant_enabled AND context_enabled FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+                "SELECT assistant_enabled FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
             ).bind(message.chat.id.0).fetch_optional(db).await.ok().flatten().unwrap_or(false)
         } else {
             true
@@ -2166,7 +2192,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                             _ => "/next",
                         };
                         Some(match selected_group(db, telegram_id, message.chat.id.0).await {
-                            Some(group_id) => schedule_text(db, group_id, command).await.replace('*', ""),
+                            Some(group_id) => schedule_text(db, group_id, command).await,
                             None => "Сначала выбери учебную группу кнопкой «Кабинет» или командой /group название. После этого я смогу отвечать по твоему расписанию.".into(),
                         })
                     }
@@ -4468,12 +4494,12 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
                 for (subject, due) in tasks {
                     let due = due.map(|value| moscow_time(value, "%d.%m %H:%M"))
                         .unwrap_or_else(|| "срок не указан".into());
-                    message.push_str(&format!("\n• {subject} · {due}"));
+                    message.push_str(&format!("\n• {} · {due}", escape_schedule_markdown(&subject)));
                 }
             }
         }
 
-        let request = bot.send_message(ChatId(chat_id), message);
+        let request = bot.send_message(ChatId(chat_id), message).parse_mode(ParseMode::Markdown);
         let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
             Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
             None => request,
