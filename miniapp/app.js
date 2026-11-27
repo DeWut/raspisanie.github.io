@@ -506,13 +506,13 @@
     const slots = groupLessonsBySlot(lessons);
     const list = $('#schedule-list');
     if (!state.schedule) {
-      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">✦</span><strong>Выбери группу</strong><p>После выбора появится расписание на день и неделю.</p></div>';
+      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">✦</span><strong>Выбери группу</strong><p>Выберите группу, чтобы открыть расписание.</p></div>';
       $('#updated-note').textContent = '';
       $('#schedule-count').textContent = '';
       return;
     }
     if (!slots.length) {
-      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">☼</span><strong>Пар нет</strong><p>На этот день занятий не найдено. Проверь данные в ЕИОС.</p></div>';
+      list.innerHTML = '<div class="empty-card"><span class="empty-illustration">☼</span><strong>Пар нет</strong><p>На этот день пар нет.</p></div>';
     } else {
       list.innerHTML = slots.map((slot, index) => lessonMarkup(slot, index, state.selectedDate)).join('');
     }
@@ -590,7 +590,7 @@
     const normalized = filter.trim().toLocaleLowerCase('ru');
     const groups = state.groups.filter((group) => String(group.name).toLocaleLowerCase('ru').includes(normalized));
     const results = $('#group-results');
-    if (!groups.length) { results.innerHTML = '<div class="empty-card"><strong>Не нашли такую группу</strong><p>Проверь обозначение или попробуй ввести часть названия.</p></div>'; return; }
+    if (!groups.length) { results.innerHTML = '<div class="empty-card"><strong>Не нашли такую группу</strong><p>Проверьте номер или название группы.</p></div>'; return; }
     results.innerHTML = groups.slice(0, 100).map((group) => `<button class="group-option${String(group.id) === String(state.schedule?.id) ? ' selected' : ''}" data-id="${escapeHtml(group.id)}"><span>${escapeHtml(group.name)}</span><small>открыть</small></button>`).join('');
     results.querySelectorAll('[data-id]').forEach((button) => button.addEventListener('click', () => selectGroup(button.dataset.id)));
   }
@@ -625,7 +625,7 @@
       $('#hero-title').textContent = 'Расписание пока недоступно';
       $('#hero-subtitle').textContent = 'Проверь подключение и обнови экран';
       $('#hero-footer-text').textContent = 'Не удалось подключиться к источнику расписания';
-      $('#schedule-list').innerHTML = '<div class="empty-card"><span class="empty-illustration">↻</span><strong>Не удалось загрузить данные</strong><p>Проверь подключение и нажми кнопку обновления. Если проблема повторится, попробуй позже.</p><button class="text-button" id="retry-load" type="button">Повторить загрузку</button></div>';
+      $('#schedule-list').innerHTML = '<div class="empty-card"><span class="empty-illustration">↻</span><strong>Не удалось загрузить расписание</strong><p>Проверьте подключение и повторите попытку.</p><button class="text-button" id="retry-load" type="button">Повторить загрузку</button></div>';
       $('#retry-load')?.addEventListener('click', () => loadData());
     }
   }
@@ -1680,7 +1680,7 @@ async function addCampusParkLayers(map) {
     if (!target) return;
     const normalized = String(query).trim().toLocaleLowerCase('ru');
     if (!state.campus?.buildings?.length) {
-      target.innerHTML = '<p class="campus-empty">Справочник корпусов пока не загружен.</p>';
+      target.innerHTML = '<p class="campus-empty">Список корпусов недоступен.</p>';
       return;
     }
     const cards = state.campus.buildings.map((building) => {
@@ -1694,7 +1694,7 @@ async function addCampusParkLayers(map) {
         <ul>${units.length ? units.map((unit) => `<li><span>${escapeHtml(unit.name)}</span><strong>${escapeHtml(unit.room || 'без номера')}</strong></li>`).join('') : '<li class="campus-no-match">Нет совпадений по подразделениям</li>'}</ul>
       </article>`;
     }).join('');
-    target.innerHTML = cards || '<p class="campus-empty">Ничего не найдено. Попробуй номер кабинета или название подразделения.</p>';
+    target.innerHTML = cards || '<p class="campus-empty">Ничего не найдено. Проверьте номер кабинета или название.</p>';
     target.querySelectorAll('.campus-building-card').forEach((card) => {
       const choose = () => selectCampusBuilding(card.dataset.building);
       card.addEventListener('click', choose);
@@ -1713,7 +1713,7 @@ async function addCampusParkLayers(map) {
       state.campus = await response.json();
       renderCampusDirectory($('#campus-search')?.value || '');
     } catch {
-      if (target) target.innerHTML = '<p class="campus-empty">Справочник недоступен. Открой приложение с интернетом хотя бы один раз, чтобы сохранить его на устройстве.</p>';
+      if (target) target.innerHTML = '<p class="campus-empty">Не удалось загрузить список кабинетов. Проверьте подключение.</p>';
     }
   }
 
