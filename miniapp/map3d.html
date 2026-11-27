@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Единая 3D-карта кампуса СПбГЛТУ</title>
+  <link rel="stylesheet" href="./vendor/maplibre-gl.css">
+  <style>
+    :root {
+      --glass: rgba(255, 255, 255, .88);
+      --ink: #1d2733;
+      --muted: #5c6773;
+      --accent: #2f6fb3;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --glass: rgba(28, 34, 42, .88); --ink: #eef2f6; --muted: #aab4bf; --accent: #7fb2ea; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #cfd8c8; }
+    #app { position: fixed; inset: 0; }
+    #map { position: absolute; inset: 0; background: linear-gradient(#8fb6de 0%, #dfeaf2 46%, #cfd8c8 100%); }
+    .hud { position: absolute; z-index: 5; }
+    .title {
+      top: calc(var(--safe-top) + 10px); left: 10px; max-width: calc(100% - 80px);
+      padding: 8px 12px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(8px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, .18);
+    }
+    .title b { display: block; font-size: 15px; }
+    .title span { color: var(--muted); font-size: 12px; }
+    .tools {
+      top: calc(var(--safe-top) + 152px); right: 10px;
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+      width: min(260px, calc(100% - 20px)); padding: 8px;
+      border: 1px solid rgba(255,255,255,.45); border-radius: 15px;
+      background: rgba(25,35,30,.48); backdrop-filter: blur(12px);
+      box-shadow: 0 4px 18px rgba(0,0,0,.22);
+    }
+    .tools[hidden] { display: none !important; }
+    .tools button, .chip, #infoBtn {
+      font: inherit; color: var(--ink); background: var(--glass); backdrop-filter: blur(8px);
+      border: 0; border-radius: 10px; padding: 7px 10px; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+      min-height: 36px;
+    }
+    .tools button { touch-action: manipulation; user-select: none; -webkit-user-select: none; font-size: 12px; }
+    .tools button[aria-pressed="true"] { outline: 2px solid var(--accent); background: rgba(255,255,255,.98); }
+    .tools button[aria-pressed="false"] { outline: 1px solid rgba(70,80,90,.16); opacity: .82; }
+    .tools button:focus-visible { outline: 3px solid var(--accent); }
+    .tools button:active, .chip:active { transform: scale(.97); }
+    #btn-controls {
+      top: calc(var(--safe-top) + 66px); right: 10px; min-width: 42px; min-height: 42px;
+      padding: 7px 12px; border-radius: 12px; font-weight: 650;
+      background: var(--glass); color: var(--ink); backdrop-filter: blur(10px);
+      border: 0; box-shadow: 0 2px 10px rgba(0,0,0,.2);
+    }
+    #btn-controls[aria-expanded="true"] { outline: 2px solid var(--accent); }
+    .chips {
+      left: 10px; right: 10px; bottom: calc(var(--safe-bottom) + 34px);
+      display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; scrollbar-width: none;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { white-space: nowrap; flex: 0 0 auto; }
+    #infoBtn {
+      left: 10px; bottom: calc(var(--safe-bottom) + 84px); width: 38px; padding: 0; font-weight: 700; display: grid; place-items: center;
+    }
+    #info {
+      left: 10px; right: 10px; bottom: calc(var(--safe-bottom) + 130px); max-height: 46vh; overflow: auto;
+      padding: 12px 14px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(8px);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, .22); font-size: 13px;
+    }
+    #info p { margin: 0 0 8px; }
+    #info .muted, .muted { color: var(--muted); }
+    .status {
+      position: absolute; z-index: 9; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      max-width: 86%; padding: 12px 16px; border-radius: 12px; background: var(--glass); text-align: center;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, .25);
+    }
+    .status.error { color: #b3261e; }
+    .stats { position: absolute; z-index: 5; left: 58px; bottom: calc(var(--safe-bottom) + 88px); right: 10px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); pointer-events: none; }
+    .bpop .maplibregl-popup-content { background: var(--glass); color: var(--ink); border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(8px); }
+    .bpop .maplibregl-popup-tip { display: none; }
+    .pop { max-height: 34vh; overflow: auto; font-size: 13px; }
+    .pop h3 { margin: 0 20px 6px 0; font-size: 15px; }
+    .pop p { margin: 0 0 6px; }
+    .pop ul { margin: 6px 0 0; padding-left: 18px; }
+    .pop a { color: var(--accent); }
+    .campus-photo { margin: 0 0 9px; }
+    .campus-photo img { display: block; width: 100%; max-height: 170px; object-fit: cover; border-radius: 8px; }
+    .campus-photo figcaption { margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .maplibregl-ctrl-attrib { font-size: 10px; }
+    .floor-open { border: 0; border-radius: 8px; padding: 8px 11px; background: #2f6fb3; color: white; font: inherit; cursor: pointer; }
+    #floorplan { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(10,18,25,.58); backdrop-filter: blur(5px); }
+    #floorplan[hidden] { display: none !important; }
+    .floorplan-card { width: min(620px, 100%); max-height: min(82vh, 760px); overflow: auto; border-radius: 16px; padding: 16px; background: var(--glass); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.32); }
+    .floorplan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .floorplan-head h3 { margin: 0 0 4px; font-size: 18px; }
+    #floorplan-close { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 7px 11px; background: rgba(100,110,120,.16); color: inherit; font: inherit; }
+    .floor-section { margin-top: 14px; }
+    .floor-section h4 { margin: 0 0 8px; font-size: 14px; }
+    .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 7px; }
+    .room-card { display: flex; flex-direction: column; gap: 4px; min-height: 62px; padding: 9px; border: 1px solid rgba(100,110,120,.2); border-radius: 10px; background: rgba(130,140,150,.08); }
+    .room-card b { font-size: 15px; }
+    .room-card span { font-size: 12px; }
+    .floor-note { margin: 14px 0 0; padding: 10px; border-radius: 9px; background: rgba(210,160,70,.13); color: var(--muted); font-size: 11px; }
+    @media (min-width: 720px) {
+      .chips { right: auto; max-width: 70%; }
+      #info { right: auto; width: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="map"></div>
+
+    <div class="hud title">
+      <b>3D-карта кампуса</b>
+      <span>СПбГЛТУ · OpenStreetMap + Overture · без API-ключей · два пальца — наклон</span>
+    </div>
+
+    <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
+    <div class="hud tools" id="tools" hidden>
+      <button id="btn-mode" type="button">Схема</button>
+      <button id="btn-3d" type="button" aria-pressed="false">Объёмы: Выкл</button>
+      <button id="btn-orbit" type="button" aria-pressed="false">Облёт</button>
+      <button id="btn-home" type="button">Сброс</button>
+    </div>
+
+    <div id="floorplan" hidden aria-hidden="true">
+      <section class="floorplan-card" role="dialog" aria-modal="true" aria-labelledby="floorplan-title">
+        <div class="floorplan-head"><div><h3 id="floorplan-title">Схема корпуса</h3><div class="muted">Кабинеты и подразделения</div></div><button id="floorplan-close" type="button" aria-label="Закрыть">Закрыть</button></div>
+        <div id="floorplan-content"></div>
+      </section>
+    </div>
+
+    <button class="hud" id="infoBtn" type="button" aria-label="О карте">i</button>
+    <div class="hud" id="info" hidden>
+      <p><b>Схема.</b> Полноценная векторная карта OpenFreeMap Bright: улицы, кварталы, здания, парки, вода и подписи. В этом режиме спутниковые снимки не подмешиваются.</p>
+      <p><b>Здания.</b> Контуры взяты из картографических данных. Высота строится только по тегу height или оценивается по числу этажей. Если высоты и этажности нет, остаётся плоский контур — без выдуманного объёма. Крыша и материал учитываются только при наличии соответствующих тегов.</p>
+      <p><b>Объекты.</b> «Объёмы: Выкл» показывает плоские контуры корпусов; «Вкл» — объёмы там, где в данных есть высота или этажность. Эти переключатели независимы от спутника и схемы.</p>
+      
+      <p><b>Кабинеты.</b> Нажмите на корпус и откройте справочную схему этажей. Она показывает только кабинеты, присутствующие в данных кампуса; точные планы помещений пока не загружены.</p>
+      <p><b>Спутник.</b> Снимки Esri World Imagery. На схеме используются картографические данные OpenStreetMap через OpenFreeMap; локальные корпуса дополнены источником Overture Maps.</p><p class="muted">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri/Maxar.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+
+    <div class="hud chips" id="chips"></div>
+    <div class="status" id="status">Строим сцену…</div>
+  </div>
+
+  <script>
+    // Показывает причину, если скрипты не подгрузились (например, страница открыта как файл).
+    (function () {
+      function show(t) { var s = document.getElementById('status'); if (s) { s.hidden = false; s.className = 'status error'; s.textContent = t; } }
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (t && t.tagName === 'SCRIPT') { show('Не загрузился скрипт ' + (t.getAttribute('src') || '') + '. Откройте страницу с сайта или через локальный сервер (python3 -m http.server), а не как отдельный файл.'); }
+      }, true);
+      setTimeout(function () {
+        if (!window.maplibregl || !window.Map3D) { show('Скрипты карты не загрузились. Откройте страницу с сайта или через локальный сервер, а не как отдельный файл.'); }
+      }, 4000);
+    })();
+  </script>
+  <script src="./vendor/maplibre-gl.js"></script>
+  <script src="./map3d-geometry.js"></script>
+  <script src="./map3d.js"></script>
+</body>
+</html>
