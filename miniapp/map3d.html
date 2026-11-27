@@ -96,6 +96,14 @@
     .floorplan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .floorplan-head h3 { margin: 0 0 4px; font-size: 18px; }
     #floorplan-close { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 7px 11px; background: rgba(100,110,120,.16); color: inherit; font: inherit; }
+    .floorplan-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 14px 0 10px; }
+    .floor-tab { min-height: 38px; border: 1px solid rgba(100,110,120,.2); border-radius: 10px; background: rgba(100,110,120,.08); color: var(--ink); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+    .floor-tab.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .floorplan-image-wrap { display: grid; place-items: center; max-height: min(60vh, 620px); overflow: auto; padding: 8px; border: 1px solid rgba(100,110,120,.18); border-radius: 12px; background: rgba(110,120,110,.07); }
+    #floorplan-image { display: block; max-width: 100%; max-height: min(58vh, 600px); width: auto; height: auto; object-fit: contain; }
+    .floorplan-actions { margin-top: 8px; text-align: right; font-size: 11px; }
+    .floorplan-actions a { color: var(--accent); }
+    #floorplan-note { margin-bottom: 0; }
     .floor-section { margin-top: 14px; }
     .floor-section h4 { margin: 0 0 8px; font-size: 14px; }
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 7px; }
@@ -129,7 +137,10 @@
     <div id="floorplan" hidden aria-hidden="true">
       <section class="floorplan-card" role="dialog" aria-modal="true" aria-labelledby="floorplan-title">
         <div class="floorplan-head"><div><h3 id="floorplan-title">Схема корпуса</h3><div class="muted">Кабинеты и подразделения</div></div><button id="floorplan-close" type="button" aria-label="Закрыть">Закрыть</button></div>
-        <div id="floorplan-content"></div>
+        <div id="floorplan-tabs" class="floorplan-tabs" role="group" aria-label="Выбор этажа"></div>
+        <div class="floorplan-image-wrap"><img id="floorplan-image" alt="" loading="lazy" decoding="async"></div>
+        <div class="floorplan-actions"><a id="floorplan-original" href="#" target="_blank" rel="noopener">Открыть изображение отдельно для увеличения ↗</a></div>
+        <p id="floorplan-note" class="floor-note"></p>
       </section>
     </div>
 
