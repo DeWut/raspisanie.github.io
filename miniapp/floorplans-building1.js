@@ -9,7 +9,7 @@
     var cx=x+w/2, cy=y+h/2, out='<g class="fp-room-shape' + (kind ? ' '+kind : '') + '">';
     out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
     if (match) {
-      var radius=Math.max(9,Math.min(15,Math.min(w,h)*.24));
+      var radius=Math.max(9,Math.min(17,Math.min(w,h)*.25));
       out += '<circle class="fp-room-number" cx="'+cx+'" cy="'+cy+'" r="'+radius+'"/>';
       out += '<text class="fp-room-number-text" x="'+cx+'" y="'+(cy+4)+'">'+esc(match[1])+'</text>';
       if (match[2]) out += '<text class="fp-room-caption" x="'+cx+'" y="'+(cy+radius+13)+'">'+esc(match[2])+'</text>';
