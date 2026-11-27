@@ -580,10 +580,10 @@ async fn handle_chat_settings_callback(
         }
     }
 
-    let row = sqlx::query_as::<_, (String,bool,bool,bool,bool,bool)>(
-        "SELECT g.name,c.daily_schedule_enabled,c.lesson_notifications_enabled,c.daily_digest_enabled,c.assistant_enabled,c.context_enabled FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1 AND c.is_active=TRUE"
+    let row = sqlx::query_as::<_, (String,bool,bool,bool,bool,bool,bool,String)>(
+        "SELECT g.name,c.daily_schedule_enabled,c.lesson_notifications_enabled,c.daily_digest_enabled,c.assistant_enabled,c.context_enabled,c.homework_autocollect_enabled,c.homework_approver_role FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1 AND c.is_active=TRUE"
     ).bind(chat_id.0).fetch_optional(&state.db).await;
-    let Ok(Some((group,daily,lessons,digest,assistant,context)))=row else {
+    let Ok(Some((group,daily,lessons,digest,assistant,context,autodz,approver)))=row else {
         bot.answer_callback_query(query.id.clone()).text("Сначала выбери группу командой /setgroup.").show_alert(true).await?;
         return Ok(true);
     };
@@ -597,7 +597,7 @@ async fn handle_chat_settings_callback(
         if context {"включён"} else {"выключен"},
     );
     bot.edit_message_text(chat_id,message.id,text)
-        .reply_markup(chat_settings_keyboard(chat_id,&group,daily,lessons,digest,assistant,context))
+        .reply_markup(chat_settings_keyboard(chat_id,&group,daily,lessons,digest,assistant,context,autodz,&approver))
         .await?;
     Ok(true)
 }
@@ -3832,14 +3832,14 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             ) {
                 "⛔ Открывать настройки учебного чата могут только администраторы Telegram.".into()
             } else {
-                let row=sqlx::query_as::<_,(String,bool,bool,bool,bool,bool)>(
-                    "SELECT g.name,c.daily_schedule_enabled,c.lesson_notifications_enabled,c.daily_digest_enabled,c.assistant_enabled,c.context_enabled FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1 AND c.is_active=TRUE"
+                let row=sqlx::query_as::<_,(String,bool,bool,bool,bool,bool,bool,String)>(
+                    "SELECT g.name,c.daily_schedule_enabled,c.lesson_notifications_enabled,c.daily_digest_enabled,c.assistant_enabled,c.context_enabled,c.homework_autocollect_enabled,c.homework_approver_role FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1 AND c.is_active=TRUE"
                 ).bind(message.chat.id.0).fetch_optional(db).await;
                 match row {
-                    Ok(Some((group,daily,lessons,digest,assistant,context))) => {
-                        let keyboard=chat_settings_keyboard(message.chat.id,&group,daily,lessons,digest,assistant,context);
-                        let text=format!("⚙️ НАСТРОЙКИ УЧЕБНОГО ЧАТА\\n\\nГруппа: {group}\\nЧасовой пояс: Москва (UTC+3)\\nЕжедневная публикация: {}\\nУведомления о парах: {}\\nДайджест: {} · 07:00 МСК\\nПомощник в ответах: {}\\nКонтекст ответов: {}",
-                            if daily{"вкл"}else{"выкл"},if lessons{"вкл"}else{"выкл"},if digest{"вкл"}else{"выкл"},if assistant{"вкл"}else{"выкл"},if context{"вкл"}else{"выкл"});
+                    Ok(Some((group,daily,lessons,digest,assistant,context,autodz,approver))) => {
+                        let keyboard=chat_settings_keyboard(message.chat.id,&group,daily,lessons,digest,assistant,context,autodz,&approver);
+                        let text=format!("⚙️ НАСТРОЙКИ УЧЕБНОГО ЧАТА\\n\\nГруппа: {group}\\nЧасовой пояс: Москва (UTC+3)\\nЕжедневная публикация: {}\\nУведомления о парах: {}\\nДайджест: {} · 07:00 МСК\\nПомощник в ответах: {}\\nКонтекст ответов: {}\nАвтосбор ДЗ: {}\nПодтверждают ДЗ: {}",
+                            if daily{"вкл"}else{"выкл"},if lessons{"вкл"}else{"выкл"},if digest{"вкл"}else{"выкл"},if assistant{"вкл"}else{"выкл"},if context{"вкл"}else{"выкл"},if autodz{"вкл"}else{"выкл"},match approver.as_str(){"class_leader"=>"староста","moderator"=>"модераторы",_=>"администраторы"});
                         bot.send_message(message.chat.id,text).reply_markup(keyboard).await?;
                         return Ok(());
                     }
