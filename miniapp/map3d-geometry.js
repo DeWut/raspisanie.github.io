@@ -239,29 +239,37 @@
 
   /* ---------- buildings ---------- */
 
-  function wallColour(props, pid) {
+  function wallColour(props) {
     if (isHex(props.styleColor)) { return props.styleColor.trim(); }
     var clad = String(props.cladding || '').toLowerCase();
-    if (/brick/.test(clad)) { return pick(WALL_BRICK, pid); }
-    if (/(concrete|panel|cement)/.test(clad)) { return pick(WALL_PANEL, pid); }
-    return pick(WALL_WARM, pid);
+    if (/brick/.test(clad)) { return '#a46f59'; }
+    if (/(concrete|panel|cement)/.test(clad)) { return '#b7b5ad'; }
+    if (/stone|limestone/.test(clad)) { return '#c6bda9'; }
+    if (/wood|timber/.test(clad)) { return '#98785e'; }
+    if (/glass/.test(clad)) { return '#748e9d'; }
+    if (/plaster|stucco/.test(clad)) { return '#d5d0c4'; }
+    return '#c8c5bb';
   }
 
-  function roofColour(props, pid, shaped) {
+  function roofColour(props) {
     if (isHex(props.roofColor)) { return props.roofColor.trim(); }
     var m = String(props.roofMaterial || '').toLowerCase();
     if (/tile/.test(m)) return '#9a5a48';
     if (/metal|steel|zinc/.test(m)) return '#6f7a82';
-    return shaped ? '#8a5b4d' : '#5f6368';
+    if (/slate/.test(m)) return '#666c72';
+    return '#85847d';
   }
 
   function heightInfo(props) {
-    if (props.heightKnown && typeof props.heightMeters === 'number') {
+    if (props.heightKnown && typeof props.heightMeters === 'number' && props.heightMeters > 0) {
       var fromLevels = /level|estimate/i.test(String(props.heightSource || ''));
       return { h: props.heightMeters, q: fromLevels ? 'levels' : 'known' };
     }
-    var type = String(props.osmBuilding || '').toLowerCase();
-    return { h: LOW_TYPES[type] ? 3.2 : DEFAULT_H, q: 'assumed' };
+    var lv = parseInt(props.levels, 10);
+    if (isFinite(lv) && lv > 0) {
+      return { h: Math.max(3.0, Math.min(60, lv * 3.2)), q: 'levels' };
+    }
+    return { h: 0, q: 'unknown' };
   }
 
   /* One window = a cream surround (a shallow solid box, a little larger than the glass)
@@ -317,7 +325,7 @@
 
     var out = {
       ground: [], solid: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
-      stats: { buildings: 0, known: 0, levels: 0, assumed: 0, windows: 0, trees: 0, dropped: 0 }
+      stats: { buildings: 0, known: 0, levels: 0, assumed: 0, unknown: 0, windows: 0, trees: 0, dropped: 0 }
     };
     var features = (scene && scene.features) || [];
     var GROUND = { 'park-boundary': 1, 'green-area': 1, water: 1, path: 1 };
@@ -386,13 +394,13 @@
       var floors = isFinite(levels) && levels > 0 ? Math.min(levels, 14) : Math.max(1, Math.round(h / FLOOR_H));
       floors = Math.min(floors, Math.max(1, Math.round(h / 2.6)));
       var fh = h / floors;
-      var wall = wallColour(props, pid);
+      var wall = wallColour(props);
       var plinth = shade(wall, 0.74);
       var ledge = lighten(wall, 0.08);
       var trim = lighten(wall, 0.2);
       var rawShape = String(props.roofShape || '').toLowerCase();
       var shaped = /^(hipped|gabled|pyramidal|half-hipped|gambrel|mansard|hip|gable)/.test(rawShape);
-      var roof = roofColour(props, pid, shaped);
+      var roof = roofColour(props);
       var camp = campusByOsm[pid];
       var isHistoric = !!(camp && camp.heritage && /ампир|empire/i.test(String(camp.heritage.style || '')));
       var base = {
@@ -420,6 +428,17 @@
         var hasHoles = rings.length > 1;
         var hullPts = hull(outer);
         var convex = !hasHoles && Math.abs(signedArea(outer)) / Math.max(1e-6, Math.abs(signedArea(hullPts))) >= 0.88;
+
+        /* Missing source height is not an invitation to invent a 3D block.
+           Keep the actual footprint and make it selectable instead. */
+        if (!(h > 0)) {
+          add(out.ground, rings, {
+            kind: 'building-footprint', pid: pid, campus: base.campus,
+            name: base.name, src: base.src, col: wall, heightQuality: 'unknown'
+          });
+          add(hl, rings, { col: '#ffd25a', z0: 0, z1: 0.18 });
+          return;
+        }
 
         // Massing. The walls are one extrusion of the real footprint including
         // courtyard holes; trims are mitred offsets so they never share a plane with the wall.
@@ -464,7 +483,7 @@
       if (!okPolys) return;
 
       out.stats.buildings++;
-      out.stats[hi.q === 'known' ? 'known' : hi.q === 'levels' ? 'levels' : 'assumed']++;
+      out.stats[hi.q === 'known' ? 'known' : hi.q === 'levels' ? 'levels' : 'unknown']++;
       out.index[pid] = base;
       out.highlight[pid] = hl;
     });
@@ -492,7 +511,7 @@
         add(out.trees, [circle(tc[0], tc[1], 0.32, 8)], { col: '#6b5640', z0: 0, z1: 2.4 });
       } else if (p.kind === 'tree-canopy') {
         var cen = centroid(ring);
-        var v = 0.85 + rnd('tree' + osmId) * 0.4;
+        var v = 1; // mapped position; crown dimensions stay explicitly illustrative
         var col = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
         mappedTreePoints.push(cen);
         TIERS.forEach(function (t) {
@@ -561,7 +580,7 @@
       });
     });
     var generatedPoints = [];
-    var generatedLimit = 720;
+    var generatedLimit = 0; // do not scatter fictional trees; retain only mapped OSM tree points
     function addIllustrativeTree(x, y, seed) {
       var radius = 3.0 + rnd(seed + '|radius') * 1.15;
       var v = 0.86 + rnd(seed + '|height') * 0.28;
