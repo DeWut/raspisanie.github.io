@@ -55,7 +55,7 @@
       (sub?'<text class="fp-hall-sub" x="'+(x+w/2)+'" y="'+(y+h/2+20)+'">'+esc(sub)+'</text>':'')+'</g>';
   }
   function buildSvg(floor,cfg) {
-    var out='<svg class="floorplan-svg" viewBox="0 0 1320 940" role="img" aria-label="Векторный план корпуса 1, этаж '+floor+'">';
+    var out='<svg class="floorplan-svg" viewBox="0 0 1320 940" role="img" aria-label="План корпуса 1, этаж '+floor+'">';
     out+='<rect width="1320" height="940" fill="#fff"/>';
     out+='<text class="fp-heading" x="48" y="48">ПЛАН '+floor+'-ГО ЭТАЖА</text>';
     out+='<text class="fp-subheading" x="48" y="73">КОРПУС № 1 · ИНСТИТУТСКИЙ ПЕРЕУЛОК, 5</text>';
@@ -65,7 +65,7 @@
     // Named areas are drawn as individual rooms above; avoid covering their room labels.
     (cfg.labels||[]).forEach(function(t){out+='<text class="fp-plan-label" x="'+t[0]+'" y="'+t[1]+'">'+esc(t[2])+'</text>';});
     out+='<g class="fp-north" transform="translate(1240 96)"><path d="M0 36V0 M-9 12L0 0 9 12"/><text x="0" y="-9">С</text></g>';
-    out+='<g class="fp-title-block"><path d="M35 866H1285 M35 866V930H1285V866 M890 866V930 M1085 866V930" /><text x="52" y="890">СПРАВОЧНЫЙ ПЛАН ЭТАЖА</text><text x="52" y="914">Кабинеты и навигация · схема по предоставленному плану</text><text x="910" y="890">КОРПУС № 1</text><text x="910" y="914">ЭТАЖ '+floor+'</text><text x="1102" y="890">МАСШТАБ</text><text x="1102" y="914">НЕ ЗАДАН</text></g>';
+    out+='<g class="fp-title-block"><path d="M35 866H1285 M35 866V930H1285V866 M890 866V930 M1085 866V930" /><text x="52" y="890">ПЛАН ЭТАЖА</text><text x="52" y="914">Кабинеты и коридоры</text><text x="910" y="890">КОРПУС № 1</text><text x="910" y="914">ЭТАЖ '+floor+'</text><text x="1102" y="890">СХЕМА</text><text x="1102" y="914">УСЛОВНО</text></g>';
     return out+'</svg>';
   }
 
@@ -175,6 +175,6 @@
   window.CAMPUS_FLOORPLANS=window.CAMPUS_FLOORPLANS||{};
   window.CAMPUS_FLOORPLANS['1']={
     floors:plans,
-    note:'Векторная перерисовка четырёх предоставленных планов корпуса № 1. Номера комнат и конфигурация крыльев перенесены с фотографий; пропорции и отдельные перегородки схематизированы, точные размеры не указаны.'
+    note:'Схема составлена по четырём планам корпуса № 1. Размеры условные.'
   };
 })();
