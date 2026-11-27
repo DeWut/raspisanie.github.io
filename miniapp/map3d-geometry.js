@@ -406,7 +406,7 @@
       var base = {
         pid: pid, name: props.name || '', hm: Math.round(h * 10) / 10, hq: hi.q,
         bt: props.osmBuilding || '', lv: props.levels || '', src: props.sourceUrl || '',
-        campus: props.campusNumber || (camp ? String(camp.number) : '')
+        campus: props.campusNumber || (camp ? String(camp.number) : ''), hs: props.heightSource || '', ds: props.dataSource || ''
       };
       function part(rings, z0, z1, col) {
         if (!rings) return;
