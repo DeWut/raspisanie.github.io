@@ -30,7 +30,7 @@ function sampleScene() {
 const campus = { buildings: [{ number: '3', osm: { id: 2 } }] };
 
 function allFeatures(out) {
-  return [].concat(out.solid, out.windows, out.trees, out.shadows, ...Object.values(out.highlight));
+  return [].concat(out.solid, out.windows, out.windowFrames, out.trees, out.shadows, ...Object.values(out.highlight));
 }
 
 test('height quality is classified from OSM data', () => {
@@ -77,6 +77,8 @@ test('courtyard buildings are not capped over the hole', () => {
 test('window budget is respected', () => {
   const out = G.buildScene(sampleScene(), campus, { maxWindows: 50 });
   assert.ok(out.windows.length <= 50);
+  assert.ok(out.windowFrames.length <= 50);
+  assert.ok(out.windowFrames.length > 0, 'window frames should be generated alongside glazing');
 });
 
 test('degenerate and random input does not throw or produce NaN', () => {
