@@ -111,6 +111,15 @@ switch ($Action) {
         Write-Host '  2/3  Downloading static timetable files for the website...' -ForegroundColor Cyan
         $python = Get-Command python -ErrorAction SilentlyContinue
         if (-not $python) { Write-Host '  [ERR] Python 3 is not in PATH. PostgreSQL was synced; GitHub was not updated.' -ForegroundColor Red; exit 1 }
+        Push-Location $repoRoot
+        try {
+            & $python.Source -c "import requests, bs4" *> $null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host '  Python packages are missing; installing requirements.txt...' -ForegroundColor Yellow
+                & $python.Source -m pip install -r 'requirements.txt'
+                if ($LASTEXITCODE -ne 0) { Write-Host '  [ERR] Could not install Python requirements.' -ForegroundColor Red; exit 1 }
+            }
+        } finally { Pop-Location }
         $exportStartedAt = Get-Date
         Push-Location $repoRoot
         try { & $python.Source 'update_schedule.py' '--delay' '1'; $scrapeExit = $LASTEXITCODE }
