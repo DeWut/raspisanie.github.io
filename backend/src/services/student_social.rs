@@ -132,6 +132,101 @@ pub async fn handle_callback(
             );
             bot.answer_callback_query(query.id.clone()).await?;
 
+            // Inline-mode messages have no private chat context. Actions that
+            // need text input or the multi-step dating flow are continued in a
+            // regular private-chat message, where Telegram can deliver replies.
+            if action == "pc:name" || action == "pc:cancel" || action.starts_with("dating:") {
+                let private_chat = ChatId(actor);
+                let placeholder = match bot
+                    .send_message(private_chat, "Открываю раздел в личном чате…")
+                    .await
+                {
+                    Ok(message) => message,
+                    Err(error) => {
+                        tracing::warn!(
+                            action = action,
+                            actor = actor,
+                            "Could not open private continuation for inline callback: {}",
+                            error
+                        );
+                        bot.answer_callback_query(query.id.clone())
+                            .text("Сначала открой личный чат с ботом командой /start, затем повтори действие.")
+                            .show_alert(true)
+                            .await?;
+                        return Ok(true);
+                    }
+                };
+
+                let result = if action.starts_with("dating:") {
+                    dating_action(
+                        bot,
+                        db,
+                        actor,
+                        private_chat,
+                        placeholder.id,
+                        action,
+                        admin_id,
+                    )
+                    .await
+                } else {
+                    profile_action(
+                        bot,
+                        db,
+                        actor,
+                        private_chat,
+                        placeholder.id,
+                        action,
+                    )
+                    .await
+                };
+
+                if let Err(error) = result {
+                    tracing::error!(
+                        action = action,
+                        actor = actor,
+                        "Could not continue inline action in private chat: {}",
+                        error
+                    );
+                    let _ = bot
+                        .edit_message_text(
+                            private_chat,
+                            placeholder.id,
+                            "Не удалось открыть раздел. Попробуй ещё раз через /profile или /dating.",
+                        )
+                        .await;
+                }
+
+                let status = if action == "pc:name" {
+                    "✏️ Отправил запрос на изменение имени в личный чат с ботом."
+                } else if action.starts_with("dating:") {
+                    "💚 Раздел знакомств открыт в личном чате с ботом. Продолжай там."
+                } else {
+                    "Личный кабинет открыт в личном чате с ботом."
+                };
+                let inline_keyboard = InlineKeyboardMarkup::new(vec![vec![
+                    button("👤 Личный кабинет", "pc:open"),
+                    button("🏠 Меню", "ui:main"),
+                ]]);
+                if let Err(error) = bot
+                    .edit_message_text_inline(inline_message_id, status)
+                    .reply_markup(inline_keyboard)
+                    .await
+                {
+                    if !error.to_string().contains("message is not modified") {
+                        tracing::warn!(
+                            action = action,
+                            "Could not update source inline message after private continuation: {}",
+                            error
+                        );
+                    }
+                }
+                tracing::info!(
+                    action = action,
+                    "Student social inline action continued in private chat"
+                );
+                return Ok(true);
+            }
+
             let screen = if action == "pc:open" {
                 Some(Ok(cabinet_screen(db, actor).await))
             } else if action == "pc:groups" || action.starts_with("pc:groups:") {
