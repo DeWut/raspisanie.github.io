@@ -145,6 +145,11 @@
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL)' }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
+  // Recalculate the map viewport after its parent navigation dialog becomes visible.
+  window.addEventListener('resize', function () {
+    if (map) map.resize();
+  });
+
   function setBuildingMode(on) {
     buildings3D = !!on;
     var btn = $('btn-3d');
