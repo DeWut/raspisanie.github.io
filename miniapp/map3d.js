@@ -677,9 +677,7 @@
     floorPlanZoom = 1;
     var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
     var units = building.units || [];
-    var html = '<label class="room-search-label" for="floor-room-search">Поиск корпуса и аудиторий</label>';
-    html += '<input id="floor-room-search" class="floor-room-search" type="search" autocomplete="off" placeholder="Номер аудитории или кафедра" value="' + esc(floorPlanSearchQuery) + '">';
-    html += '<div id="room-search-results" class="room-search-results" hidden></div>';
+    var html = '';
 
     if (custom && custom.floors && custom.floors[activeFloorNumber]) {
       var plan = custom.floors[activeFloorNumber];
@@ -699,13 +697,11 @@
           html += '<button type="button" class="room-card" data-room-card="' + esc(unit.room || '') + '" data-room-select="' + esc(unit.room || '') + '"><b>' + esc(unit.room || 'Этаж ' + activeFloorNumber) + '</b><span>' + esc(unit.name) + '</span></button>';
         });
         html += '</div>';
-      } else {
-        html += '<p class="muted">Кабинеты этого этажа пока не внесены в справочник.</p>';
       }
-      html += '</section><p class="floor-note">' + esc(custom.note) + '</p>';
+      if (assigned.length) html += '</section>';
+      html += '<p class="floor-note">Схема по предоставленному плану. Размеры условные.</p>';
       content.innerHTML = html;
       fitFloorPlanDrawing();
-      renderRoomSearchResults(building);
       if (selectedFloorRoom) selectRoomInPlan(selectedFloorRoom);
       return;
     }
@@ -786,34 +782,19 @@
     var box = $('campus-search-results');
     if (!box) return;
     box.innerHTML = '';
-    var rawValue = String(query || '').trim();
-    var value = rawValue.toLocaleLowerCase('ru');
-    var normalizedValue = normalizeRoom(rawValue);
+    var value = String(query || '').trim().toLocaleLowerCase('ru');
     if (value.length < 1) { box.hidden = true; return; }
     var results = [];
     ((campusData && campusData.buildings) || []).forEach(function (building) {
       var buildingText = [building.name, 'корпус ' + building.number, building.address].join(' ').toLocaleLowerCase('ru');
       if (buildingText.indexOf(value) !== -1) {
-        results.push({ building: building, room: '', title: building.name || ('Корпус № ' + building.number), subtitle: building.address || 'Открыть сведения о корпусе' });
+        results.push({ building: building, title: building.name || ('Корпус № ' + building.number), subtitle: building.address || 'Сведения о корпусе' });
       }
-      (building.units || []).forEach(function (unit) {
-        var text = [unit.room, unit.name].join(' ').toLocaleLowerCase('ru');
-        var roomMatches = normalizedValue && normalizeRoom(unit.room).indexOf(normalizedValue) !== -1;
-        if (roomMatches || text.indexOf(value) !== -1 || String(unit.name || '').toLocaleLowerCase('ru').indexOf(value) !== -1) {
-          var roomLocation = isRoomLocation(unit.room) ? unit.room : '';
-          results.push({
-            building: building,
-            room: roomLocation,
-            title: isNumberedRoom(unit.room) ? 'Аудитория ' + unit.room : (unit.name || unit.room || 'Подразделение'),
-            subtitle: (unit.room ? unit.room + ' · ' : '') + building.name
-          });
-        }
-      });
     });
     results = results.slice(0, 10);
     box.hidden = false;
     if (!results.length) {
-      box.textContent = 'Ничего не найдено. Попробуйте номер аудитории или корпуса.';
+      box.textContent = 'Корпус не найден.';
       return;
     }
     results.forEach(function (result) {
@@ -821,7 +802,6 @@
       button.type = 'button';
       button.className = 'campus-search-result';
       button.setAttribute('data-search-building', String(result.building.number));
-      if (result.room) button.setAttribute('data-search-room', result.room);
       var title = document.createElement('b');
       title.textContent = result.title;
       var subtitle = document.createElement('span');
@@ -840,15 +820,10 @@
     if (isFinite(coordinate[0]) && isFinite(coordinate[1])) {
       map.flyTo({ center: coordinate, zoom: 18.2, pitch: buildings3D ? 48 : 0, duration: 750 });
     }
-    var room = button.getAttribute('data-search-room') || '';
-    if (room) {
-      openFloorPlan(building.number, floorForRoom(room) || undefined, room);
-    } else {
-      selectCampusBuilding(building, coordinate);
-    }
+    selectCampusBuilding(building, coordinate);
     var input = $('campus-search-input');
     var box = $('campus-search-results');
-    if (input) input.value = room || building.name || '';
+    if (input) input.value = building.name || '';
     if (box) box.hidden = true;
   }
 
@@ -983,11 +958,6 @@
     if (floorClose) floorClose.addEventListener('click', closeFloorPlan);
     var floorContent = $('floorplan-content');
     if (floorContent) {
-      floorContent.addEventListener('input', function (event) {
-        if (event.target && event.target.id === 'floor-room-search' && activeFloorBuilding) {
-          renderRoomSearchResults(activeFloorBuilding);
-        }
-      });
       floorContent.addEventListener('click', function (event) {
         var tab = event.target.closest('[data-floor-select]');
         if (tab && activeFloorBuilding) {
