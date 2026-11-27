@@ -53,7 +53,7 @@ pub fn detect(text: &str) -> Option<Intent> {
         return Some(Intent::FreeRooms(time_in(&text)));
     }
 
-    if has_any(&text, &["преподавател", "препод", "кто ведет", "когда у"])
+    if has_any(&text, &["преподавател", "препод", "кто ведет", "когда у", "занятия у", "пары у"])
         && text.split_whitespace().count() >= 2
     {
         let query = text
@@ -76,7 +76,7 @@ pub fn detect(text: &str) -> Option<Intent> {
     if has_any(&text, &["дедлайн", "срок сдач", "когда сда", "что сдать", "надо сдать", "сроки"]) {
         return Some(Intent::Deadlines);
     }
-    if has_any(&text, &["домашн", "дз", "задали", "задание", "задания", "домашка"])
+    if has_any(&text, &["домашн", "домашк", "дз", "задали", "задание", "задания", "домашка"])
         && has_any(&text, &["какое", "какие", "покажи", "есть", "задан", "дз", "домашн", "что"])
     {
         return Some(Intent::Homework);
@@ -95,7 +95,7 @@ pub fn detect(text: &str) -> Option<Intent> {
     if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия"]) {
         return Some(Intent::Today);
     }
-    if has_any(&text, &["привет", "здравствуй", "здаров", "барни", "барней", "спбфту"]) {
+    if has_any(&text, &["привет", "здравствуй", "здаров", "доброе утро", "добрый день", "добрый вечер", "барни", "барней", "спбфту"]) {
         return Some(Intent::Greeting);
     }
     if has_any(&text, &["помощь", "что умеешь", "что можешь", "как пользоваться", "команды", "меню"]) {
@@ -120,5 +120,10 @@ mod tests {
         assert_eq!(detect("Привет, какое ДЗ?"), Some(Intent::Homework));
         assert_eq!(detect("А какое домашнее задание задали?"), Some(Intent::Homework));
         assert_eq!(detect("Что задали по улв?"), Some(Intent::Homework));
+        assert_eq!(detect("Покажи домашку"), Some(Intent::Homework));
+        assert_eq!(detect("Какие занятия у Иванова?"), Some(Intent::Teacher("иванова".into())));
+        assert_eq!(detect("Во сколько у нас пара?"), Some(Intent::Today));
+        assert_eq!(detect("Добрый вечер!"), Some(Intent::Greeting));
+        assert_eq!(detect("Когда сдавать домашку?"), Some(Intent::Deadlines));
     }
 }
