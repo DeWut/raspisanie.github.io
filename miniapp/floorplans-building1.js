@@ -56,7 +56,7 @@
     (cfg.corridors||[]).forEach(function(c){out+=corridor(c[0],c[1],c[2],c[3],!!c[4]);});
     (cfg.rooms||[]).forEach(function(r){out+=room(r[0],r[1],r[2],r[3],r[4],r[5]);});
     (cfg.stairs||[]).forEach(function(s){out+=stairs(s[0],s[1],s[2],s[3],!!s[4]);});
-    (cfg.halls||[]).forEach(function(h){out+=hall(h[0],h[1],h[2],h[3],h[4],h[5]);});
+    // Named areas are drawn as individual rooms above; avoid covering their room labels.
     (cfg.labels||[]).forEach(function(t){out+='<text class="fp-plan-label" x="'+t[0]+'" y="'+t[1]+'">'+esc(t[2])+'</text>';});
     out+='<g class="fp-north" transform="translate(1240 96)"><path d="M0 36V0 M-9 12L0 0 9 12"/><text x="0" y="-9">С</text></g>';
     out+='<g class="fp-legend"><rect x="35" y="884" width="1250" height="38" rx="9"/><rect class="fp-legend-room" x="54" y="895" width="28" height="16"/><text x="92" y="908">помещение</text><rect class="fp-legend-corridor" x="220" y="895" width="42" height="16"/><text x="272" y="908">коридор</text><rect class="fp-stairs-swatch" x="420" y="894" width="30" height="18"/><text x="460" y="908">лестница</text><text x="760" y="908">Схематическая перерисовка, не технический план</text></g>';
