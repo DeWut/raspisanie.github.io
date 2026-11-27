@@ -2266,6 +2266,14 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     if command == "/start" {
         if is_group_chat {
             reply(&bot, db, &message, "Я помогу с расписанием и заданиями этой группы. Администратор может настроить её командой /setgroup. Личные настройки открой в чате с ботом: /start".into(), &state.config.webapp_url).await?;
+        } else if argument == "dating_edit" {
+            crate::services::student_social::open_dating_editor(
+                &bot,
+                db,
+                message.chat.id,
+                telegram_id,
+            )
+            .await?;
         } else {
             start_onboarding(&bot, &state, &message).await?;
         }
