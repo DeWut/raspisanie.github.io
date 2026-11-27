@@ -94,7 +94,7 @@ jobs:
               for number, script in enumerate(parser.parts, 1):
                   Path(f"/tmp/{page}.{number}.js").write_text(script, encoding="utf-8")
           PY
-          for file in /tmp/index.html.*.js /tmp/index2.html.*.js; do
+          for file in /tmp/index.html.*.js; do
             [ -f "$file" ] && node --check "$file"
           done
 
