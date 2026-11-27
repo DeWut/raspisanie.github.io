@@ -234,8 +234,9 @@ test('named arboretum polygons generate clustered trees while respecting paths',
     }]
   };
   const out = G.buildScene(garden, null);
-  assert.strictEqual(out.stats.trees, 0, 'woodland polygons do not prove individual tree locations');
-  assert.strictEqual(out.trees.length, 0, 'do not invent tree points from vegetation polygons');
+  assert.strictEqual(out.stats.trees, 0, 'unnamed woodland polygons do not imply tree locations');
+  assert.strictEqual(out.stats.estimatedTrees, 0, 'only named arboretums receive explicitly estimated placements');
+  assert.strictEqual(out.trees.length, 0, 'do not invent tree points from generic vegetation polygons');
   const pathY = 0;
   for (const f of out.trees) {
     if (f.properties.z0 === 0) {   // trunks mark the planting point
@@ -256,6 +257,16 @@ test('ground polygons are normalized even when OSM rings have mixed winding', ()
   const polygon = out.ground[0].geometry.coordinates;
   assert.ok(areaOf(polygon[0]) > 0);
   assert.ok(areaOf(polygon[1]) < 0);
+});
+
+test('window frames are built from four narrow members rather than a solid backing slab', () => {
+  const out = G.buildScene(sampleScene(), campus);
+  const frameWidths = out.windowFrames.map(f => {
+    const ring = f.geometry.coordinates[0].slice(0, -1);
+    const xs = ring.map(p => p[0]);
+    return Math.max(...xs) - Math.min(...xs);
+  });
+  assert.ok(frameWidths.some(w => w < 0.00001), 'narrow frame members should remain distinct');
 });
 
 test('window budget is respected', () => {
