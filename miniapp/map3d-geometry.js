@@ -308,7 +308,7 @@
         var cx = a[0] + ux * (start + k * spacing);
         var cy = a[1] + uy * (start + k * spacing);
         for (var floor = 0; floor < floors; floor++) {
-          if (glass.length >= cap) return;
+          if (glass.length + 2 > cap) return;
           var z = floor * floorHeight + Math.max(0.32, (floorHeight - windowHeight) * 0.52);
           var outerDepth0 = 0.015, outerDepth1 = 0.095;
           var paneDepth0 = 0.095, paneDepth1 = 0.125;
@@ -317,16 +317,16 @@
           var sideX = (paneWidth + bar) / 2;
 
           // Four separate frame members, not a solid beige slab behind the glass.
-          add(frames, [panel(cx - sideX, cy, bar, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z, z1: z + windowHeight });
-          add(frames, [panel(cx + sideX, cy, bar, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z, z1: z + windowHeight });
+          add(frames, [panel(cx - ux * sideX, cy - uy * sideX, bar, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z, z1: z + windowHeight });
+          add(frames, [panel(cx + ux * sideX, cy + uy * sideX, bar, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z, z1: z + windowHeight });
           add(frames, [panel(cx, cy, frameWidth, outerDepth0, outerDepth1)], { pid: pid, col: '#cbbda5', z0: z, z1: z + bar });
           add(frames, [panel(cx, cy, frameWidth, outerDepth0, outerDepth1)], { pid: pid, col: '#b9ad98', z0: z + windowHeight - bar, z1: z + windowHeight });
 
           // Recessed dark glazing with a narrow central mullion.
           var halfPane = (paneWidth - 0.07) / 2;
-          add(glass, [panel(cx - (halfPane + 0.035) / 2, cy, halfPane, paneDepth0, paneDepth1)],
+          add(glass, [panel(cx - ux * (halfPane + 0.035) / 2, cy - uy * (halfPane + 0.035) / 2, halfPane, paneDepth0, paneDepth1)],
             { pid: pid, col: '#263c4a', z0: paneZ, z1: paneZ + paneH });
-          add(glass, [panel(cx + (halfPane + 0.035) / 2, cy, halfPane, paneDepth0, paneDepth1)],
+          add(glass, [panel(cx + ux * (halfPane + 0.035) / 2, cy + uy * (halfPane + 0.035) / 2, halfPane, paneDepth0, paneDepth1)],
             { pid: pid, col: '#314d5d', z0: paneZ, z1: paneZ + paneH });
           add(frames, [panel(cx, cy, 0.055, paneDepth0, paneDepth1)],
             { pid: pid, col: '#8d887d', z0: paneZ, z1: paneZ + paneH });
@@ -526,9 +526,27 @@
     features.forEach(function (f) {
       var p = f && f.properties;
       if (!p || !f.geometry) return;
+      if (p.kind === 'tree-trunk' && f.geometry.type === 'Polygon') {
+        var trunkRing = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
+        if (trunkRing.length >= 3) add(out.trees, [trunkRing], { col: '#6b5640', z0: 0, z1: 2.4 });
+      }
       if (p.kind === 'tree-canopy' && f.geometry.type === 'Polygon') {
         var rr = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
-        if (rr.length >= 3) mappedTreeCenters.push(centroid(rr));
+        if (rr.length >= 3) {
+          var mappedCenter = centroid(rr);
+          mappedTreeCenters.push(mappedCenter);
+          var mappedHeight = Number(p.heightMeters) > 0 ? Number(p.heightMeters) : 6.5;
+          var mappedScale = Math.max(0.75, Math.min(1.35, mappedHeight / 6.5));
+          var mappedColour = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
+          TIERS.forEach(function (tier) {
+            add(out.trees, [scaleAbout(rr, tier.f * mappedScale, tier.f * mappedScale, mappedCenter[0], mappedCenter[1])],
+              { col: lighten(mappedColour, tier.l), z0: tier.z0 * mappedScale, z1: tier.z1 * mappedScale });
+          });
+          var mappedShadow = rr.map(function (q) { return [q[0] + sx * TREE_SHADOW, q[1] + sy * TREE_SHADOW]; });
+          add(out.shadows, [hull(rr.concat(mappedShadow))], { k: 't' });
+          out.stats.trees++;
+          out.stats.mappedTrees++;
+        }
       }
       if (p.kind === 'path' && f.geometry.type === 'LineString') {
         var line = f.geometry.coordinates.map(P.toM);
