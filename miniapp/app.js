@@ -275,10 +275,11 @@
       select.disabled = state.control.managedChats.length === 0;
       commandSelect.disabled = state.control.managedChats.length === 0;
       empty.hidden = state.control.managedChats.length > 0;
-      editor.hidden = state.control.managedChats.length === 0;
       if (!state.control.managedChats.length) {
         select.add(new Option('Нет доступных чатов', ''));
         state.control.selectedChatId = '';
+        editor.hidden = true;
+        $('#managed-chat-readonly').hidden = true;
         return;
       }
       const previous = state.control.selectedChatId;
@@ -320,6 +321,15 @@
     const chatId = selectedManagedChatId();
     if (!chatId || !hasTelegramAccountApi()) return;
     const status = $('#managed-chat-status');
+    const selected = state.control.managedChats.find((chat) => String(chat.chat_id) === chatId);
+    if (selected && !selected.can_manage) {
+      $('#managed-chat-editor').hidden = true;
+      $('#managed-chat-readonly').hidden = false;
+      status.textContent = 'Членство в учебном чате доступно. Для изменения настроек нужны права администратора Telegram.';
+      return;
+    }
+    $('#managed-chat-editor').hidden = false;
+    $('#managed-chat-readonly').hidden = true;
     status.textContent = 'Загружаем настройки из Neon…';
     try {
       const settings = await accountApi('/api/me/chats/' + encodeURIComponent(chatId) + '/settings');
