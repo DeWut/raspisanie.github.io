@@ -4363,13 +4363,17 @@ pub async fn run(state: Arc<AppState>) {
 /// Delivers opt-in daily schedule posts and 10-minute lesson reminders to configured group chats.
 /// Delivery rows are reserved before sending to prevent duplicate messages across worker ticks.
 async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
-    let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate, Option<i64>)>(
+    let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate, Option<i64>, bool)>(
         r#"
-        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date, c.message_thread_id
+        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date, c.message_thread_id, c.daily_digest_enabled
         FROM bot_chat_settings c
         WHERE c.is_active = TRUE
-          AND c.daily_schedule_enabled = TRUE
-          AND c.daily_schedule_time <= (now() AT TIME ZONE 'Europe/Moscow')::time
+          AND (c.daily_schedule_enabled = TRUE OR c.daily_digest_enabled = TRUE)
+          AND CASE
+                WHEN c.daily_schedule_enabled AND c.daily_digest_enabled THEN LEAST(c.daily_schedule_time,c.daily_digest_time)
+                WHEN c.daily_digest_enabled THEN c.daily_digest_time
+                ELSE c.daily_schedule_time
+              END <= (now() AT TIME ZONE 'Europe/Moscow')::time
           AND NOT EXISTS (
               SELECT 1 FROM bot_chat_daily_posts p
               WHERE p.chat_id = c.chat_id
@@ -4385,7 +4389,7 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         Vec::new()
     });
 
-    for (chat_id, group_id, local_date, thread_id) in daily_chats {
+    for (chat_id, group_id, local_date, thread_id, digest_enabled) in daily_chats {
         let reserved = sqlx::query(
             r#"
             INSERT INTO bot_chat_daily_posts (chat_id, local_date, sent_at)
@@ -4406,7 +4410,8 @@ async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
         }
 
         let text = schedule_text(&state.db, group_id, "/today").await;
-        let message = format!("📢 Ежедневное расписание учебной группы\n\n{}", text);
+        let title = if digest_enabled { "📬 Ежедневный дайджест учебной группы" } else { "📢 Ежедневное расписание учебной группы" };
+        let message = format!("{}\\n\\n{}", title, text);
         let request = bot.send_message(ChatId(chat_id), message);
         let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
             Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
