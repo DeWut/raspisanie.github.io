@@ -44,7 +44,7 @@ jobs:
       - name: Apply migrations to an empty database
         run: cargo sqlx migrate run --source backend/migrations
 
-      - name: Verify all 16 tables, vector extension and indexes
+      - name: Verify core tables, bot/social tables, vector extension and indexes
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
@@ -53,7 +53,12 @@ jobs:
               'sync_metadata','groups','teachers','rooms','lessons','users',
               'rag_documents','rag_chunks','group_tasks','user_task_progress',
               'team_projects','team_applications','queue_sessions','queue_entries',
-              'help_board','moodle_deadlines'
+              'help_board','moodle_deadlines',
+              'bot_user_profiles','bot_dating_profiles','bot_dating_swipes',
+              'bot_dating_matches','bot_dating_blocks','bot_dating_reports',
+              'bot_dating_seen_profiles','bot_dating_browse_state',
+              'bot_chat_settings','bot_chat_members','bot_chat_daily_deliveries',
+              'bot_notification_worker_state','bot_notification_delivery_log'
             ];
             missing text[];
           BEGIN
@@ -77,6 +82,12 @@ jobs:
               WHERE schemaname='public' AND indexname='idx_groups_name_trgm'
             ) THEN
               RAISE EXCEPTION 'GIN trigram index missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname='public' AND indexname='idx_bot_dating_seen_recent'
+            ) THEN
+              RAISE EXCEPTION 'Dating browse-history index missing';
             END IF;
           END $$;
           SQL
