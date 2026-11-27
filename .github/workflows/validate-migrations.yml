@@ -1,6 +1,13 @@
 name: Validate database migrations
 
 on:
+  push:
+    branches:
+      - main
+      - feature/smart-campus-step-1
+    paths:
+      - 'backend/migrations/**'
+      - '.github/workflows/validate-migrations.yml'
   workflow_dispatch:
   pull_request:
     paths:
