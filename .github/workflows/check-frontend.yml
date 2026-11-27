@@ -29,6 +29,8 @@ jobs:
       - name: Check Mini App and offline scripts
         run: |
           node --check miniapp/app.js
+          node --check miniapp/map3d.js
+          node --check miniapp/map3d-geometry.js
           node --check service-worker.js
           node --check scripts/prepare-mobile.mjs
 
