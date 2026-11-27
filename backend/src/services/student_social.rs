@@ -26,6 +26,26 @@ fn nav(action: &str) -> Vec<InlineKeyboardButton> {
     vec![button("⬅️ Назад", action), button("🏠 Меню", "ui:main")]
 }
 
+async fn edit_screen(
+    bot: &Bot,
+    chat_id: ChatId,
+    message_id: MessageId,
+    text: String,
+    keyboard: InlineKeyboardMarkup,
+) -> SocialResult<()> {
+    match bot
+        .edit_message_text(chat_id, message_id, text)
+        .reply_markup(keyboard)
+        .await
+    {
+        Ok(_) => Ok(()),
+        // Repeated taps can request an identical screen. Telegram reports this
+        // as an API error even though the desired screen is already displayed.
+        Err(error) if error.to_string().contains("message is not modified") => Ok(()),
+        Err(error) => Err(Box::new(error)),
+    }
+}
+
 pub async fn open_cabinet(
     bot: &Bot,
     db: &PgPool,
@@ -167,9 +187,7 @@ async fn profile_action(
             cabinet_keyboard(),
         )
     };
-    bot.edit_message_text(chat_id, message_id, text)
-        .reply_markup(keyboard)
-        .await?;
+    edit_screen(bot, chat_id, message_id, text, keyboard).await?;
     Ok(())
 }
 
@@ -231,11 +249,13 @@ async fn groups_screen(db: &PgPool, page: i64) -> SocialResult<(String, InlineKe
     if page > 0 {
         paging.push(button("◀️ Назад", format!("pc:groups:{}", page - 1)));
     }
-    paging.push(button(format!("Страница {}/{}", page + 1, pages), "pc:groups:0"));
     if page + 1 < pages {
         paging.push(button("Далее ▶️", format!("pc:groups:{}", page + 1)));
     }
-    keyboard.push(paging);
+    // Page number is shown in the message text rather than as an inert button.
+    if !paging.is_empty() {
+        keyboard.push(paging);
+    }
     keyboard.push(vec![
         button("⬅️ В кабинет", "pc:open"),
         button("🏠 Меню", "ui:main"),
@@ -609,9 +629,7 @@ async fn dating_action(
         )
     };
 
-    bot.edit_message_text(chat_id, message_id, text)
-        .reply_markup(keyboard)
-        .await?;
+    edit_screen(bot, chat_id, message_id, text, keyboard).await?;
     if let Some((target, message_text)) = notification {
         let _ = bot
             .send_message(ChatId(target), message_text)
