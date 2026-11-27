@@ -511,7 +511,7 @@
     if (camp && ['1', '2'].indexOf(String(camp.number)) !== -1) {
       html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей</button></p>';
     }
-external map links    return html + '</div>';
+    return html + '</div>';
   }
 
   function clearSelection() {
