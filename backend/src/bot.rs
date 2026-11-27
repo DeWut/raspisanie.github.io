@@ -4640,6 +4640,58 @@ async fn schedule_change_tick(bot: &Bot, state: &Arc<AppState>) {
                 }
             }
         }
+
+        let group_chats = sqlx::query_as::<_, (i64, Option<i64>)>(
+            r#"
+            SELECT c.chat_id,c.message_thread_id
+            FROM bot_chat_settings c
+            WHERE c.group_id=$1 AND c.is_active=TRUE
+              AND c.schedule_changes_enabled=TRUE
+              AND NOT EXISTS(
+                SELECT 1 FROM bot_schedule_change_deliveries d
+                WHERE d.change_id=$2 AND d.recipient_kind='group' AND d.recipient_id=c.chat_id
+              )
+            ORDER BY c.chat_id
+            "#
+        )
+        .bind(group_id)
+        .bind(change_id)
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+
+        for (chat_id, thread_id) in group_chats {
+            let reserved = sqlx::query(
+                "INSERT INTO bot_schedule_change_deliveries(change_id,recipient_kind,recipient_id) VALUES($1,'group',$2) ON CONFLICT DO NOTHING",
+            )
+            .bind(change_id)
+            .bind(chat_id)
+            .execute(&state.db)
+            .await
+            .map(|row| row.rows_affected() == 1)
+            .unwrap_or(false);
+            if !reserved { continue; }
+
+            let request = bot.send_message(ChatId(chat_id), &text);
+            let request = match thread_id.and_then(|id| i32::try_from(id).ok()) {
+                Some(id) => request.message_thread_id(ThreadId(MessageId(id))),
+                None => request,
+            };
+            match request.await {
+                Ok(_) => record_notification_delivery(&state.db,"schedule_change","group",chat_id,true,None).await,
+                Err(error) => {
+                    let detail = error.to_string();
+                    record_notification_delivery(&state.db,"schedule_change","group",chat_id,false,Some(&detail)).await;
+                    let _ = sqlx::query(
+                        "DELETE FROM bot_schedule_change_deliveries WHERE change_id=$1 AND recipient_kind='group' AND recipient_id=$2",
+                    )
+                    .bind(change_id)
+                    .bind(chat_id)
+                    .execute(&state.db)
+                    .await;
+                }
+            }
+        }
     }
 }
 
