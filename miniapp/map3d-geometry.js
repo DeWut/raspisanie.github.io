@@ -346,11 +346,30 @@
         var hullPts = hull(outer);
         var convex = !hasHoles && Math.abs(signedArea(outer)) / Math.max(1e-6, Math.abs(signedArea(hullPts))) >= 0.88;
 
-        // One continuous wall extrusion only. Do not create thin
-        // full-footprint extrusions for plinths/floor bands: fill-extrusion
-        // renders those as horizontal slabs through the whole building,
-        // which caused the beige striped surfaces seen at close zoom.
-        part(rings, 0, h, wall);
+        // Build facades as narrow extruded strips along every exterior and
+        // courtyard edge. Extruding the entire footprint as a wall volume
+        // also creates a huge horizontal top cap; on complex OSM multipolygons
+        // that cap can appear as the beige slab seen in close-up screenshots.
+        // Narrow wall strips preserve vertical facades without filling the
+        // whole building footprint.
+        var wallWidth = 0.24;
+        rings.forEach(function (ring) {
+          for (var wi = 0; wi < ring.length; wi++) {
+            var wa = ring[wi], wb = ring[(wi + 1) % ring.length];
+            var wdx = wb[0] - wa[0], wdy = wb[1] - wa[1];
+            var wlen = Math.sqrt(wdx * wdx + wdy * wdy);
+            if (wlen < 0.45) continue;
+            var wnx = -wdy / wlen * wallWidth / 2;
+            var wny = wdx / wlen * wallWidth / 2;
+            var wallStrip = [
+              [wa[0] + wnx, wa[1] + wny],
+              [wb[0] + wnx, wb[1] + wny],
+              [wb[0] - wnx, wb[1] - wny],
+              [wa[0] - wnx, wa[1] - wny]
+            ];
+            part([wallStrip], 0, h, wall);
+          }
+        });
 
         // Roofs retain the original footprint and all courtyard holes.
         // Only explicitly tagged, convex roofs receive a restrained stepped
