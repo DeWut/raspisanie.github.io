@@ -2382,6 +2382,38 @@ async function addCampusParkLayers(map) {
       }
     });
     $('#settings-save')?.addEventListener('click', () => void saveMiniAppSettings());
+    document.querySelectorAll('[data-control-tab]').forEach((button) => {
+      button.addEventListener('click', () => switchControlPane(button.dataset.controlTab));
+    });
+    $('#managed-chat-select')?.addEventListener('change', () => {
+      state.control.selectedChatId = $('#managed-chat-select').value;
+      if ($('#command-chat-select')) $('#command-chat-select').value = state.control.selectedChatId;
+      void loadManagedChatSettings();
+    });
+    $('#command-chat-select')?.addEventListener('change', () => {
+      state.control.selectedChatId = $('#command-chat-select').value;
+    });
+    $('#managed-chat-settings-save')?.addEventListener('click', () => void saveManagedChatSettings());
+    $('#managed-chat-group-save')?.addEventListener('click', () => void saveManagedChatGroup());
+    $('#group-command-form')?.addEventListener('submit', (event) => void runGroupCommand(event));
+    $('#group-command-name')?.addEventListener('change', updateGroupCommandHint);
+    document.querySelectorAll('[data-group-command]').forEach((button) => {
+      button.addEventListener('click', () => {
+        $('#group-command-name').value = button.dataset.groupCommand;
+        updateGroupCommandHint();
+        $('#group-command-argument').focus();
+      });
+    });
+    $('#assistant-form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void askAssistant($('#assistant-input').value);
+    });
+    document.querySelectorAll('[data-assistant-prompt]').forEach((button) => {
+      button.addEventListener('click', () => void askAssistant(button.dataset.assistantPrompt));
+    });
+    $('#notification-refresh')?.addEventListener('click', () => void loadNotificationHealth());
+    $('#notification-test')?.addEventListener('click', () => void sendNotificationTest());
+
     document.querySelectorAll('[data-view-toggle]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewToggle)));
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
     $('#week-prev')?.addEventListener('click', () => { state.selectedDate = new Date(weekStart(state.selectedDate)); state.selectedDate.setUTCDate(state.selectedDate.getUTCDate() - 7); renderAll(); });
@@ -2508,6 +2540,7 @@ async function addCampusParkLayers(map) {
     await loadTeacherDirectory();
     await loadData();
     if (hasTelegramAccountApi()) await loadMiniAppAccount();
+    updateGroupCommandHint();
     else {
       const note = !tg?.initData
         ? 'Открой Mini App через Telegram, чтобы настройки привязались к аккаунту.'
