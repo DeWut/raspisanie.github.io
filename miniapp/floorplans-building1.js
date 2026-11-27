@@ -65,7 +65,7 @@
     // Named areas are drawn as individual rooms above; avoid covering their room labels.
     (cfg.labels||[]).forEach(function(t){out+='<text class="fp-plan-label" x="'+t[0]+'" y="'+t[1]+'">'+esc(t[2])+'</text>';});
     out+='<g class="fp-north" transform="translate(1240 96)"><path d="M0 36V0 M-9 12L0 0 9 12"/><text x="0" y="-9">С</text></g>';
-    out+='<g class="fp-title-block"><path d="M35 866H1285 M35 866V930H1285V866 M890 866V930 M1085 866V930" /><text x="52" y="890">ПЛАН ЭТАЖА</text><text x="52" y="914">Кабинеты и коридоры</text><text x="910" y="890">КОРПУС № 1</text><text x="910" y="914">ЭТАЖ '+floor+'</text><text x="1102" y="890">СХЕМА</text><text x="1102" y="914">УСЛОВНО</text></g>';
+    out+='<g class="fp-title-block"><path d="M35 866H1285 M35 866V930H1285V866 M890 866V930 M1085 866V930" /><text x="52" y="890">ПЛАН ЭТАЖА</text><text x="52" y="914">Кабинеты и коридоры</text><text x="910" y="890">КОРПУС № 1</text><text x="910" y="914">ЭТАЖ '+floor+'</text><text x="1102" y="890">МАСШТАБ</text><text x="1102" y="914">УСЛОВНЫЙ</text></g>';
     return out+'</svg>';
   }
 
