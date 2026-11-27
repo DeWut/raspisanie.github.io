@@ -141,7 +141,14 @@ pub async fn handle_callback(
             {
                 let private_chat = ChatId(actor);
                 if action == "pc:cancel" {
-                    clear_flow(db, actor, actor).await?;
+                    if let Err(error) = clear_flow(db, actor, actor).await {
+                        tracing::error!("Could not clear private profile input flow: {}", error);
+                        bot.answer_callback_query(query.id.clone())
+                            .text("Не удалось отменить ввод. Попробуй ещё раз.")
+                            .show_alert(true)
+                            .await?;
+                        return Ok(true);
+                    }
                     let (screen, keyboard) = cabinet_screen(db, actor).await;
                     let _ = bot.send_message(private_chat, screen).reply_markup(keyboard).await;
                 } else {
@@ -162,7 +169,15 @@ pub async fn handle_callback(
                     let placeholder = bot.send_message(private_chat, prompt).await;
                     if let Ok(message) = placeholder {
                         if let Some(flow) = flow {
-                            start_flow(db, actor, actor, flow, message.id).await?;
+                            if let Err(error) = start_flow(db, actor, actor, flow, message.id).await {
+                                tracing::error!(action = action, "Could not start private input flow: {}", error);
+                                let _ = bot.delete_message(private_chat, message.id).await;
+                                bot.answer_callback_query(query.id.clone())
+                                    .text("Не удалось начать ввод. Попробуй ещё раз.")
+                                    .show_alert(true)
+                                    .await?;
+                                return Ok(true);
+                            }
                         }
                     } else {
                         bot.answer_callback_query(query.id.clone())
@@ -1055,7 +1070,7 @@ async fn start_flow(
 }
 
 async fn clear_flow(db: &PgPool, chat_id: i64, actor: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow IN ('cabinet_name','dating_name','dating_bio')").bind(chat_id).bind(actor).execute(db).await?;
+    sqlx::query("DELETE FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow IN ('cabinet_name','dating_name','dating_bio','dating_photo')").bind(chat_id).bind(actor).execute(db).await?;
     Ok(())
 }
 
@@ -1072,36 +1087,50 @@ pub async fn handle_text_flow(
     let flow=sqlx::query_as::<_,(String,serde_json::Value)>("SELECT flow,payload FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow IN ('cabinet_name','dating_name','dating_bio','dating_photo') AND expires_at>now()")
         .bind(actor).bind(actor).fetch_optional(db).await?;
     let Some((flow, payload)) = flow else {
-        // A dating photo is an explicit action from the private bot chat.
-        // Accept only an actual photo from the user; store Telegram file_id,
-        // never download or expose a public image URL.
-        if let Some(photo) = message.photo().and_then(|photos| photos.last()) {
-            let pending = sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS(SELECT 1 FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow='dating_photo' AND expires_at>now())"
-            ).bind(actor).bind(actor).fetch_one(db).await?;
-            if !pending { return Ok(false); }
-            sqlx::query("UPDATE bot_dating_profiles SET photo_file_id=$2,updated_at=now() WHERE telegram_id=$1 AND age_confirmed_at IS NOT NULL AND is_active=TRUE")
-                .bind(actor).bind(&photo.file.id.0).execute(db).await?;
-            clear_flow(db, actor, actor).await?;
-            bot.send_message(
-                message.chat.id,
-                "✅ Фото анкеты сохранено. Оно будет показываться только в разделе знакомств.",
-            )
-            .reply_markup(InlineKeyboardMarkup::new(vec![vec![
-                button("💚 Моя анкета", "dating:profile"),
-                button("🗑 Удалить фото", "dating:photo:delete"),
-            ], nav("pc:open")]))
-            .await?;
-            return Ok(true);
-        }
         return Ok(false);
     };
     let source_id = payload["message_id"].as_i64().unwrap_or_default();
+
+    // Photo upload is accepted only while the user is in the explicit dating_photo flow.
     if flow == "dating_photo" {
-        bot.send_message(message.chat.id, "Пришли изображение именно как фото, не как файл. Для отмены отправь /cancel.")
+        if let Some(photo) = message.photo().and_then(|photos| photos.last()) {
+            let saved = sqlx::query(
+                "UPDATE bot_dating_profiles SET photo_file_id=$2,updated_at=now() WHERE telegram_id=$1 AND age_confirmed_at IS NOT NULL AND is_active=TRUE"
+            )
+            .bind(actor)
+            .bind(photo.file.id.to_string())
+            .execute(db)
             .await?;
+            clear_flow(db, actor, actor).await?;
+            if saved.rows_affected() == 0 {
+                bot.send_message(message.chat.id, "Сначала создай анкету знакомств и подтверди возраст, затем повтори загрузку фото.")
+                    .await?;
+                return Ok(true);
+            }
+            bot.send_message(
+                message.chat.id,
+                "✅ Фото анкеты сохранено. Оно будет использоваться в карточках знакомств. Чтобы заменить фото, снова нажми «Фото анкеты».",
+            )
+            .reply_markup(InlineKeyboardMarkup::new(vec![
+                vec![button("💚 Моя анкета", "dating:profile")],
+                vec![button("🗑 Удалить фото", "dating:photo:delete")],
+                nav("pc:open"),
+            ]))
+            .await?;
+            return Ok(true);
+        }
+        if text.trim().eq_ignore_ascii_case("/cancel") {
+            clear_flow(db, actor, actor).await?;
+            bot.send_message(message.chat.id, "Загрузка фото отменена.")
+                .reply_markup(InlineKeyboardMarkup::new(vec![vec![button("💚 Моя анкета", "dating:profile")]]))
+                .await?;
+        } else {
+            bot.send_message(message.chat.id, "Пришли изображение именно как фото, не как файл. Для отмены отправь /cancel.")
+                .await?;
+        }
         return Ok(true);
     }
+
     if text.trim().eq_ignore_ascii_case("/cancel") {
         clear_flow(db, actor, actor).await.ok();
         let (screen, kb) = if flow == "cabinet_name" {
