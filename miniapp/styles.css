@@ -623,3 +623,8 @@ button { font-family: inherit; }
 .campus-map-building-photo img {
     max-height: min(20dvh, 150px);
   }
+
+/* Unified procedural 3D campus map embedded as the only map experience. */
+.map-dialog { width:min(1200px,calc(100vw - 12px)); height:min(96dvh,1000px); max-height:calc(100dvh - 12px); padding:10px; }
+.map-dialog > .campus-map-frame { display:block; flex:1 1 auto; width:100%; min-height:0; border:0; border-radius:14px; background:#dfe6d3; }
+@media(max-width:520px) { .map-dialog { width:calc(100vw - 8px); height:calc(100dvh - 8px); max-height:calc(100dvh - 8px); padding:6px; } .map-dialog > .campus-map-frame { border-radius:10px; } }
