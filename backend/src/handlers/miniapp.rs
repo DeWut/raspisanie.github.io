@@ -592,33 +592,56 @@ pub async fn assistant_chat(
                 .await.unwrap_or_else(|| "Не удалось найти преподавателя.".into()),
         ),
         None => {
-            let followup = prompt.to_lowercase().starts_with("а ")
-                || prompt.to_lowercase().starts_with("и ")
-                || prompt.to_lowercase().starts_with("почему ")
-                || prompt.to_lowercase().starts_with("а если");
-            let previous = if followup {
-                sqlx::query_scalar::<_, String>(
-                    "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='assistant' ORDER BY id DESC LIMIT 1",
-                )
-                .bind(telegram_id)
-                .fetch_optional(&state.db)
-                .await?
+            let lower = prompt.to_lowercase().replace("ё", "е");
+            let smalltalk = if lower.contains("как дела") || lower.contains("как ты") {
+                Some("Работаю штатно и готов помочь с учёбой. А у тебя что по расписанию?")
+            } else if lower == "спасибо" || lower.starts_with("спасибо ") || lower.contains("благодарю") {
+                Some("Пожалуйста. Обращайся, когда понадобится расписание, ДЗ или помощь с дедлайнами.")
+            } else if lower == "пока" || lower.contains("до свидания") || lower.contains("до встречи") {
+                Some("Пока! Удачи с учёбой. Я буду здесь, когда понадобится помощь.")
+            } else if lower.contains("кто ты") || lower.contains("что ты умеешь") {
+                Some("Я учебный помощник SPBFTUIT. Работаю с расписанием, следующими парами, домашними заданиями, дедлайнами, преподавателями и свободными аудиториями.")
+            } else if lower.contains("доброе утро") {
+                Some("Доброе утро! Могу проверить расписание на сегодня и ближайшие пары.")
+            } else if lower.contains("добрый вечер") {
+                Some("Добрый вечер! Могу помочь проверить задания и расписание на завтра.")
             } else {
                 None
             };
-            let response = if let Some(previous) = previous {
-                let topic = previous.to_lowercase();
-                if topic.contains("расписан") || topic.contains("пара") {
-                    "Понял продолжение вопроса о расписании. Уточни день: сегодня, завтра или вся неделя.".to_owned()
-                } else if topic.contains("домаш") || topic.contains("задан") || topic.contains("дз") {
-                    "Продолжим про задания. Напиши предмет или уточни, какие сроки тебя интересуют.".to_owned()
-                } else {
-                    "Я могу поддерживать короткий диалог по учебным вопросам, но не являюсь универсальным чат-ботом. Спроси про расписание, ДЗ, дедлайны, преподавателей или аудитории.".to_owned()
-                }
+            if let Some(response) = smalltalk {
+                ("conversation", response.to_owned())
             } else {
-                "Я учебный помощник, поэтому храню только короткий контекст, связанный с учёбой. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и свободными аудиториями.".to_owned()
-            };
-            ("conversation", response)
+                let followup = lower.starts_with("а ")
+                    || lower.starts_with("и ")
+                    || lower.starts_with("почему ")
+                    || lower.starts_with("а если")
+                    || lower.starts_with("а когда");
+                let previous = if followup {
+                    sqlx::query_scalar::<_, String>(
+                        "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='assistant' ORDER BY id DESC LIMIT 1",
+                    )
+                    .bind(telegram_id)
+                    .fetch_optional(&state.db)
+                    .await?
+                } else {
+                    None
+                };
+                let response = if let Some(previous) = previous {
+                    let topic = previous.to_lowercase();
+                    if topic.contains("расписан") || topic.contains("пара") {
+                        "Понял продолжение вопроса о расписании. Уточни день: сегодня, завтра или вся неделя.".to_owned()
+                    } else if topic.contains("домаш") || topic.contains("задан") || topic.contains("дз") {
+                        "Продолжим про задания. Напиши предмет или уточни, какие сроки тебя интересуют.".to_owned()
+                    } else if topic.contains("дедлайн") || topic.contains("срок") {
+                        "Продолжим про сроки. Уточни предмет или напиши «ближайшие дедлайны».".to_owned()
+                    } else {
+                        "Я могу поддерживать короткий диалог по учебным вопросам. Спроси про расписание, ДЗ, дедлайны, преподавателей или аудитории.".to_owned()
+                    }
+                } else {
+                    "Я учебный помощник, поэтому храню только короткий контекст, связанный с учёбой. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и свободными аудиториями.".to_owned()
+                };
+                ("conversation", response)
+            }
         }
     };
 
