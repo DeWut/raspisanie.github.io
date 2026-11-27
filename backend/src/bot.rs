@@ -762,9 +762,17 @@ async fn handle_ui_callback(
 
     // Telegram's callback spinner is always dismissed before editing the screen.
     bot.answer_callback_query(query.id.clone()).await?;
-    bot.edit_message_text(message.chat.id, message.id, text)
+    match bot
+        .edit_message_text(message.chat.id, message.id, text)
         .reply_markup(ui_keyboard(screen, reminders_enabled, reminder_minutes))
-        .await?;
+        .await
+    {
+        Ok(_) => {}
+        // A repeated tap may lead to the same screen and markup. That is
+        // already the desired state, not a broken callback.
+        Err(error) if error.to_string().contains("message is not modified") => {}
+        Err(error) => return Err(error),
+    }
     Ok(())
 }
 
