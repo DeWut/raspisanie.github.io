@@ -63,7 +63,7 @@ jobs:
               'help_board','moodle_deadlines',
               'bot_user_profiles','bot_dating_profiles','bot_dating_swipes',
               'bot_dating_matches','bot_dating_blocks','bot_dating_reports',
-              'bot_dating_seen_profiles','bot_dating_browse_state',
+              'bot_dating_seen_profiles','bot_dating_browse_state','bot_dating_ui_messages',
               'bot_chat_settings','bot_chat_members','bot_chat_daily_deliveries',
               'bot_notification_worker_state','bot_notification_delivery_log'
             ];
@@ -95,6 +95,12 @@ jobs:
               WHERE schemaname='public' AND indexname='idx_bot_dating_seen_recent'
             ) THEN
               RAISE EXCEPTION 'Dating browse-history index missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname='public' AND indexname='idx_bot_dating_ui_messages_chat'
+            ) THEN
+              RAISE EXCEPTION 'Dating UI message index missing';
             END IF;
           END $$;
           SQL
