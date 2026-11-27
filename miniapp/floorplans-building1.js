@@ -5,7 +5,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); }
   function room(x, y, w, h, label, kind) {
     var t = label == null ? '' : String(label).trim();
-    var match = t.match(/^(\\d+[А-Яа-яA-Za-z]?)\\s*(?:[·:]\\s*(.*))?$/);
+    var match = t.match(/^(\d+[А-Яа-яA-Za-z]?)\s*(?:[·:]\s*(.*))?$/);
     var cx=x+w/2, cy=y+h/2, out='<g class="fp-room-shape' + (kind ? ' '+kind : '') + '">';
     out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
     if (match) {
