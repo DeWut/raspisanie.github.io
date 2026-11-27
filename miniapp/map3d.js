@@ -134,7 +134,7 @@
     map = new maplibregl.Map({
       container: 'map', style: buildStyle(),
       center: HOME.center, zoom: HOME.zoom, pitch: HOME.pitch, bearing: HOME.bearing,
-      minZoom: 14, maxZoom: 19.3, maxPitch: 68,
+      minZoom: 14, maxZoom: 20.5, maxPitch: 80,
       maxBounds: [[30.318, 59.982], [30.362, 60.004]],
       attributionControl: false
     });
