@@ -494,7 +494,8 @@
       });
       html += '</ul></section>';
     }
-    if (camp && camp.units && camp.units.length) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей и кабинеты</button></p>';
+    var availablePlans = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(camp && camp.number)];
+    if (camp && availablePlans && availablePlans.floors) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей</button></p>';
     if (camp && camp.officialSource && /^https?:\/\//.test(camp.officialSource)) {
       html += '<p class="muted"><a href="' + esc(camp.officialSource) + '" target="_blank" rel="noopener noreferrer">На официальной карте университета</a></p>';
     }
