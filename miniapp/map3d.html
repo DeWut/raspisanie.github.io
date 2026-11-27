@@ -29,6 +29,12 @@
     }
     .title b { display: block; font-size: 15px; }
     .title span { color: var(--muted); font-size: 12px; }
+    .provider-link {
+      top: calc(var(--safe-top) + 112px); left: 10px; z-index: 6;
+      display: inline-flex; align-items: center; min-height: 38px; padding: 7px 11px;
+      border-radius: 11px; background: var(--glass); color: var(--ink); text-decoration: none;
+      box-shadow: 0 2px 10px rgba(0,0,0,.2); font-size: 12px; font-weight: 650;
+    }
     .tools {
       top: calc(var(--safe-top) + 152px); right: 10px;
       display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
@@ -101,10 +107,10 @@
 
     <div class="hud title">
       <b>3D-карта кампуса</b>
-      <span>СПбГЛТУ · OpenStreetMap · без API-ключей · два пальца — наклон</span>
+      <span>СПбГЛТУ · OpenStreetMap · спутниковая подложка · два пальца — наклон</span>
     </div>
 
-    <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
+    <a class="hud provider-link" href="./map3d-2gis.html">Реальные 3D-здания · 2ГИС ↗</a>\n\n    <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
     <div class="hud tools" id="tools" hidden>
       <button id="btn-mode" type="button">Схема</button>
       <button id="btn-shadow" type="button" aria-pressed="true">Тени: Вкл</button>
@@ -116,8 +122,8 @@
 
     <button class="hud" id="infoBtn" type="button" aria-label="О карте">i</button>
     <div class="hud" id="info" hidden>
-      <p><b>Что это.</b> 3D-сцена кампуса, собранная в браузере из данных OpenStreetMap (контуры зданий, деревья, дорожки, вода). Работает без Google, Яндекса, 2GIS и без ключей.</p>
-      <p><b>Что реальное, а что нет.</b> Контуры и высоты (где они есть в OSM) — реальные данные. Окна, карнизы, цоколи, цвета стен, ступенчатые крыши и кроны деревьев — стилизация, это не фотограмметрия. Если высота в OSM не указана, здание показано условной высотой, и карточка здания это отмечает.</p>
+      <p><b>Что это.</b> Схематичная 3D-сцена кампуса из данных OpenStreetMap (контуры зданий, дорожки, вода и растительные зоны). Для просмотра реальной 3D-картографии откройте отдельный режим 2ГИС.</p>
+      <p><b>Что реально, а что схематично.</b> Контуры и отмеченные высоты — данные OSM. Окна, карнизы, цоколи, часть крыш и дополнительные кроны деревьев — иллюстративная стилизация, а не точная реконструкция.</p>
       <p><b>Подложка.</b> «Спутник» — тайлы Esri World Imagery (без ключа, нужна ссылка на источник). Режим «Схема» полностью автономный.</p>
       <p class="muted">Окна появляются при приближении. Данные: © OpenStreetMap contributors (ODbL).</p>
     </div>
