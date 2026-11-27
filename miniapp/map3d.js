@@ -366,7 +366,7 @@
     var panel = $('floorplan'), tabs = $('floorplan-tabs'), note = $('floorplan-note');
     var canvas = $('interior-canvas'), button2d = $('interior-2d'), button3d = $('interior-3d');
     if (!building || !plan || !window.InteriorModel || !panel || !tabs || !canvas || !note) return;
-    title = $('floorplan-title');
+    var title = $('floorplan-title');
     title.textContent = building.name + ' · ' + plan.title;
     tabs.innerHTML = '';
     var activeFloor = 1, mode = '2d';
