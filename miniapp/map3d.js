@@ -364,7 +364,7 @@
   function showStats(s) {
     var el = $('stats');
     if (!el) { return; }
-    el.textContent = 'Зданий на карте: ' + s.buildings + ' · деревьев: ' + s.trees;
+    el.textContent = 'Зданий на карте: ' + s.buildings + ' · деревьев: ' + s.trees + ' (' + (s.mappedTrees || 0) + ' OSM, ' + (s.estimatedTrees || 0) + ' оценочно в дендропарках)';
   }
 
   function whenStyleReady() {
