@@ -586,6 +586,7 @@ struct Candidate {
     name: String,
     bio: String,
     tags: Vec<String>,
+    photo_file_id: Option<String>,
 }
 
 async fn dating_action(
@@ -898,9 +899,9 @@ fn candidate_text(candidate: &Candidate) -> String {
 }
 
 async fn next_candidate(db: &PgPool, actor: i64) -> Option<Candidate> {
-    sqlx::query_as::<_,(i64,String,String,Vec<String>)>(
-        "SELECT p.telegram_id,p.display_name,p.bio,p.tags FROM bot_dating_profiles own CROSS JOIN bot_dating_profiles p WHERE own.telegram_id=$1 AND own.is_active=TRUE AND own.is_paused=FALSE AND own.age_confirmed_at IS NOT NULL AND p.telegram_id<>own.telegram_id AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes s WHERE s.from_telegram_id=own.telegram_id AND s.to_telegram_id=p.telegram_id) AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=own.telegram_id AND b.blocked_telegram_id=p.telegram_id) OR (b.blocker_telegram_id=p.telegram_id AND b.blocked_telegram_id=own.telegram_id)) AND NOT EXISTS(SELECT 1 FROM bot_dating_matches m WHERE m.status='active' AND ((m.user1_telegram_id=own.telegram_id AND m.user2_telegram_id=p.telegram_id) OR (m.user1_telegram_id=p.telegram_id AND m.user2_telegram_id=own.telegram_id))) ORDER BY (SELECT count(*) FROM unnest(own.tags) tag WHERE tag=ANY(p.tags)) DESC,p.updated_at DESC LIMIT 1"
-    ).bind(actor).fetch_optional(db).await.ok().flatten().map(|(id,name,bio,tags)|Candidate{id,name,bio,tags})
+    sqlx::query_as::<_,(i64,String,String,Vec<String>,Option<String>)>(
+        "SELECT p.telegram_id,p.display_name,p.bio,p.tags,p.photo_file_id FROM bot_dating_profiles own CROSS JOIN bot_dating_profiles p WHERE own.telegram_id=$1 AND own.is_active=TRUE AND own.is_paused=FALSE AND own.age_confirmed_at IS NOT NULL AND p.telegram_id<>own.telegram_id AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes s WHERE s.from_telegram_id=own.telegram_id AND s.to_telegram_id=p.telegram_id) AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=own.telegram_id AND b.blocked_telegram_id=p.telegram_id) OR (b.blocker_telegram_id=p.telegram_id AND b.blocked_telegram_id=own.telegram_id)) AND NOT EXISTS(SELECT 1 FROM bot_dating_matches m WHERE m.status='active' AND ((m.user1_telegram_id=own.telegram_id AND m.user2_telegram_id=p.telegram_id) OR (m.user1_telegram_id=p.telegram_id AND m.user2_telegram_id=own.telegram_id))) ORDER BY (SELECT count(*) FROM unnest(own.tags) tag WHERE tag=ANY(p.tags)) DESC,p.updated_at DESC LIMIT 1"
+    ).bind(actor).fetch_optional(db).await.ok().flatten().map(|(id,name,bio,tags,photo_file_id)|Candidate{id,name,bio,tags,photo_file_id})
 }
 
 async fn profile_short(db: &PgPool, id: i64) -> Option<(String, String)> {
@@ -977,7 +978,7 @@ async fn incoming_like_card(
         text,
         InlineKeyboardMarkup::new(vec![
             vec![button("💚 Ответить лайком", format!("dating:like:{liker}"))],
-            vec![button("Следующий лайк ▶️", "dating:likes:next")],
+            vec![button("Следующий лайк ▶️", "dating:likes:1")],
             nav("dating:profile"),
         ]),
         None,
@@ -1068,7 +1069,7 @@ pub async fn handle_text_flow(
     if !message.chat.is_private() {
         return Ok(false);
     }
-    let flow=sqlx::query_as::<_,(String,serde_json::Value)>("SELECT flow,payload FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow IN ('cabinet_name','dating_name','dating_bio') AND expires_at>now()")
+    let flow=sqlx::query_as::<_,(String,serde_json::Value)>("SELECT flow,payload FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow IN ('cabinet_name','dating_name','dating_bio','dating_photo') AND expires_at>now()")
         .bind(actor).bind(actor).fetch_optional(db).await?;
     let Some((flow, payload)) = flow else {
         // A dating photo is an explicit action from the private bot chat.
@@ -1096,6 +1097,11 @@ pub async fn handle_text_flow(
         return Ok(false);
     };
     let source_id = payload["message_id"].as_i64().unwrap_or_default();
+    if flow == "dating_photo" {
+        bot.send_message(message.chat.id, "Пришли изображение именно как фото, не как файл. Для отмены отправь /cancel.")
+            .await?;
+        return Ok(true);
+    }
     if text.trim().eq_ignore_ascii_case("/cancel") {
         clear_flow(db, actor, actor).await.ok();
         let (screen, kb) = if flow == "cabinet_name" {
