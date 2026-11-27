@@ -11,19 +11,22 @@
   };
   function roomLayout(floor) {
     var ids = FLOOR_DATA[floor].rooms, cells = [], i = 0;
-    // Long upper and lower wings, plus the two side wings visible on the paper plans.
-    function addRow(x,y,count,cellW,cellH,vertical) {
-      for (var n=0;n<count && i<ids.length;n++,i++) {
-        var col = vertical ? 0 : n, row = vertical ? n : 0;
-        cells.push({id:ids[i],x:x+col*cellW,y:y+row*cellH,w:cellW,h:cellH});
-      }
+    var topCount = Math.ceil(ids.length * 0.36);
+    var bottomCount = Math.ceil(ids.length * 0.36);
+    var sideCount = Math.ceil((ids.length - topCount - bottomCount) / 2);
+    function row(count, x, y, dx, w, h) {
+      for (var n=0;n<count && i<ids.length;n++,i++) cells.push({id:ids[i],x:x+n*dx,y:y,w:w,h:h});
     }
-    var topCount=Math.ceil(ids.length*.34), bottomCount=Math.ceil(ids.length*.34);
-    addRow(90,55,topCount,62,48,false);
-    addRow(90,430,bottomCount,62,48,false);
-    var remaining=ids.length-i, leftCount=Math.ceil(remaining/2);
-    addRow(40,120,leftCount,62,48,true);
-    addRow(650,120,remaining-leftCount,62,48,true);
+    function side(count, x, y, dy, w, h) {
+      for (var n=0;n<count && i<ids.length;n++,i++) cells.push({id:ids[i],x:x,y:y+n*dy,w:w,h:h});
+    }
+    // The supplied plans show a perimeter/courtyard arrangement: long north and south wings,
+    // joined by narrower east and west wings. This keeps the model's topology recognizable.
+    var topW = 720 / topCount, bottomW = 720 / bottomCount;
+    row(topCount, 140, 55, topW, topW-3, 72);
+    row(bottomCount, 140, 505, bottomW, bottomW-3, 72);
+    side(sideCount, 42, 145, 54, 82, 51);
+    side(ids.length-i, 876, 145, 54, 82, 51);
     return cells;
   }
   function draw(canvas, floor, mode) {
