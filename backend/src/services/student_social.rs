@@ -362,7 +362,7 @@ pub async fn handle_callback(
                 // editor payload; /start dating_edit then opens the tracked screen.
                 if action == "dating:edit" {
                     let redirect_button = match bot.get_me().await {
-                        Ok(me) => me.username.and_then(|username| {
+                        Ok(me) => me.username.as_ref().and_then(|username| {
                             url::Url::parse(&format!("https://t.me/{username}?start=dating_edit"))
                                 .ok()
                                 .map(|url| InlineKeyboardButton::url("✏️ Открыть редактор", url))
@@ -1339,7 +1339,7 @@ async fn incoming_like_card(
     let card = sqlx::query_as::<_, (String, String, Vec<String>, Option<String>)>(
         "SELECT p.display_name,p.bio,p.tags,p.photo_file_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
     ).bind(actor).bind(liker).fetch_optional(db).await?;
-    let Some((name, bio, tags, photo_file_id)) = card else {
+    let Some((name, bio, tags, _photo_file_id)) = card else {
         return Ok((
             "Этот лайк больше недоступен.".into(),
             InlineKeyboardMarkup::new(vec![nav("dating:likes")]),
