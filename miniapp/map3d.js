@@ -811,6 +811,55 @@
     });
     var floorButton = mine.getElement().querySelector('[data-open-floorplan]');
     if (floorButton) floorButton.addEventListener('click', function () { openFloorPlan(floorButton.getAttribute('data-open-floorplan')); });
+    var floorContent = $('floorplan-content');
+    if (floorContent) {
+      floorContent.addEventListener('input', function (event) {
+        if (event.target && event.target.id === 'floor-room-search' && activeFloorBuilding) {
+          renderRoomSearchResults(activeFloorBuilding);
+        }
+      });
+      floorContent.addEventListener('click', function (event) {
+        var tab = event.target.closest('[data-floor-select]');
+        if (tab && activeFloorBuilding) {
+          floorPlanSearchQuery = '';
+          renderFloorPlan(activeFloorBuilding, Number(tab.getAttribute('data-floor-select')), '');
+          updateFloorRoute(activeFloorBuilding, activeFloorNumber, '');
+          return;
+        }
+        var roomButton = event.target.closest('[data-room-select]');
+        if (roomButton && activeFloorBuilding) {
+          var room = roomButton.getAttribute('data-room-select');
+          var targetFloor = Number(roomButton.getAttribute('data-room-floor')) || floorForRoom(room);
+          if (targetFloor && targetFloor !== activeFloorNumber) {
+            renderFloorPlan(activeFloorBuilding, targetFloor, room);
+          } else {
+            selectRoomInPlan(room);
+          }
+          return;
+        }
+        var roomShape = event.target.closest('[data-room]');
+        if (roomShape && activeFloorBuilding) {
+          selectRoomInPlan(roomShape.getAttribute('data-room'));
+          return;
+        }
+        var zoom = event.target.closest('[data-floor-zoom]');
+        if (zoom) {
+          var action = zoom.getAttribute('data-floor-zoom');
+          floorPlanZoom = action === 'reset' ? 1 : Math.max(1, Math.min(3, floorPlanZoom + Number(action) * 0.25));
+          var drawing = floorContent.querySelector('.floorplan-drawing');
+          if (drawing) drawing.style.width = (floorPlanFitWidth * floorPlanZoom) + '%';
+          var zoomValue = floorContent.querySelector('[data-floor-zoom-value]');
+          if (zoomValue) zoomValue.textContent = Math.round(floorPlanZoom * 100) + '%';
+        }
+      });
+      floorContent.addEventListener('keydown', function (event) {
+        var roomShape = event.target.closest && event.target.closest('[data-room]');
+        if (roomShape && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          selectRoomInPlan(roomShape.getAttribute('data-room'));
+        }
+      });
+    }
     mine.on('close', function () {
       if (popup === mine) {
         popup = null;
@@ -901,23 +950,7 @@
     }
     var floorClose = $('floorplan-close');
     if (floorClose) floorClose.addEventListener('click', closeFloorPlan);
-    var floorContent = $('floorplan-content');
-    if (floorContent) floorContent.addEventListener('click', function (event) {
-      var tab = event.target.closest('[data-floor-select]');
-      if (tab && activeFloorBuilding) {
-        renderFloorPlan(activeFloorBuilding, Number(tab.getAttribute('data-floor-select')));
-        return;
-      }
-      var zoom = event.target.closest('[data-floor-zoom]');
-      if (zoom) {
-        var action = zoom.getAttribute('data-floor-zoom');
-        floorPlanZoom = action === 'reset' ? 1 : Math.max(1, Math.min(3, floorPlanZoom + Number(action) * 0.25));
-        var drawing = floorContent.querySelector('.floorplan-drawing');
-        if (drawing) drawing.style.width = (floorPlanFitWidth * floorPlanZoom) + '%';
-        var zoomValue = floorContent.querySelector('[data-floor-zoom-value]');
-        if (zoomValue) zoomValue.textContent = Math.round(floorPlanZoom * 100) + '%';
-      }
-    });
+
     window.addEventListener('resize', function () {
       var panel = $('floorplan');
       if (panel && !panel.hidden) fitFloorPlanDrawing();
@@ -968,6 +1001,7 @@
     scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
     syncSceneData();
     buildCampusMarkers();
+    openFloorPlanFromLocation();
     showStats(scene.stats);
     setStatus('');
     if (campusData && campusData.map && campusData.map.center) { HOME.center = campusData.map.center; }
