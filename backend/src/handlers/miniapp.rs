@@ -747,6 +747,11 @@ pub async fn send_notification_test(
             .bind(telegram_id)
             .execute(&state.db)
             .await;
+            let _ = sqlx::query(
+                "INSERT INTO bot_notification_worker_state(worker,last_success_at,last_error,updated_at) VALUES('telegram_reminders',now(),NULL,now()) ON CONFLICT(worker) DO UPDATE SET last_success_at=now(),last_error=NULL,updated_at=now()",
+            )
+            .execute(&state.db)
+            .await;
             Ok(Json(json!({"sent":true,"message":"Тестовое сообщение отправлено в личный чат Telegram."})))
         }
         Err(error) => {
