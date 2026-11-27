@@ -47,7 +47,7 @@ function courtyardScene(extraProps) {
 const empireCampus = { buildings: [{ number: '1', osm: { id: 2045600 }, heritage: { style: 'Ампир' } }] };
 
 function allFeatures(out) {
-  return [].concat(out.solid, out.windows, out.windowFrames, out.trees, out.shadows, ...Object.values(out.highlight));
+  return [].concat(out.footprints || [], out.solid, out.windows, out.windowFrames, out.trees, out.shadows, ...Object.values(out.highlight));
 }
 function centroidLL(f) {
   const r = f.geometry.coordinates[0].slice(0, -1);
@@ -84,6 +84,17 @@ test('sub-square-metre mapped footprints are not silently omitted from the build
   const out = G.buildScene(input, campus);
   assert.strictEqual(out.stats.buildings, 5);
   assert.ok(out.ground.some(f => f.properties.kind === 'building-footprint' && f.properties.pid === 'tiny'));
+});
+
+test('flat building footprints preserve known heights and courtyard holes', () => {
+  const out = G.buildScene(courtyardScene(), empireCampus, {
+    renderTrees: false, renderWindows: false, renderShadows: false
+  });
+  assert.strictEqual(out.footprints.length, 1);
+  assert.strictEqual(out.footprints[0].properties.pid, '2045600');
+  assert.strictEqual(out.footprints[0].geometry.coordinates.length, 2, 'the courtyard remains a hole in 2D mode');
+  assert.strictEqual(out.footprints[0].properties.heightQuality, 'known');
+  assert.deepStrictEqual(G.validateScene(out), []);
 });
 
 test('campus directory link is resolved by OSM id', () => {
