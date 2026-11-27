@@ -1266,16 +1266,28 @@ async fn maybe_answer_group_bot_reply(
         ),
         Some(crate::services::conversation::Intent::Help) => Some(commands_text(true)),
         Some(crate::services::conversation::Intent::Today) => {
-            group_id.map(|group| schedule_text(db, group, "/today"))
+            match group_id {
+                Some(group) => Some(schedule_text(db, group, "/today").await),
+                None => None,
+            }
         },
         Some(crate::services::conversation::Intent::Tomorrow) => {
-            group_id.map(|group| schedule_text(db, group, "/tomorrow"))
+            match group_id {
+                Some(group) => Some(schedule_text(db, group, "/tomorrow").await),
+                None => None,
+            }
         },
         Some(crate::services::conversation::Intent::Week) => {
-            group_id.map(|group| schedule_text(db, group, "/week"))
+            match group_id {
+                Some(group) => Some(schedule_text(db, group, "/week").await),
+                None => None,
+            }
         },
         Some(crate::services::conversation::Intent::NextLesson) => {
-            group_id.map(|group| schedule_text(db, group, "/next"))
+            match group_id {
+                Some(group) => Some(schedule_text(db, group, "/next").await),
+                None => None,
+            }
         },
         Some(crate::services::conversation::Intent::Homework) => {
             if let Some(group) = group_id {
