@@ -519,7 +519,34 @@ async fn handle_ui_callback(
         "ui:settings" => {
             if chat_id != actor {
                 screen = "help";
-                text = "Личные настройки открываются в личном чате с ботом: нажми /settings. Настройки группы доступны администраторам через /chat_settings.".into();
+                text = match sqlx::query_as::<_, (String, bool, String, bool, bool, Option<i64>, String)>(
+                    r#"
+                    SELECT g.name, c.daily_schedule_enabled,
+                           to_char(c.daily_schedule_time, 'HH24:MI'),
+                           c.lesson_notifications_enabled, c.is_active,
+                           c.message_thread_id, c.timezone
+                    FROM bot_chat_settings c
+                    JOIN groups g ON g.id = c.group_id
+                    WHERE c.chat_id = $1
+                    "#,
+                )
+                .bind(chat_id)
+                .fetch_optional(&state.db)
+                .await
+                {
+                    Ok(Some((group, daily, time, notifications, active, thread_id, timezone))) => format!(
+                        "⚙️ Настройки учебного чата\nГруппа: {group}\nЧасовой пояс: {timezone}\nАвтопубликация: {} (ежедневно в {time})\nУведомления о парах: {}\nТема публикаций: {}\nИнтеграция: {}\n\nКоманды администратора:\n/chat_timezone Europe/Helsinki — часовой пояс\n/chat_topic — выбрать текущую тему\n/chat_topic_off — публиковать в общий чат\n/daily_on — включить расписание каждый день\n/daily_off — выключить\n/daily_time ЧЧ:ММ — время публикации\n/chat_notify_on — уведомлять о начале пар\n/chat_notify_off — выключить",
+                        if daily { "включена" } else { "выключена" },
+                        if notifications { "включены" } else { "выключены" },
+                        thread_id.map(|id| format!("тема #{}", id)).unwrap_or_else(|| "общий чат".into()),
+                        if active { "активна" } else { "приостановлена" }
+                    ),
+                    Ok(None) => "Учебный чат ещё не настроен. Администратор может привязать группу командой /setgroup название.".into(),
+                    Err(error) => {
+                        tracing::warn!("Could not load group settings from menu: {}", error);
+                        "Не удалось загрузить настройки учебного чата. Повтори попытку через /chat_settings.".into()
+                    }
+                };
             } else {
                 screen = "settings";
                 let digest_time = settings["daily_digest_time"].as_str().unwrap_or("07:00");
