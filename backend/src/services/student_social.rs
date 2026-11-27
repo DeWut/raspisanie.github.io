@@ -378,8 +378,25 @@ async fn dating_action(
         let (text, kb) = dating_home(db, actor).await;
         (text, kb, None)
     } else if action == "dating:consent" {
-        let row = sqlx::query_as::<_, (String,)>("SELECT COALESCE(p.display_name,u.first_name,'Студент') FROM users u LEFT JOIN bot_user_profiles p ON p.telegram_id=u.telegram_id WHERE u.telegram_id=$1")
-            .bind(actor).fetch_optional(db).await?.unwrap_or(("Студент".into(),));
+        // Telegram first_name may be a single character. The database CHECK
+        // requires a public dating display name between 2 and 48 characters,
+        // so fall back safely rather than letting consent creation fail.
+        let row = sqlx::query_as::<_, (String,)>(
+            r#"
+            SELECT COALESCE(
+                CASE WHEN length(trim(p.display_name)) BETWEEN 2 AND 48 THEN trim(p.display_name) END,
+                CASE WHEN length(trim(u.first_name)) BETWEEN 2 AND 48 THEN trim(u.first_name) END,
+                'Студент'
+            )
+            FROM users u
+            LEFT JOIN bot_user_profiles p ON p.telegram_id=u.telegram_id
+            WHERE u.telegram_id=$1
+            "#
+        )
+        .bind(actor)
+        .fetch_optional(db)
+        .await?
+        .unwrap_or(("Студент".into(),));
         sqlx::query("INSERT INTO bot_dating_profiles(telegram_id,display_name,tags,age_confirmed_at) VALUES($1,$2,ARRAY['study']::text[],now()) ON CONFLICT(telegram_id) DO UPDATE SET age_confirmed_at=COALESCE(bot_dating_profiles.age_confirmed_at,now()),is_active=TRUE,is_paused=FALSE,updated_at=now()")
             .bind(actor).bind(row.0).execute(db).await?;
         let (text, kb) = dating_home(db, actor).await;
