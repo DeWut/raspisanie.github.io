@@ -517,6 +517,15 @@
     });
     out.stats.windows = out.windows.length;
 
+    var TIERS = [
+      { f: 0.92, z0: 2.2, z1: 3.4, l: 0 },
+      { f: 1.00, z0: 3.4, z1: 4.5, l: 0.025 },
+      { f: 0.84, z0: 4.5, z1: 5.5, l: 0.055 },
+      { f: 0.60, z0: 5.5, z1: 6.2, l: 0.09 },
+      { f: 0.30, z0: 6.2, z1: 6.6, l: 0.13 }
+    ];
+    var TREE_SHADOW = 5.5;
+
     // Mapped OSM tree points are retained as surveyed locations.
     // For named arboretums only, add clearly-labelled inferred tree positions
     // from the woodland polygon. They are visual estimates, not OSM tree records.
