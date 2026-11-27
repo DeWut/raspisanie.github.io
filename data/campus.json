@@ -31,7 +31,8 @@
         "roofShape": "hipped"
       },
       "source": "Yandex Maps",
-      "officialSource": "https://spbftu.ru/public/map"
+      "officialSource": "https://spbftu.ru/public/map",
+      "mapKey": "kor_3"
     },
     {
       "number": "2",
@@ -84,7 +85,8 @@
         "cladding": "plaster"
       },
       "source": "Yandex Maps",
-      "officialSource": "https://spbftu.ru/public/map"
+      "officialSource": "https://spbftu.ru/public/map",
+      "mapKey": "kor_2"
     },
     {
       "number": "4",
@@ -109,7 +111,8 @@
         "roofShape": "gabled"
       },
       "source": "Yandex Maps",
-      "officialSource": "https://spbftu.ru/public/map"
+      "officialSource": "https://spbftu.ru/public/map",
+      "mapKey": "kor_4"
     },
     {
       "number": "1",
@@ -197,7 +200,8 @@
         "historicalNote": "Главный учебный корпус университета. Здание выполнено в стиле ампир и неоднократно перестраивалось."
       },
       "source": "Yandex Maps",
-      "officialSource": "https://spbftu.ru/public/map"
+      "officialSource": "https://spbftu.ru/public/map",
+      "mapKey": "kor_gl"
     }
   ],
   "map": {
