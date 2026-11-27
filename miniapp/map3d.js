@@ -705,6 +705,9 @@
       setStatus('Не найдено окно планов этажей. Обновите страницу карты.', true);
       return;
     }
+    // Keep the modal outside MapLibre's canvas/stacking context. This is
+    // important in Android WebView, where map popups can otherwise cover it.
+    if (panel.parentNode !== document.body) document.body.appendChild(panel);
     title.textContent = building.name + ' · ' + (building.address || '');
     var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
     var availableFloors = custom && custom.floors ? Object.keys(custom.floors).map(Number) : [];
@@ -782,16 +785,17 @@
     // Bind on the popup itself: mobile WebViews may not reliably deliver
     // popup clicks to a document-level delegated handler.
     var popupElement = mine.getElement();
-    if (popupElement) popupElement.addEventListener('click', function (event) {
-      var target = event.target;
-      var floorButton = target && target.closest ? target.closest('[data-open-floorplan]') : null;
-      if (!floorButton || !popupElement.contains(floorButton)) return;
+    var floorButton = popupElement && popupElement.querySelector('[data-open-floorplan]');
+    if (floorButton) floorButton.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
-      event.stopImmediatePropagation();
       var buildingNumber = floorButton.getAttribute('data-open-floorplan');
+      // Close the map popup first; the floor-plan dialog is then the only
+      // active surface and can receive touch input reliably on mobile.
+      if (popup === mine) popup = null;
+      mine.remove();
       openFloorPlan(buildingNumber);
-    }, true);
+    });
     mine.on('close', function () {
       if (popup === mine) {
         popup = null;
