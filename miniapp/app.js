@@ -20,7 +20,7 @@
   const isWeekPage = document.body.dataset.page === 'week';
   const requestedDate = pageParams.get('date');
   const parsedRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? new Date(requestedDate + 'T12:00:00Z') : null;
-  const state = { groups: [], schedule: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null };
+  const state = { groups: [], schedule: null, scheduleMeta: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
@@ -516,7 +516,16 @@
     } else {
       list.innerHTML = slots.map((slot, index) => lessonMarkup(slot, index, state.selectedDate)).join('');
     }
-    $('#updated-note').textContent = state.schedule.updated ? `Данные ЕИОС обновлены ${state.schedule.updated}` : 'Источник: расписание СПбГЛТУ';
+    const meta = state.scheduleMeta;
+    const metaDate = meta?.updated_at ? new Date(meta.updated_at) : null;
+    const metaLabel = metaDate && !Number.isNaN(metaDate.getTime())
+      ? metaDate.toLocaleString('ru-RU', { timeZone: TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : state.schedule.updated;
+    const metaCount = Number.isFinite(Number(meta?.groups_updated)) ? ` · групп обновлено: ${meta.groups_updated}/${meta.groups_total}` : '';
+    const metaStatus = meta?.status === 'partial' ? ' · частичное обновление' : '';
+    $('#updated-note').textContent = metaLabel
+      ? `Расписание обновлено ${metaLabel}${metaCount}${metaStatus}`
+      : 'Источник: расписание СПбГЛТУ';
     const isToday = dateKey(state.selectedDate) === dateKey(startOfDay(new Date()));
     let remainingSlots = slots;
     let firstPairLabel = '';
@@ -616,6 +625,13 @@
     try {
       const response = await fetchDataFile('groups.json');
       state.groups = await response.json();
+      state.scheduleMeta = null;
+      try {
+        const metaResponse = await fetchDataFile('schedule-meta.json');
+        state.scheduleMeta = await metaResponse.json();
+      } catch {
+        // Older deployments may not yet have the metadata file.
+      }
       const saved = safeStorageGet(GROUP_KEY) || safeStorageGet('groupId');
       const match = state.groups.find((group) => String(group.id) === String(saved));
       if (match) await selectGroup(match.id);
