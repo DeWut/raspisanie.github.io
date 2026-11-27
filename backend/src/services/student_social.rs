@@ -33,16 +33,30 @@ async fn edit_screen(
     text: String,
     keyboard: InlineKeyboardMarkup,
 ) -> SocialResult<()> {
+    tracing::info!(
+        chat_id = chat_id.0,
+        message_id = message_id.0,
+        "Student social: editing message"
+    );
     match bot
         .edit_message_text(chat_id, message_id, text)
         .reply_markup(keyboard)
         .await
     {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            tracing::info!("Student social: message edited successfully");
+            Ok(())
+        },
         // Repeated taps can request an identical screen. Telegram reports this
         // as an API error even though the desired screen is already displayed.
-        Err(error) if error.to_string().contains("message is not modified") => Ok(()),
-        Err(error) => Err(Box::new(error)),
+        Err(error) if error.to_string().contains("message is not modified") => {
+            tracing::debug!("Student social: requested screen is already displayed");
+            Ok(())
+        }
+        Err(error) => {
+            tracing::error!("Student social: Telegram could not edit message: {}", error);
+            Err(Box::new(error))
+        },
     }
 }
 
@@ -115,6 +129,13 @@ pub async fn handle_callback(
             .await?;
         return Ok(true);
     }
+    tracing::info!(
+        action = action,
+        actor = actor,
+        chat_id = message.chat.id.0,
+        message_id = message.id.0,
+        "Student social callback: dispatching action"
+    );
     bot.answer_callback_query(query.id.clone()).await?;
     let result = if action.starts_with("pc:") {
         profile_action(bot, db, actor, message.chat.id, message.id, action).await
@@ -130,15 +151,23 @@ pub async fn handle_callback(
         )
         .await
     };
-    if let Err(error) = result {
-        tracing::warn!("Student social callback failed: {}", error);
-        bot.edit_message_text(
-            message.chat.id,
-            message.id,
-            "Не удалось выполнить действие. Открой кабинет заново: /profile",
-        )
-        .reply_markup(InlineKeyboardMarkup::new(vec![nav("pc:open")]))
-        .await?;
+    match result {
+        Ok(()) => tracing::info!(action = action, "Student social callback: action completed"),
+        Err(error) => {
+            tracing::error!(
+                action = action,
+                actor = actor,
+                "Student social callback failed: {}",
+                error
+            );
+            // Do not silently hide an action failure behind a second edit of the
+            // same message. Send a separate diagnostic-facing reply instead.
+            bot.send_message(
+                message.chat.id,
+                "Не удалось выполнить действие. Попробуй ещё раз. Если ошибка повторится, сообщи администратору.",
+            )
+            .await?;
+        }
     }
     Ok(true)
 }
@@ -220,9 +249,11 @@ async fn cabinet_screen(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarku
 
 async fn groups_screen(db: &PgPool, page: i64) -> SocialResult<(String, InlineKeyboardMarkup)> {
     const PAGE_SIZE: i64 = 8;
+    tracing::info!(page, "Student social: loading group picker page");
     let total: i64 = sqlx::query_scalar("SELECT count(*) FROM groups WHERE is_active=TRUE")
         .fetch_one(db)
         .await?;
+    tracing::info!(total_groups = total, "Student social: active group count loaded");
     if total == 0 {
         return Ok((
             "В базе данных пока нет активных учебных групп. Сначала выполни синхронизацию списка групп, затем повтори /group.".into(),
@@ -241,6 +272,12 @@ async fn groups_screen(db: &PgPool, page: i64) -> SocialResult<(String, InlineKe
     .bind(page * PAGE_SIZE)
     .fetch_all(db)
     .await?;
+    tracing::info!(
+        page,
+        page_size = PAGE_SIZE,
+        rows = rows.len(),
+        "Student social: group picker rows loaded"
+    );
     let mut keyboard = rows
         .into_iter()
         .map(|(id, name)| vec![button(name, format!("pc:group:{id}"))])
