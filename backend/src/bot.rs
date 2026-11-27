@@ -1451,6 +1451,81 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         return Ok(());
     }
 
+    // Deterministic conversational interface: answer ordinary natural-language
+    // requests from the existing schedule and group data, without calling an LLM.
+    // In group chats only respond when explicitly addressed or when someone replies
+    // to a bot message; private chats can use natural language directly.
+    if !normalized_text.starts_with('/') {
+        let lower_message = normalized_text.to_lowercase().replace('ё', "е");
+        let replied_to_bot = message.reply_to_message()
+            .and_then(|replied| replied.from.as_ref())
+            .is_some_and(|user| user.is_bot);
+        let explicitly_addressed = ["барни", "барней", "spbftu", "spbftuit"]
+            .iter()
+            .any(|token| lower_message.contains(token));
+        let may_answer = !is_group_chat || replied_to_bot || explicitly_addressed;
+
+        if may_answer {
+            if let Some(intent) = crate::services::conversation::detect(normalized_text) {
+                let answer = match intent {
+                    crate::services::conversation::Intent::Greeting => {
+                        Some("Привет! Я Барни, учебный помощник СПбГЛТУ. Могу подсказать расписание, домашние задания, дедлайны, преподавателей и свободные аудитории. Напиши вопрос обычным сообщением или выбери раздел кнопками.".to_owned())
+                    }
+                    crate::services::conversation::Intent::Help => {
+                        Some("Я понимаю обычные вопросы о расписании и учебной группе без нейросети. Например:\n• «Какие пары завтра?»\n• «Что у нас сегодня?»\n• «Какая следующая пара?»\n• «Какие есть домашние задания?»\n• «Когда дедлайны?»\n• «Какие аудитории свободны на 15:00?»\n• «Найди преподавателя Иванова»\n\nДля личного кабинета и знакомств открой личный чат с ботом. Частые действия доступны кнопками меню.".to_owned())
+                    }
+                    crate::services::conversation::Intent::Today
+                    | crate::services::conversation::Intent::Tomorrow
+                    | crate::services::conversation::Intent::Week
+                    | crate::services::conversation::Intent::NextLesson => {
+                        let command = match intent {
+                            crate::services::conversation::Intent::Today => "/today",
+                            crate::services::conversation::Intent::Tomorrow => "/tomorrow",
+                            crate::services::conversation::Intent::Week => "/week",
+                            _ => "/next",
+                        };
+                        Some(match selected_group(db, telegram_id, message.chat.id.0).await {
+                            Some(group_id) => schedule_text(db, group_id, command).await.replace('*', ""),
+                            None => "Сначала выбери учебную группу кнопкой «Кабинет» или командой /group название. После этого я смогу отвечать по твоему расписанию.".into(),
+                        })
+                    }
+                    crate::services::conversation::Intent::Homework => {
+                        if is_group_chat {
+                            crate::services::group_content::handle_homework(
+                                db, message.chat.id.0, telegram_id, "/dz", "",
+                            ).await
+                        } else {
+                            crate::services::student_tools::handle(
+                                db, message.chat.id.0, telegram_id, "/deadlines", "", None, None,
+                            ).await
+                        }
+                    }
+                    crate::services::conversation::Intent::Deadlines => {
+                        crate::services::student_tools::handle(
+                            db, message.chat.id.0, telegram_id, "/deadlines", "", None, None,
+                        ).await
+                    }
+                    crate::services::conversation::Intent::FreeRooms(time) => {
+                        crate::services::student_tools::handle(
+                            db, message.chat.id.0, telegram_id, "/free_rooms",
+                            time.as_deref().unwrap_or(""), None, None,
+                        ).await
+                    }
+                    crate::services::conversation::Intent::Teacher(query) => {
+                        crate::services::student_tools::handle(
+                            db, message.chat.id.0, telegram_id, "/teacher",
+                            &query, None, None,
+                        ).await
+                    }
+                };
+                if let Some(answer) = answer {
+                    reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
     if command == "/start" {
         if is_group_chat {
             reply(&bot, db, &message, "Я помогу с расписанием и заданиями этой группы. Администратор может настроить её командой /setgroup. Личные настройки открой в чате с ботом: /start".into(), &state.config.webapp_url).await?;
