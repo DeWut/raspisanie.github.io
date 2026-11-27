@@ -208,9 +208,15 @@ test('oversized or corrupted geometry is dropped by the sanitize gate', () => {
 test('ground features are passed through and trees are built', () => {
   const input = sampleScene();
   const expectedGround = input.features.filter(f => ['park-boundary', 'green-area', 'water', 'path'].includes(f.properties.kind)).length;
+  const expectedFootprints = input.features.filter(f => {
+    const p = f.properties || {};
+    const hasHeight = p.heightKnown && typeof p.heightMeters === 'number' && p.heightMeters > 0;
+    const hasLevels = Number.isFinite(parseInt(p.levels, 10)) && parseInt(p.levels, 10) > 0;
+    return p.kind === 'building' && !hasHeight && !hasLevels;
+  }).length;
   const out = G.buildScene(input, campus);
   assert.strictEqual(out.ground.filter(f => f.properties.kind !== 'building-footprint').length, expectedGround);
-  assert.strictEqual(out.ground.filter(f => f.properties.kind === 'building-footprint').length, 1);
+  assert.strictEqual(out.ground.filter(f => f.properties.kind === 'building-footprint').length, expectedFootprints);
   assert.strictEqual(out.stats.trees, 1);
   assert.ok(out.trees.length >= 4, 'a mapped tree point receives trunk and crown layers');
 });
