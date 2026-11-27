@@ -4372,6 +4372,7 @@ async fn record_notification_delivery(
 ) {
     let status = if success { "sent" } else { "failed" };
     let detail = detail.map(|value| value.chars().take(500).collect::<String>());
+    let worker_error = detail.clone();
     if let Err(error) = sqlx::query(
         "INSERT INTO bot_notification_delivery_log(kind,recipient_kind,recipient_id,status,detail) VALUES($1,$2,$3,$4,$5)",
     )
@@ -4388,8 +4389,15 @@ async fn record_notification_delivery(
 
     if success {
         let _ = sqlx::query(
-            "INSERT INTO bot_notification_worker_state(worker,last_success_at,updated_at) VALUES('telegram_reminders',now(),now()) ON CONFLICT(worker) DO UPDATE SET last_success_at=now(),updated_at=now()",
+            "INSERT INTO bot_notification_worker_state(worker,last_success_at,last_error,updated_at) VALUES('telegram_reminders',now(),NULL,now()) ON CONFLICT(worker) DO UPDATE SET last_success_at=now(),last_error=NULL,updated_at=now()",
         )
+        .execute(db)
+        .await;
+    } else {
+        let _ = sqlx::query(
+            "INSERT INTO bot_notification_worker_state(worker,last_error,updated_at) VALUES('telegram_reminders',$1,now()) ON CONFLICT(worker) DO UPDATE SET last_error=$1,updated_at=now()",
+        )
+        .bind(worker_error)
         .execute(db)
         .await;
     }
