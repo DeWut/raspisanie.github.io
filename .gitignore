@@ -26,3 +26,7 @@ wasm-nav/pkg/
 
 # Local installers and generated artifacts
 installers/
+
+# Python bytecode and local caches
+__pycache__/
+*.py[cod]
