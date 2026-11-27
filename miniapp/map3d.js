@@ -63,6 +63,7 @@
   var params = new URLSearchParams(location.search);
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
   var mode = 'sat';
+  var buildings3D = true;
   var GROUND_LAYERS = ['bg', 'park', 'green', 'water', 'path-casing', 'path'];
   var ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   var EMPTY = { type: 'FeatureCollection', features: [] };
@@ -133,6 +134,17 @@
   }
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL) · Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+
+  function setBuildingMode(on) {
+    buildings3D = !!on;
+    if (!map || !map.getLayer('bld')) return;
+    map.setLayoutProperty('bld', 'visibility', buildings3D ? 'visible' : 'none');
+    var btn = $('btn-3d');
+    if (btn) {
+      btn.textContent = buildings3D ? 'Объёмы: Вкл' : 'Объёмы: Выкл';
+      btn.setAttribute('aria-pressed', buildings3D ? 'true' : 'false');
+    }
+  }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
 
   function setMode(next) {
@@ -209,6 +221,7 @@
       });
       html += '</ul>';
     }
+    if (camp && camp.units && camp.units.length) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Схема этажей и кабинеты</button></p>';
     if (p.src && /^https:\/\/www\.openstreetmap\.org\//.test(p.src)) {
       html += '<p class="muted"><a href="' + esc(p.src) + '" target="_blank" rel="noopener">Объект в OpenStreetMap</a></p>';
     }
@@ -222,6 +235,56 @@
     if (old) { old.remove(); }
   }
 
+  function floorForRoom(room) {
+    var value = String(room || '').trim();
+    var match = value.match(/^([1-9])[- ]?\\d{2,3}$/);
+    return match ? Number(match[1]) : null;
+  }
+
+  function openFloorPlan(number) {
+    var building = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(number); });
+    if (!building) return;
+    var panel = $('floorplan');
+    var title = $('floorplan-title');
+    var content = $('floorplan-content');
+    if (!panel || !content) return;
+    title.textContent = building.name + ' · ' + (building.address || '');
+    var floors = {};
+    var unassigned = [];
+    (building.units || []).forEach(function (unit) {
+      var floor = floorForRoom(unit.room);
+      if (floor == null) unassigned.push(unit);
+      else (floors[floor] || (floors[floor] = [])).push(unit);
+    });
+    var keys = Object.keys(floors).sort(function (a, b) { return Number(a) - Number(b); });
+    var html = '';
+    if (keys.length) {
+      keys.forEach(function (floor) {
+        html += '<section class="floor-section"><h4>' + floor + '-й этаж</h4><div class="room-grid">';
+        floors[floor].forEach(function (unit) {
+          html += '<article class="room-card"><b>' + esc(unit.room) + '</b><span>' + esc(unit.name) + '</span></article>';
+        });
+        html += '</div></section>';
+      });
+    }
+    if (unassigned.length) {
+      html += '<section class="floor-section"><h4>Этаж не указан в данных</h4><div class="room-grid">';
+      unassigned.forEach(function (unit) {
+        html += '<article class="room-card"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></article>';
+      });
+      html += '</div></section>';
+    }
+    html += '<p class="floor-note">Это справочная схема размещения подразделений по номерам аудиторий, а не точный архитектурный план: координаты кабинетов и расположение лестниц пока не подтверждены.</p>';
+    content.innerHTML = html || '<p>Для этого корпуса пока нет опубликованных данных о кабинетах.</p>';
+    panel.hidden = false;
+    panel.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeFloorPlan() {
+    var panel = $('floorplan');
+    if (panel) { panel.hidden = true; panel.setAttribute('aria-hidden', 'true'); }
+  }
+
   function selectBuilding(pid, lngLat) {
     var info = scene && scene.index[pid];
     if (!info) { return; }
@@ -230,6 +293,8 @@
     var mine = new maplibregl.Popup({ closeButton: true, maxWidth: '320px', className: 'bpop', focusAfterOpen: false })
       .setLngLat(lngLat).setHTML(popupHtml(info)).addTo(map);
     popup = mine;
+    var floorButton = mine.getElement().querySelector('[data-open-floorplan]');
+    if (floorButton) floorButton.addEventListener('click', function () { openFloorPlan(floorButton.getAttribute('data-open-floorplan')); });
     mine.on('close', function () { if (popup === mine) { popup = null; map.getSource('hl').setData(EMPTY); } });
   }
 
@@ -286,6 +351,7 @@
         event.stopPropagation();
         switch (btn.id) {
           case 'btn-mode': setMode(mode === 'sat' ? 'scheme' : 'sat'); break;
+          case 'btn-3d': setBuildingMode(!buildings3D); break;
           case 'btn-orbit': setOrbit(!orbiting); break;
           case 'btn-home':
             setOrbit(false);
@@ -294,6 +360,10 @@
         }
       });
     }
+    var floorClose = $('floorplan-close');
+    if (floorClose) floorClose.addEventListener('click', closeFloorPlan);
+    var floorPanel = $('floorplan');
+    if (floorPanel) floorPanel.addEventListener('click', function (event) { if (event.target === floorPanel) closeFloorPlan(); });
     var infoButton = $('infoBtn');
     if (infoButton) infoButton.addEventListener('click', function (event) {
       event.preventDefault();
@@ -302,6 +372,7 @@
       box.hidden = !box.hidden;
     });
     setMode(mode);
+    setBuildingMode(true);
     setOrbit(false);
   }
 
