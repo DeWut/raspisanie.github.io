@@ -98,10 +98,10 @@
         paint: { 'fill-color': '#8bb8d8' } },
       { id: 'path-casing', type: 'line', source: 'ground', filter: ['==', ['get', 'kind'], 'path'],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#c9bfa5', 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 14, 0.9, 20, 60] } },
+        paint: { 'line-color': '#c9bfa5', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.8, 20, 2.4] } },
       { id: 'path', type: 'line', source: 'ground', filter: ['==', ['get', 'kind'], 'path'],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 14, 0.6, 20, 46] } },
+        paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 20, 1.6] } },
       { id: 'shadow', type: 'fill', source: 'shadow',
         paint: { 'fill-color': '#16231a', 'fill-opacity': ['match', ['get', 'k'], 't', 0.24, 0.42] } },
       extrusion('bld', 'solid', 0, 1),
@@ -134,7 +134,7 @@
     map = new maplibregl.Map({
       container: 'map', style: buildStyle(),
       center: HOME.center, zoom: HOME.zoom, pitch: HOME.pitch, bearing: HOME.bearing,
-      minZoom: 14, maxZoom: 20.5, maxPitch: 80,
+      minZoom: 14, maxZoom: 19.3, maxPitch: 68,
       maxBounds: [[30.318, 59.982], [30.362, 60.004]],
       attributionControl: false
     });
@@ -165,7 +165,11 @@
   function setMode(next) {
     mode = next;
     var sat = mode === 'sat';
-    map.setLayoutProperty('sat', 'visibility', sat ? 'visible' : 'none');
+    // Keep geographic context in both modes. The schematic mode overlays
+    // the campus paths/green areas on a subdued satellite base instead of
+    // leaving the user with an isolated green polygon on a blank canvas.
+    map.setLayoutProperty('sat', 'visibility', 'visible');
+    map.setPaintProperty('sat', 'raster-opacity', sat ? 1 : 0.28);
     GROUND_LAYERS.forEach(function (id) { map.setLayoutProperty(id, 'visibility', sat ? 'none' : 'visible'); });
     var btn = $('btn-mode');
     if (btn) { btn.textContent = sat ? 'Схема' : 'Спутник'; btn.title = sat ? 'Показать схему вместо спутника' : 'Показать спутниковую подложку'; }
