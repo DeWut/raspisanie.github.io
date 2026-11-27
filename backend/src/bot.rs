@@ -1,7 +1,7 @@
 use chrono::{
     DateTime, Duration as ChronoDuration, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc,
 };
-use sqlx::PgPool;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{sync::Arc, time::Duration};
 use teloxide::{
     prelude::*,
@@ -3652,7 +3652,86 @@ pub async fn run(state: Arc<AppState>) {
         return;
     };
 
+    // Only one process may poll updates for this bot token. Without this lock,
+    // a local copy and a hosted copy can repeatedly interrupt each other's
+    // getUpdates calls, so callback queries never reach a stable dispatcher.
+    //
+    // Use the direct PostgreSQL endpoint for a session-level advisory lock:
+    // PgBouncer transaction pooling does not preserve session locks.
+    let lock_url = std::env::var("DATABASE_URL_UNPOOLED")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| state.config.database_url.clone());
+    let mut lock_url = match url::Url::parse(&lock_url) {
+        Ok(url) => url,
+        Err(error) => {
+            tracing::error!("Could not parse database URL for Telegram polling lock: {}", error);
+            return;
+        }
+    };
+    if let Some(host) = lock_url.host_str().map(str::to_owned) {
+        if host.contains("-pooler.") {
+            let direct_host = host.replace("-pooler.", ".");
+            if let Err(error) = lock_url.set_host(Some(&direct_host)) {
+                tracing::error!("Could not select direct database host for Telegram polling lock: {}", error);
+                return;
+            }
+        }
+    }
+
+    let lock_pool = match PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_secs(30))
+        .connect(lock_url.as_str())
+        .await
+    {
+        Ok(pool) => pool,
+        Err(error) => {
+            tracing::error!("Could not connect to the direct database endpoint for Telegram polling lock: {}", error);
+            return;
+        }
+    };
+    let mut poll_lock = match lock_pool.acquire().await {
+        Ok(connection) => connection,
+        Err(error) => {
+            tracing::error!("Could not acquire Telegram polling lock connection: {}", error);
+            return;
+        }
+    };
+    let lock_acquired = match sqlx::query_scalar::<_, bool>(
+        "SELECT pg_try_advisory_lock($1, $2)",
+    )
+    .bind(188_i32)
+    .bind(1_i32)
+    .fetch_one(&mut *poll_lock)
+    .await
+    {
+        Ok(acquired) => acquired,
+        Err(error) => {
+            tracing::error!("Could not acquire Telegram polling advisory lock: {}", error);
+            return;
+        }
+    };
+    if !lock_acquired {
+        tracing::warn!(
+            "Telegram polling is already active in another process; this instance will not start a second dispatcher"
+        );
+        return;
+    }
+    tracing::info!("Telegram polling lock acquired; this process is the active bot poller");
+
+    // Keep both the pool and its dedicated connection alive for the lifetime
+    // of the dispatcher. Dropping the connection releases the advisory lock.
+    let _poll_lock_pool = lock_pool;
+    let _poll_lock_connection = poll_lock;
+
     let bot = Bot::new(token);
+    if let Err(error) = bot.get_me().await {
+        tracing::error!("Telegram bot token validation failed: {}", error);
+        return;
+    }
+    tracing::info!("Telegram bot token validated; starting long polling");
+
     // This dispatcher uses getUpdates (long polling). Remove a webhook left by
     // an earlier deployment, but preserve pending updates in Telegram.
     loop {
@@ -3699,7 +3778,23 @@ pub async fn run(state: Arc<AppState>) {
         .branch(
             Update::filter_callback_query().endpoint(move |bot: Bot, query: CallbackQuery| {
                 let state = callback_state.clone();
-                async move { handle_ui_callback(bot, state, query).await }
+                async move {
+                    tracing::info!(
+                        callback_id = ?query.id,
+                        callback_data = ?query.data,
+                        "Telegram inline callback received"
+                    );
+                    match handle_ui_callback(bot, state, query).await {
+                        Ok(()) => {
+                            tracing::debug!("Telegram inline callback handled successfully");
+                            Ok(())
+                        }
+                        Err(error) => {
+                            tracing::error!("Telegram inline callback handler failed: {}", error);
+                            Err(error)
+                        }
+                    }
+                }
             }),
         );
 
