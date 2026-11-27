@@ -62,6 +62,9 @@
 
   var params = new URLSearchParams(location.search);
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
+  var mode = 'sat';
+  var GROUND_LAYERS = ['bg', 'park', 'green', 'water', 'path-casing', 'path'];
+  var ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   var EMPTY = { type: 'FeatureCollection', features: [] };
   function extrusion(id, source, minzoom, opacity) {
     var layer = {
@@ -81,6 +84,7 @@
   function buildStyle() {
     var layers = [
       { id: 'bg', type: 'background', paint: { 'background-color': '#dfe6d3' } },
+      { id: 'sat', type: 'raster', source: 'esri', paint: { 'raster-fade-duration': 0, 'raster-opacity': 1 }, layout: { visibility: 'visible' } },
       { id: 'park', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'park-boundary'],
         paint: { 'fill-color': '#cfe0b4', 'fill-opacity': 0.55 } },
       { id: 'green', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'green-area'],
@@ -104,6 +108,8 @@
     return {
       version: 8,
       sources: {
+        esri: { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 19,
+          attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' },
         ground: { type: 'geojson', data: EMPTY },
         solid: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         hl: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 }
@@ -125,9 +131,24 @@
     setStatus('3D-карта требует WebGL, а он недоступен: ' + e.message, true);
     return;
   }
-  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL)' }), 'bottom-right');
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL) · Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
+
+  function setMode(next) {
+    mode = next;
+    var satellite = mode === 'sat';
+    map.setLayoutProperty('sat', 'visibility', 'visible');
+    map.setPaintProperty('sat', 'raster-opacity', satellite ? 1 : 0.28);
+    GROUND_LAYERS.forEach(function (id) {
+      map.setLayoutProperty(id, 'visibility', satellite ? 'none' : 'visible');
+    });
+    var button = $('btn-mode');
+    if (button) {
+      button.textContent = satellite ? 'Схема' : 'Спутник';
+      button.title = satellite ? 'Переключить на схему' : 'Переключить на спутниковую карту';
+    }
+  }
 
   var scene = null;
   var campusData = null;
@@ -264,6 +285,7 @@
         event.preventDefault();
         event.stopPropagation();
         switch (btn.id) {
+          case 'btn-mode': setMode(mode === 'sat' ? 'scheme' : 'sat'); break;
           case 'btn-orbit': setOrbit(!orbiting); break;
           case 'btn-home':
             setOrbit(false);
@@ -279,6 +301,7 @@
       var box = $('info');
       box.hidden = !box.hidden;
     });
+    setMode(mode);
     setOrbit(false);
   }
 
