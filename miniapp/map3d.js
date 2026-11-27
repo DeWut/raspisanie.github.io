@@ -481,8 +481,9 @@
       });
       html += '</ul></section>';
     }
-    var availablePlans = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(camp && camp.number)];
-    if (camp && availablePlans && availablePlans.floors) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей</button></p>';
+    if (camp && ['1', '2'].indexOf(String(camp.number)) !== -1) {
+      html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей</button></p>';
+    }
     if (camp && camp.officialSource && /^https?:\/\//.test(camp.officialSource)) {
       html += '<p class="muted"><a href="' + esc(camp.officialSource) + '" target="_blank" rel="noopener noreferrer">На официальной карте университета</a></p>';
     }
@@ -710,6 +711,7 @@
     if (availableFloors.length && availableFloors.indexOf(floor) === -1) floor = firstFloor;
     floorPlanSearchQuery = '';
     panel.hidden = false;
+    panel.style.display = 'grid';
     panel.setAttribute('aria-hidden', 'false');
     renderFloorPlan(building, floor, requestedRoom || '');
     if (!window.CAMPUS_FLOORPLANS || !window.CAMPUS_FLOORPLANS[String(building.number)]) {
@@ -721,7 +723,7 @@
 
   function closeFloorPlan() {
     var panel = $('floorplan');
-    if (panel) { panel.hidden = true; panel.setAttribute('aria-hidden', 'true'); }
+    if (panel) { panel.hidden = true; panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true'); }
     activeFloorBuilding = null;
     selectedFloorRoom = '';
     floorPlanSearchQuery = '';
@@ -765,13 +767,7 @@
     mine.getElement().querySelectorAll('[data-campus-fallback-photo]').forEach(function (image) {
       image.addEventListener('error', function () { var figure = image.closest('.campus-photo'); if (figure) figure.remove(); }, { once: true });
     });
-    mine.getElement().addEventListener('click', function (event) {
-      var floorButton = event.target.closest && event.target.closest('[data-open-floorplan]');
-      if (!floorButton) return;
-      event.preventDefault();
-      event.stopPropagation();
-      openFloorPlan(floorButton.getAttribute('data-open-floorplan'));
-    });
+    // Delegated at document level in wire(); keep popup markup independent of timing.
     mine.on('close', function () {
       if (popup === mine) {
         popup = null;
@@ -833,6 +829,13 @@
   /* ---------- UI wiring ---------- */
 
   function wire() {
+    document.addEventListener('click', function (event) {
+      var floorButton = event.target.closest && event.target.closest('[data-open-floorplan]');
+      if (!floorButton) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openFloorPlan(floorButton.getAttribute('data-open-floorplan'));
+    }, true);
     var modeButton = $('btn-mode');
     if (modeButton) modeButton.addEventListener('click', function (event) {
       event.preventDefault();
@@ -892,6 +895,9 @@
     });
     var floorPanel = $('floorplan');
     if (floorPanel) floorPanel.addEventListener('click', function (event) { if (event.target === floorPanel) closeFloorPlan(); });
+    if (!window.CAMPUS_FLOORPLANS || !window.CAMPUS_FLOORPLANS['1'] || !window.CAMPUS_FLOORPLANS['2']) {
+      console.error('Campus floor plan scripts did not register both building plans.');
+    }
     setMode(DEFAULT_MAP_MODE);
     setBuildingMode(DEFAULT_BUILDINGS_3D);
     setOrbit(false);

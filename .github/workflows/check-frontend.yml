@@ -38,6 +38,25 @@ jobs:
           node tests/map3d-geometry.test.cjs
           node --check scripts/prepare-mobile.mjs
 
+      - name: Verify floor-plan registries
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const context = { window: {} };
+          vm.runInNewContext(fs.readFileSync('miniapp/floorplans.js', 'utf8'), context);
+          vm.runInNewContext(fs.readFileSync('miniapp/floorplans-building1.js', 'utf8'), context);
+          const plans = context.window.CAMPUS_FLOORPLANS;
+          for (const building of ['1', '2']) {
+            if (!plans || !plans[building] || !plans[building].floors) throw new Error('Missing floor plans for building ' + building);
+            const floors = Object.keys(plans[building].floors);
+            if (!floors.length || floors.some(f => !plans[building].floors[f].svg || !plans[building].floors[f].svg.includes('<svg'))) {
+              throw new Error('Invalid SVG floor plans for building ' + building);
+            }
+            console.log('Building ' + building + ': ' + floors.length + ' SVG floor plans OK');
+          }
+          NODE
+
       - name: Check inline page scripts
         run: |
           python - <<'PY'
