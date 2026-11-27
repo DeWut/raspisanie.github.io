@@ -106,10 +106,6 @@
 
     <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
     <div class="hud tools" id="tools" hidden>
-      <button id="btn-mode" type="button">Схема</button>
-      <button id="btn-shadow" type="button" aria-pressed="true">Тени: Вкл</button>
-      <button id="btn-tree" type="button" aria-pressed="true">Деревья: Вкл</button>
-      <button id="btn-win" type="button" aria-pressed="true">Окна: Вкл</button>
       <button id="btn-orbit" type="button" aria-pressed="false">Облёт</button>
       <button id="btn-home" type="button">Сброс</button>
     </div>
@@ -118,10 +114,10 @@
     <div class="hud" id="info" hidden>
       <p><b>Что это.</b> 3D-сцена кампуса из контуров OpenStreetMap и дополненных контуров Overture Maps. Геометрия и подписи работают без API-ключей.</p>
       <p><b>Здания.</b> Контуры взяты из картографических данных. Высота строится только по тегу height или оценивается по числу этажей. Если высоты и этажности нет, остаётся плоский контур — без выдуманного объёма. Крыша и материал учитываются только при наличии соответствующих тегов.</p>
-      <p><b>Детализация.</b> Положение корпусов и контуры реальны. Окна и часть отделки остаются схемой, а не фотограмметрией. Для корпуса № 1 используется привязка к справочнику кампуса и историческим сведениям.</p>
-      <p><b>Деревья.</b> Показываются только индивидуальные точки деревьев, реально отмеченные в OSM. В этой выгрузке их семь. Положение основано на данных, но форма и высота кроны условные; газоны и дендропарки показаны отдельными полигонами, без расстановки вымышленных деревьев.</p>
-      <p><b>Подложка.</b> «Спутник» — тайлы Esri World Imagery. Режим «Схема» использует векторные контуры.</p>
-      <p class="muted">Данные: © OpenStreetMap contributors (ODbL); © Overture Maps Foundation (ODbL). Спутниковая подложка: Esri/Maxar.</p>
+      <p><b>Детализация.</b> На карте оставлены контуры и объёмы корпусов, крыши, дорожки и зелёные зоны. Декоративные деревья, окна, текстурная спутниковая подложка и тени отключены.</p>
+      
+      <p><b>Подложка.</b> Используется чистая векторная схема без спутниковых текстур.</p>
+      <p class="muted">Данные: © OpenStreetMap contributors (ODbL); © Overture Maps Foundation (ODbL).</p>
     </div>
     <div class="stats" id="stats"></div>
 

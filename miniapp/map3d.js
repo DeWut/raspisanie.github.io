@@ -61,13 +61,8 @@
   }
 
   var params = new URLSearchParams(location.search);
-  var mode = params.get('mode') === 'scheme' ? 'scheme' : 'sat';
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
   var EMPTY = { type: 'FeatureCollection', features: [] };
-  var GROUND_LAYERS = ['bg', 'park', 'green', 'water', 'path-casing', 'path'];
-
-  var ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-
   function extrusion(id, source, minzoom, opacity) {
     var layer = {
       id: id, type: 'fill-extrusion', source: source,
@@ -86,7 +81,6 @@
   function buildStyle() {
     var layers = [
       { id: 'bg', type: 'background', paint: { 'background-color': '#dfe6d3' } },
-      { id: 'sat', type: 'raster', source: 'esri', paint: { 'raster-fade-duration': 0 }, layout: { visibility: 'none' } },
       { id: 'park', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'park-boundary'],
         paint: { 'fill-color': '#cfe0b4', 'fill-opacity': 0.55 } },
       { id: 'green', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'green-area'],
@@ -104,27 +98,14 @@
         paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 20, 1.6] } },
       { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.94, 'fill-outline-color': '#625e55' } },
-      { id: 'shadow', type: 'fill', source: 'shadow',
-        paint: { 'fill-color': '#16231a', 'fill-opacity': ['match', ['get', 'k'], 't', 0.24, 0.42] } },
       extrusion('bld', 'solid', 0, 1),
-      extrusion('winframe', 'winframe', 16.4, 1),
-      extrusion('win', 'win', 16.4, 1),
-      extrusion('tree', 'tree', 0, 0.96),
       extrusion('hl', 'hl', 0, 0.55)
     ];
     return {
       version: 8,
       sources: {
-        esri: {
-          type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 19,
-          attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community'
-        },
         ground: { type: 'geojson', data: EMPTY },
-        shadow: { type: 'geojson', data: EMPTY },
         solid: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
-        winframe: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
-        win: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
-        tree: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         hl: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 }
       },
       layers: layers
@@ -144,7 +125,7 @@
     setStatus('3D-карта требует WebGL, а он недоступен: ' + e.message, true);
     return;
   }
-  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL) · Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' }), 'bottom-right');
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL)' }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
 
@@ -164,38 +145,6 @@
     } catch (e) { /* sky is optional; the CSS gradient behind the canvas is the fallback */ }
   }
 
-  function setMode(next) {
-    mode = next;
-    var sat = mode === 'sat';
-    // Keep geographic context in both modes. The schematic mode overlays
-    // the campus paths/green areas on a subdued satellite base instead of
-    // leaving the user with an isolated green polygon on a blank canvas.
-    map.setLayoutProperty('sat', 'visibility', 'visible');
-    map.setPaintProperty('sat', 'raster-opacity', sat ? 1 : 0.28);
-    GROUND_LAYERS.forEach(function (id) { map.setLayoutProperty(id, 'visibility', sat ? 'none' : 'visible'); });
-    var btn = $('btn-mode');
-    if (btn) { btn.textContent = sat ? 'Схема' : 'Спутник'; btn.title = sat ? 'Показать схему вместо спутника' : 'Показать спутниковую подложку'; }
-  }
-
-  var layerStates = { shadow: true, tree: true, win: true };
-  var layerLabels = { shadow: 'Тени', tree: 'Деревья', win: 'Окна' };
-
-  function syncLayerButton(id, btnId) {
-    var btn = $(btnId);
-    if (!btn) return;
-    var enabled = layerStates[id];
-    btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-    btn.textContent = layerLabels[id] + (enabled ? ': Вкл' : ': Выкл');
-    btn.title = layerLabels[id] + (enabled ? ' включены' : ' выключены');
-  }
-
-  function toggleLayer(id, btnId) {
-    layerStates[id] = !layerStates[id];
-    map.setLayoutProperty(id, 'visibility', layerStates[id] ? 'visible' : 'none');
-    syncLayerButton(id, btnId);
-    // Repaint explicitly so the change is immediately visible on mobile WebViews.
-    map.triggerRepaint();
-  }
 
   /* ---------- popup / selection ---------- */
 
@@ -264,12 +213,12 @@
   }
 
   map.on('click', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'win', 'bld-footprint'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'bld-footprint'] });
     if (!hits.length) { clearSelection(); return; }
     selectBuilding(String(hits[0].properties.pid), e.lngLat);
   });
   map.on('mousemove', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'win'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld'] });
     map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
   });
 
@@ -315,10 +264,6 @@
         event.preventDefault();
         event.stopPropagation();
         switch (btn.id) {
-          case 'btn-mode': setMode(mode === 'sat' ? 'scheme' : 'sat'); break;
-          case 'btn-shadow': toggleLayer('shadow', 'btn-shadow'); break;
-          case 'btn-tree': toggleLayer('tree', 'btn-tree'); break;
-          case 'btn-win': toggleLayer('win', 'btn-win'); break;
           case 'btn-orbit': setOrbit(!orbiting); break;
           case 'btn-home':
             setOrbit(false);
@@ -333,10 +278,6 @@
       event.stopPropagation();
       var box = $('info');
       box.hidden = !box.hidden;
-    });
-    ['shadow', 'tree', 'win'].forEach(function (id) {
-      map.setLayoutProperty(id, 'visibility', 'visible');
-      syncLayerButton(id, id === 'shadow' ? 'btn-shadow' : id === 'tree' ? 'btn-tree' : 'btn-win');
     });
     setOrbit(false);
   }
@@ -364,7 +305,7 @@
   function showStats(s) {
     var el = $('stats');
     if (!el) { return; }
-    el.textContent = 'Зданий на карте: ' + s.buildings + ' · деревьев: ' + s.trees + ' (' + (s.mappedTrees || 0) + ' OSM, ' + (s.estimatedTrees || 0) + ' оценочно в дендропарках)';
+    el.textContent = 'Зданий на карте: ' + s.buildings;
   }
 
   function whenStyleReady() {
@@ -390,14 +331,9 @@
     applyAtmosphere();
     wire();
     campusData = data[1];
-    scene = G.buildScene(data[0], campusData);
+    scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
     map.getSource('ground').setData({ type: 'FeatureCollection', features: scene.ground });
-    map.getSource('shadow').setData({ type: 'FeatureCollection', features: scene.shadows });
     map.getSource('solid').setData({ type: 'FeatureCollection', features: scene.solid });
-    map.getSource('winframe').setData({ type: 'FeatureCollection', features: scene.windowFrames });
-    map.getSource('win').setData({ type: 'FeatureCollection', features: scene.windows });
-    map.getSource('tree').setData({ type: 'FeatureCollection', features: scene.trees });
-    setMode(mode);
     buildChips();
     showStats(scene.stats);
     setStatus('');

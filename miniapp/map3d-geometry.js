@@ -1,7 +1,7 @@
 /* map3d-geometry.js
  * Builds the 3D campus scene from data/campus-park-scene.json and data/campus.json.
  * Output is plain GeoJSON for MapLibre fill-extrusion layers: building parts,
- * windows, trees, ground shadows and selection highlights.
+ * optional decorative details and selection highlights.
  *
  * Only footprints and mapped heights come from OSM. Ledges, windows, cornices,
  * stepped roofs, wall colours and tree crowns are generated here and are
@@ -489,13 +489,14 @@
           part(offsetRings(rings, -0.4) || rings, h + 0.35, h + 0.5, roof);
         }
 
-        // ground shadow (hull of footprint and its shifted copy when the shape is convex)
-        var len = Math.min(h, 40) * 0.55;
-        var shifted = outer.map(function (p) { return [p[0] + sx * len, p[1] + sy * len]; });
-        add(out.shadows, [convex ? hull(outer.concat(shifted)) : shifted], { k: 'b' });
+        if (opts.renderShadows !== false) {
+          // Ground shadows are optional decorative geometry.
+          var len = Math.min(h, 40) * 0.55;
+          var shifted = outer.map(function (p) { return [p[0] + sx * len, p[1] + sy * len]; });
+          add(out.shadows, [convex ? hull(outer.concat(shifted)) : shifted], { k: 'b' });
+        }
 
-        // windows (and pilasters between them on the historic building)
-        if (h >= 4.5 && item.area >= 25 && out.windows.length < maxWin) {
+        if (opts.renderWindows !== false && h >= 4.5 && item.area >= 25 && out.windows.length < maxWin) {
           var seed = pid + ':' + pi;
           var deco = isHistoric ? { pilaster: function (r) { part(r, 0.9, Math.max(1.4, h - 0.3), lighten(wall, 0.14)); } } : null;
           windowsForRing(outer, false, fh, floors, seed, pid, out.windows, out.windowFrames, add, maxWin, deco);
@@ -517,139 +518,141 @@
     });
     out.stats.windows = out.windows.length;
 
-    var TIERS = [
-      { f: 0.92, z0: 2.2, z1: 3.4, l: 0 },
-      { f: 1.00, z0: 3.4, z1: 4.5, l: 0.025 },
-      { f: 0.84, z0: 4.5, z1: 5.5, l: 0.055 },
-      { f: 0.60, z0: 5.5, z1: 6.2, l: 0.09 },
-      { f: 0.30, z0: 6.2, z1: 6.6, l: 0.13 }
-    ];
-    var TREE_SHADOW = 5.5;
-
-    // Mapped OSM tree points are retained as surveyed locations.
-    // For named arboretums only, add clearly-labelled inferred tree positions
-    // from the woodland polygon. They are visual estimates, not OSM tree records.
-    var pathSegments = [];
-    var mappedTreeCenters = [];
-    var buildingRings = [];
-    features.forEach(function (f) {
-      var p = f && f.properties;
-      if (!p || !f.geometry) return;
-      if (p.kind === 'tree-trunk' && f.geometry.type === 'Polygon') {
-        var trunkRing = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
-        if (trunkRing.length >= 3) add(out.trees, [trunkRing], { col: '#6b5640', z0: 0, z1: 2.4 });
-      }
-      if (p.kind === 'tree-canopy' && f.geometry.type === 'Polygon') {
-        var rr = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
-        if (rr.length >= 3) {
-          var mappedCenter = centroid(rr);
-          mappedTreeCenters.push(mappedCenter);
-          var mappedHeight = Number(p.heightMeters) > 0 ? Number(p.heightMeters) : 6.5;
-          var mappedScale = Math.max(0.75, Math.min(1.35, mappedHeight / 6.5));
-          var mappedColour = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
-          TIERS.forEach(function (tier) {
-            add(out.trees, [scaleAbout(rr, tier.f * mappedScale, tier.f * mappedScale, mappedCenter[0], mappedCenter[1])],
-              { col: lighten(mappedColour, tier.l), z0: tier.z0 * mappedScale, z1: tier.z1 * mappedScale });
-          });
-          var mappedShadow = rr.map(function (q) { return [q[0] + sx * TREE_SHADOW, q[1] + sy * TREE_SHADOW]; });
-          add(out.shadows, [hull(rr.concat(mappedShadow))], { k: 't' });
-          out.stats.trees++;
-          out.stats.mappedTrees++;
+    if (opts.renderTrees !== false) {
+      var TIERS = [
+        { f: 0.92, z0: 2.2, z1: 3.4, l: 0 },
+        { f: 1.00, z0: 3.4, z1: 4.5, l: 0.025 },
+        { f: 0.84, z0: 4.5, z1: 5.5, l: 0.055 },
+        { f: 0.60, z0: 5.5, z1: 6.2, l: 0.09 },
+        { f: 0.30, z0: 6.2, z1: 6.6, l: 0.13 }
+      ];
+      var TREE_SHADOW = 5.5;
+  
+      // Mapped OSM tree points are retained as surveyed locations.
+      // For named arboretums only, add clearly-labelled inferred tree positions
+      // from the woodland polygon. They are visual estimates, not OSM tree records.
+      var pathSegments = [];
+      var mappedTreeCenters = [];
+      var buildingRings = [];
+      features.forEach(function (f) {
+        var p = f && f.properties;
+        if (!p || !f.geometry) return;
+        if (p.kind === 'tree-trunk' && f.geometry.type === 'Polygon') {
+          var trunkRing = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
+          if (trunkRing.length >= 3) add(out.trees, [trunkRing], { col: '#6b5640', z0: 0, z1: 2.4 });
         }
-      }
-      if (p.kind === 'path' && f.geometry.type === 'LineString') {
-        var line = f.geometry.coordinates.map(P.toM);
-        for (var li = 1; li < line.length; li++) pathSegments.push([line[li - 1], line[li]]);
-      } else if (p.kind === 'path' && f.geometry.type === 'MultiLineString') {
-        f.geometry.coordinates.forEach(function (partLine) {
-          var line2 = partLine.map(P.toM);
-          for (var lj = 1; lj < line2.length; lj++) pathSegments.push([line2[lj - 1], line2[lj]]);
-        });
-      }
-      if (p.kind === 'building') {
-        polygonsOf(f.geometry).forEach(function (poly) {
-          if (poly[0]) buildingRings.push(poly[0].map(P.toM));
-        });
-      }
-    });
-
-    function pointInRing(point, ring) {
-      var inside = false;
-      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        var a = ring[i], b = ring[j];
-        if (((a[1] > point[1]) !== (b[1] > point[1])) &&
-            point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
-      }
-      return inside;
-    }
-    function segmentDistance(point, a, b) {
-      var dx = b[0] - a[0], dy = b[1] - a[1];
-      var den = dx * dx + dy * dy;
-      var t = den ? ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / den : 0;
-      t = Math.max(0, Math.min(1, t));
-      return Math.sqrt(Math.pow(point[0] - a[0] - t * dx, 2) + Math.pow(point[1] - a[1] - t * dy, 2));
-    }
-    function isNearPath(point) {
-      for (var i = 0; i < pathSegments.length; i++) {
-        if (segmentDistance(point, pathSegments[i][0], pathSegments[i][1]) < 3.5) return true;
-      }
-      return false;
-    }
-
-    var estimatedIndex = 0;
-    var treeSpacing = 18;
-    features.forEach(function (f) {
-      var p = f && f.properties;
-      if (!p || p.kind !== 'green-area' ||
-          !/дендрологический сад|дендропарк/i.test(String(p.name || '')) || !f.geometry) return;
-      var polys = polygonsOf(f.geometry);
-      polys.forEach(function (poly, polyIndex) {
-        if (!poly || !poly[0]) return;
-        var rings = poly.map(function (r) { return stripClose(r.map(P.toM)); });
-        var outer = rings[0];
-        if (outer.length < 3) return;
-        var bounds = bbox(outer);
-        var x0 = Math.floor(bounds.x0 / treeSpacing) * treeSpacing + treeSpacing / 2;
-        var y0 = Math.floor(bounds.y0 / treeSpacing) * treeSpacing + treeSpacing / 2;
-        for (var x = x0; x < bounds.x1; x += treeSpacing) {
-          for (var y = y0; y < bounds.y1; y += treeSpacing) {
-            var key = String(p.osmId || f.id) + ':' + polyIndex + ':' + x + ':' + y;
-            var jx = (rnd(key + ':x') - 0.5) * 5.0;
-            var jy = (rnd(key + ':y') - 0.5) * 5.0;
-            var point = [x + jx, y + jy];
-            if (!pointInRing(point, outer)) continue;
-            var inHole = false;
-            for (var h = 1; h < rings.length; h++) if (pointInRing(point, rings[h])) inHole = true;
-            if (inHole || isNearPath(point)) continue;
-            var blocked = buildingRings.some(function (r) { return pointInRing(point, r); });
-            if (blocked) continue;
-            if (mappedTreeCenters.some(function (q) { return Math.hypot(point[0] - q[0], point[1] - q[1]) < 6; })) continue;
-
-            var radius = 2.0 + rnd(key + ':r') * 0.9;
-            var height = 5.8 + rnd(key + ':h') * 1.8;
-            var crown = circle(point[0], point[1], radius, 12);
-            var shadeCol = ['#477846', '#56864c', '#638d50', '#3f7042'][hash(key + ':c') % 4];
-            add(out.trees, [circle(point[0], point[1], 0.18, 8)], { col: '#66513b', z0: 0, z1: 2.15 });
-            var profiles = [
-              { f: 0.74, z0: 2.0, z1: 3.25, light: 0 },
-              { f: 1.00, z0: 3.1, z1: 4.45, light: 0.025 },
-              { f: 0.86, z0: 4.35, z1: 5.45, light: 0.05 },
-              { f: 0.58, z0: 5.35, z1: 6.15, light: 0.08 }
-            ];
-            profiles.forEach(function (profile) {
-              add(out.trees, [scaleAbout(crown, profile.f, profile.f, point[0], point[1])],
-                { col: lighten(shadeCol, profile.light), z0: profile.z0, z1: profile.z1 * (height / 6.8) });
+        if (p.kind === 'tree-canopy' && f.geometry.type === 'Polygon') {
+          var rr = stripClose((f.geometry.coordinates[0] || []).map(P.toM));
+          if (rr.length >= 3) {
+            var mappedCenter = centroid(rr);
+            mappedTreeCenters.push(mappedCenter);
+            var mappedHeight = Number(p.heightMeters) > 0 ? Number(p.heightMeters) : 6.5;
+            var mappedScale = Math.max(0.75, Math.min(1.35, mappedHeight / 6.5));
+            var mappedColour = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
+            TIERS.forEach(function (tier) {
+              add(out.trees, [scaleAbout(rr, tier.f * mappedScale, tier.f * mappedScale, mappedCenter[0], mappedCenter[1])],
+                { col: lighten(mappedColour, tier.l), z0: tier.z0 * mappedScale, z1: tier.z1 * mappedScale });
             });
-            var shadowRing = crown.map(function (q) { return [q[0] + sx * 4.8, q[1] + sy * 4.8]; });
-            add(out.shadows, [hull(crown.concat(shadowRing))], { k: 't' });
-            estimatedIndex++;
+            var mappedShadow = rr.map(function (q) { return [q[0] + sx * TREE_SHADOW, q[1] + sy * TREE_SHADOW]; });
+            add(out.shadows, [hull(rr.concat(mappedShadow))], { k: 't' });
+            out.stats.trees++;
+            out.stats.mappedTrees++;
           }
         }
+        if (p.kind === 'path' && f.geometry.type === 'LineString') {
+          var line = f.geometry.coordinates.map(P.toM);
+          for (var li = 1; li < line.length; li++) pathSegments.push([line[li - 1], line[li]]);
+        } else if (p.kind === 'path' && f.geometry.type === 'MultiLineString') {
+          f.geometry.coordinates.forEach(function (partLine) {
+            var line2 = partLine.map(P.toM);
+            for (var lj = 1; lj < line2.length; lj++) pathSegments.push([line2[lj - 1], line2[lj]]);
+          });
+        }
+        if (p.kind === 'building') {
+          polygonsOf(f.geometry).forEach(function (poly) {
+            if (poly[0]) buildingRings.push(poly[0].map(P.toM));
+          });
+        }
       });
-    });
-    out.stats.mappedTrees = out.stats.mappedTrees || 0;
-    out.stats.estimatedTrees = estimatedIndex;
-    out.stats.trees = out.stats.mappedTrees + estimatedIndex;
+  
+      function pointInRing(point, ring) {
+        var inside = false;
+        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          var a = ring[i], b = ring[j];
+          if (((a[1] > point[1]) !== (b[1] > point[1])) &&
+              point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+        }
+        return inside;
+      }
+      function segmentDistance(point, a, b) {
+        var dx = b[0] - a[0], dy = b[1] - a[1];
+        var den = dx * dx + dy * dy;
+        var t = den ? ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / den : 0;
+        t = Math.max(0, Math.min(1, t));
+        return Math.sqrt(Math.pow(point[0] - a[0] - t * dx, 2) + Math.pow(point[1] - a[1] - t * dy, 2));
+      }
+      function isNearPath(point) {
+        for (var i = 0; i < pathSegments.length; i++) {
+          if (segmentDistance(point, pathSegments[i][0], pathSegments[i][1]) < 3.5) return true;
+        }
+        return false;
+      }
+  
+      var estimatedIndex = 0;
+      var treeSpacing = 18;
+      features.forEach(function (f) {
+        var p = f && f.properties;
+        if (!p || p.kind !== 'green-area' ||
+            !/дендрологический сад|дендропарк/i.test(String(p.name || '')) || !f.geometry) return;
+        var polys = polygonsOf(f.geometry);
+        polys.forEach(function (poly, polyIndex) {
+          if (!poly || !poly[0]) return;
+          var rings = poly.map(function (r) { return stripClose(r.map(P.toM)); });
+          var outer = rings[0];
+          if (outer.length < 3) return;
+          var bounds = bbox(outer);
+          var x0 = Math.floor(bounds.x0 / treeSpacing) * treeSpacing + treeSpacing / 2;
+          var y0 = Math.floor(bounds.y0 / treeSpacing) * treeSpacing + treeSpacing / 2;
+          for (var x = x0; x < bounds.x1; x += treeSpacing) {
+            for (var y = y0; y < bounds.y1; y += treeSpacing) {
+              var key = String(p.osmId || f.id) + ':' + polyIndex + ':' + x + ':' + y;
+              var jx = (rnd(key + ':x') - 0.5) * 5.0;
+              var jy = (rnd(key + ':y') - 0.5) * 5.0;
+              var point = [x + jx, y + jy];
+              if (!pointInRing(point, outer)) continue;
+              var inHole = false;
+              for (var h = 1; h < rings.length; h++) if (pointInRing(point, rings[h])) inHole = true;
+              if (inHole || isNearPath(point)) continue;
+              var blocked = buildingRings.some(function (r) { return pointInRing(point, r); });
+              if (blocked) continue;
+              if (mappedTreeCenters.some(function (q) { return Math.hypot(point[0] - q[0], point[1] - q[1]) < 6; })) continue;
+  
+              var radius = 2.0 + rnd(key + ':r') * 0.9;
+              var height = 5.8 + rnd(key + ':h') * 1.8;
+              var crown = circle(point[0], point[1], radius, 12);
+              var shadeCol = ['#477846', '#56864c', '#638d50', '#3f7042'][hash(key + ':c') % 4];
+              add(out.trees, [circle(point[0], point[1], 0.18, 8)], { col: '#66513b', z0: 0, z1: 2.15 });
+              var profiles = [
+                { f: 0.74, z0: 2.0, z1: 3.25, light: 0 },
+                { f: 1.00, z0: 3.1, z1: 4.45, light: 0.025 },
+                { f: 0.86, z0: 4.35, z1: 5.45, light: 0.05 },
+                { f: 0.58, z0: 5.35, z1: 6.15, light: 0.08 }
+              ];
+              profiles.forEach(function (profile) {
+                add(out.trees, [scaleAbout(crown, profile.f, profile.f, point[0], point[1])],
+                  { col: lighten(shadeCol, profile.light), z0: profile.z0, z1: profile.z1 * (height / 6.8) });
+              });
+              var shadowRing = crown.map(function (q) { return [q[0] + sx * 4.8, q[1] + sy * 4.8]; });
+              add(out.shadows, [hull(crown.concat(shadowRing))], { k: 't' });
+              estimatedIndex++;
+            }
+          }
+        });
+      });
+      out.stats.mappedTrees = out.stats.mappedTrees || 0;
+      out.stats.estimatedTrees = estimatedIndex;
+      out.stats.trees = out.stats.mappedTrees + estimatedIndex;
+    }
 
     // Final gate: nothing invalid or oversized reaches MapLibre.
     out.solid = sanitize(out.solid, out.stats);
