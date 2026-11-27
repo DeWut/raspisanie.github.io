@@ -4779,7 +4779,7 @@ async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         FROM bot_exams e
         JOIN bot_chat_settings c ON c.chat_id=e.chat_id
         CROSS JOIN (VALUES ('7d', interval '7 days'), ('3d', interval '3 days'), ('1d', interval '1 day')) AS r(key, lead)
-        WHERE c.is_active=TRUE AND e.status='active'
+        WHERE c.is_active=TRUE AND c.exam_reminders_enabled=TRUE AND e.status='active'
           AND e.exam_at BETWEEN now()+r.lead-interval '30 seconds' AND now()+r.lead
           AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='exam' AND d.record_id=e.id AND d.telegram_id=0 AND d.reminder_key=r.key)
         UNION ALL
@@ -4788,7 +4788,7 @@ async fn group_exam_event_reminder_tick(bot: &Bot, state: &Arc<AppState>) {
         JOIN bot_chat_settings c ON c.chat_id=e.chat_id
         JOIN bot_event_participants p ON p.chat_id=e.chat_id AND p.event_id=e.id
         CROSS JOIN (VALUES ('3d', interval '3 days'), ('1d', interval '1 day'), ('2h', interval '2 hours')) AS r(key, lead)
-        WHERE c.is_active=TRUE AND e.status='active'
+        WHERE c.is_active=TRUE AND c.event_reminders_enabled=TRUE AND e.status='active'
           AND p.response='going' AND p.reminders_enabled=TRUE
           AND e.starts_at BETWEEN now()+r.lead-interval '30 seconds' AND now()+r.lead
           AND NOT EXISTS (SELECT 1 FROM bot_group_reminder_deliveries d WHERE d.chat_id=e.chat_id AND d.record_type='event' AND d.record_id=e.id AND d.telegram_id=p.telegram_id AND d.reminder_key=r.key)
