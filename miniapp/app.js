@@ -612,6 +612,24 @@
       renderGroupOptions($('#group-search').value);
     }
   }
+  // Check the selected group file periodically so an open page picks up a new EIOS import without reload.
+  async function refreshSelectedScheduleIfUpdated() {
+    const selectedId = state.schedule?.id;
+    if (selectedId == null || !navigator.onLine || document.hidden) return;
+    try {
+      const response = await fetchDataFile(`${encodeURIComponent(selectedId)}.json`);
+      const latest = await response.json();
+      if (String(state.schedule?.id) !== String(selectedId)) return;
+      if (latest.updated && latest.updated !== state.schedule.updated) {
+        state.schedule = latest;
+        renderAll();
+        await syncLessonReminders();
+        showToast(`Расписание обновлено автоматически · ${latest.updated}`);
+      }
+    } catch (error) {
+      console.debug('Could not check for a newer schedule version:', error);
+    }
+  }
   async function loadData() {
     try {
       const response = await fetchDataFile('groups.json');
@@ -1877,6 +1895,10 @@ async function addCampusParkLayers(map) {
     await loadData();
     await syncLessonReminders();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
+    window.setInterval(() => { void refreshSelectedScheduleIfUpdated(); }, 5 * 60_000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) void refreshSelectedScheduleIfUpdated();
+    });
   }
   init();
 })();
