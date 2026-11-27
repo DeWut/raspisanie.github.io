@@ -408,6 +408,44 @@ pub async fn handle_homework(
 }
 
 /// Stores Telegram file references without downloading or retaining file contents.
+/// Returns active homework for a study group in private bot conversations.
+/// The records themselves remain owned by the configured Telegram group chat.
+pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -> String {
+    let rows = sqlx::query_as::<_, (i64, String, String, Option<DateTime<Utc>>, String, i64)>(
+        r#"SELECT h.id,h.subject,h.description,h.due_at,h.priority,
+                  (SELECT count(*) FROM bot_homework_attachments a
+                   WHERE a.chat_id=h.chat_id AND a.homework_id=h.id)
+           FROM bot_homework h
+           JOIN bot_chat_settings c ON c.chat_id=h.chat_id
+           LEFT JOIN bot_homework_progress p
+             ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2
+           WHERE c.group_id=$1 AND c.is_active=TRUE AND h.status='active'
+             AND p.completed_at IS NULL
+           ORDER BY h.due_at NULLS LAST,h.created_at DESC LIMIT 30"#
+    )
+    .bind(group_id)
+    .bind(actor)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    if rows.is_empty() {
+        return "📚 В привязанном учебном чате пока нет активных домашних заданий. Если староста уже добавлял ДЗ, проверь, что групповой чат привязан к этой же учебной группе.".into();
+    }
+
+    let mut out = String::from("📚 ДОМАШНИЕ ЗАДАНИЯ ТВОЕЙ ГРУППЫ\n\n");
+    for (id, subject, description, due, priority, attachments) in rows {
+        let due = due.map(|v| v.with_timezone(&moscow()).format("%d.%m %H:%M").to_string())
+            .unwrap_or_else(|| "срок не указан".into());
+        out.push_str(&format!(
+            "#{id} · {subject}{}\n{description}\nСрок: {due}{}\n\n",
+            if priority == "urgent" { " 🔥" } else { "" },
+            if attachments > 0 { format!("\n📎 Вложений: {attachments}") } else { String::new() }
+        ));
+    }
+    out
+}
+
 pub async fn attach_homework(
     db: &PgPool,
     chat_id: i64,
