@@ -433,6 +433,136 @@
   var activeFloorBuilding = null;
   var activeFloorNumber = 1;
   var floorPlanZoom = 1;
+  var roomEditor = { placing: false, start: null, draft: null, editingId: null, movingId: null };
+  var ROOM_OVERRIDES_KEY = 'spbftu-floorplan-manual-rooms-v1';
+
+  function readManualRooms() {
+    try {
+      var value = JSON.parse(localStorage.getItem(ROOM_OVERRIDES_KEY) || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch (error) { return {}; }
+  }
+
+  function writeManualRooms(value) {
+    try {
+      localStorage.setItem(ROOM_OVERRIDES_KEY, JSON.stringify(value));
+      return true;
+    } catch (error) { return false; }
+  }
+
+  function manualRoomKey(building, floor) {
+    return String(building.number) + ':' + String(floor);
+  }
+
+  function roomsForFloor(building, floor) {
+    var all = readManualRooms();
+    var value = all[manualRoomKey(building, floor)];
+    return Array.isArray(value) ? value : [];
+  }
+
+  function manualRoomsSvg(building, floor, svg) {
+    var items = roomsForFloor(building, floor);
+    if (!items.length) return svg;
+    var markup = '<g class="fp-user-rooms">';
+    items.forEach(function (room) {
+      var x = Number(room.x), y = Number(room.y), w = Number(room.w), h = Number(room.h);
+      if (![x,y,w,h].every(Number.isFinite) || w < 12 || h < 12) return;
+      markup += '<g class="fp-user-room" data-user-room-id="' + esc(room.id) + '" role="button" tabindex="0" aria-label="Изменить кабинет ' + esc(room.number) + '">';
+      markup += '<title>' + esc(room.number) + (room.name ? ' · ' + esc(room.name) : '') + '</title>';
+      markup += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="3"/>';
+      markup += '<text x="' + (x+w/2) + '" y="' + (y+h/2+5) + '">' + esc(room.number) + '</text>';
+      if (room.name) markup += '<text class="fp-user-room-name" x="' + (x+w/2) + '" y="' + (y+h/2+19) + '">' + esc(room.name) + '</text>';
+      markup += '</g>';
+    });
+    markup += '</g>';
+    return svg.replace('</svg>', markup + '</svg>');
+  }
+
+  function roomEditorMarkup() {
+    var editing = !!roomEditor.editingId;
+    return '<section class="room-editor">' +
+      '<div class="room-editor-heading"><b>Редактор кабинетов</b><span>Ваши добавления сохраняются на этом устройстве</span></div>' +
+      '<div class="room-editor-fields">' +
+      '<label>Номер кабинета<input data-room-number type="text" maxlength="24" placeholder="Например, 215" value="' + esc(roomEditor.draft && roomEditor.draft.number || '') + '"></label>' +
+      '<label>Название / примечание<input data-room-name type="text" maxlength="100" placeholder="Например, кафедра физики" value="' + esc(roomEditor.draft && roomEditor.draft.name || '') + '"></label>' +
+      '</div>' +
+      '<div class="room-editor-actions">' +
+      '<button type="button" data-room-place>' + (roomEditor.movingId ? 'Перерисовать место' : 'Нарисовать на плане') + '</button>' +
+      (editing ? '<button type="button" data-room-save>Сохранить изменения</button><button type="button" data-room-delete class="danger">Удалить кабинет</button>' : '') +
+      '<button type="button" data-room-cancel' + (editing || roomEditor.placing ? '' : ' hidden') + '>Отмена</button>' +
+      '</div>' +
+      '<div class="room-editor-tools"><button type="button" data-room-export>Экспорт JSON</button><button type="button" data-room-import>Импорт JSON</button><input data-room-file type="file" accept="application/json,.json" hidden></div>' +
+      '<p class="room-editor-status" data-room-editor-status>' + (roomEditor.placing ? 'Проведите пальцем по плану, чтобы нарисовать прямоугольник кабинета.' : 'Введите номер и название, нажмите «Нарисовать на плане» и обведите комнату пальцем. Нажмите на добавленную комнату, чтобы изменить её.') + '</p>' +
+      '<p class="room-editor-note">Личные изменения не видны другим пользователям. Нажмите «Экспорт JSON», чтобы сохранить файл и передать мне для включения кабинетов в общую версию.</p>' +
+      '</section>';
+  }
+
+  function setRoomEditorStatus(text) {
+    var status = $('floorplan-content') && $('floorplan-content').querySelector('[data-room-editor-status]');
+    if (status) status.textContent = text;
+  }
+
+  function roomPoint(event, svg) {
+    var rect = svg.getBoundingClientRect();
+    var viewBox = (svg.getAttribute('viewBox') || '0 0 1000 760').trim().split(/[ ,]+/).map(Number);
+    return { x: viewBox[0] + (event.clientX - rect.left) * viewBox[2] / rect.width,
+      y: viewBox[1] + (event.clientY - rect.top) * viewBox[3] / rect.height,
+      width: viewBox[2], height: viewBox[3] };
+  }
+
+  function roomPreview(svg, x, y, w, h) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var group = svg.querySelector('.fp-room-preview');
+    if (!group) {
+      group = document.createElementNS(ns, 'g');
+      group.setAttribute('class', 'fp-room-preview');
+      var rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('class', 'fp-room-preview-rect');
+      group.appendChild(rect);
+      svg.appendChild(group);
+    }
+    var shape = group.querySelector('rect');
+    shape.setAttribute('x', x); shape.setAttribute('y', y);
+    shape.setAttribute('width', w); shape.setAttribute('height', h);
+  }
+
+  function exportManualRooms() {
+    var data = readManualRooms();
+    var blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), rooms: data }, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url; link.download = 'spbftu-campus-rooms.json';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function importManualRooms(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var parsed = JSON.parse(String(reader.result || '{}'));
+        var source = parsed.rooms && typeof parsed.rooms === 'object' ? parsed.rooms : parsed;
+        var clean = {};
+        Object.keys(source).forEach(function (key) {
+          if (!/^\\d+:[1-9]$/.test(key) || !Array.isArray(source[key])) return;
+          clean[key] = source[key].filter(function (item) {
+            return item && String(item.number || '').trim() && [item.x,item.y,item.w,item.h].every(function (v) { return Number.isFinite(Number(v)); });
+          }).map(function (item) {
+            return { id: String(item.id || Date.now() + Math.random()), number: String(item.number), name: String(item.name || ''),
+              x: Number(item.x), y: Number(item.y), w: Number(item.w), h: Number(item.h) };
+          });
+        });
+        if (!Object.keys(clean).length) throw new Error('В JSON не найдены записи кабинетов');
+        if (!writeManualRooms(clean)) throw new Error('Браузер запретил сохранение данных');
+        roomEditor.editingId = null; roomEditor.movingId = null; roomEditor.placing = false;
+        renderFloorPlan(activeFloorBuilding, activeFloorNumber);
+        setRoomEditorStatus('Импортировано. Кабинеты сохранены на этом устройстве.');
+      } catch (error) { setRoomEditorStatus('Не удалось импортировать: ' + error.message); }
+    };
+    reader.onerror = function () { setRoomEditorStatus('Не удалось прочитать JSON-файл.'); };
+    reader.readAsText(file);
+  }
 
   function renderFloorPlan(building, floor) {
     var content = $('floorplan-content');
@@ -453,7 +583,9 @@
       });
       var html = '<nav class="floor-tabs" aria-label="Выбор этажа">' + tabs + '</nav>';
       html += '<div class="floor-toolbar"><span>' + esc(plan.title) + '</span><div><button type="button" data-floor-zoom="-1" aria-label="Уменьшить схему">−</button><button type="button" data-floor-zoom="1" aria-label="Увеличить схему">+</button><button type="button" data-floor-zoom="reset">Сброс</button></div></div>';
-      html += '<div class="floorplan-viewport"><div class="floorplan-drawing" style="width:100%">' + plan.svg + '</div></div>';
+      var svgWithRooms = manualRoomsSvg(building, floor, plan.svg);
+      html += '<div class="floorplan-viewport"><div class="floorplan-drawing" style="width:100%">' + svgWithRooms + '</div></div>';
+      html += roomEditorMarkup();
       html += '<section class="floor-units"><h4>Подразделения и кабинеты этого этажа</h4>';
       if (assigned.length) {
         html += '<div class="room-grid">';
@@ -464,7 +596,7 @@
       } else {
         html += '<p class="muted">Подтверждённые номера кабинетов для этого этажа пока не внесены.</p>';
       }
-      html += '</section><p class="floor-note">' + esc(custom.note) + ' Расположение отдельных кабинетов не привязано к конкретным комнатам, пока нет проверенных поэтажных данных с номерами помещений.</p>';
+      html += '</section><p class="floor-note">' + esc(custom.note) + '</p>';
       content.innerHTML = html;
       var drawing = content.querySelector('.floorplan-drawing');
       if (drawing) drawing.style.width = (floorPlanZoom * 100) + '%';
@@ -517,6 +649,7 @@
   function closeFloorPlan() {
     var panel = $('floorplan');
     if (panel) { panel.hidden = true; panel.setAttribute('aria-hidden', 'true'); }
+    roomEditor.placing = false; roomEditor.start = null; roomEditor.editingId = null; roomEditor.movingId = null;
   }
 
   function showBuildingPopup(info, lngLat) {
@@ -624,7 +757,28 @@
     if (floorContent) floorContent.addEventListener('click', function (event) {
       var tab = event.target.closest('[data-floor-select]');
       if (tab && activeFloorBuilding) {
+        roomEditor.placing = false; roomEditor.editingId = null; roomEditor.movingId = null;
         renderFloorPlan(activeFloorBuilding, Number(tab.getAttribute('data-floor-select')));
+        return;
+      }
+      var addedRoom = event.target.closest('[data-user-room-id]');
+      if (addedRoom && activeFloorBuilding) {
+        var items = roomsForFloor(activeFloorBuilding, activeFloorNumber);
+        var found = items.find(function (item) { return String(item.id) === String(addedRoom.getAttribute('data-user-room-id')); });
+        if (found) {
+          roomEditor.editingId = String(found.id); roomEditor.movingId = String(found.id);
+          roomEditor.draft = { number: found.number, name: found.name || '' };
+          var editor = floorContent.querySelector('.room-editor');
+          if (editor) {
+            var numberInput = editor.querySelector('[data-room-number]'), nameInput = editor.querySelector('[data-room-name]');
+            if (numberInput) numberInput.value = found.number;
+            if (nameInput) nameInput.value = found.name || '';
+            var save = editor.querySelector('[data-room-save]'), del = editor.querySelector('[data-room-delete]'), cancel = editor.querySelector('[data-room-cancel]');
+            if (save) save.hidden = false; if (del) del.hidden = false; if (cancel) cancel.hidden = false;
+            var place = editor.querySelector('[data-room-place]'); if (place) place.textContent = 'Перерисовать место';
+            setRoomEditorStatus('Выбран кабинет ' + found.number + '. Измените подпись, перерисуйте место или удалите запись.');
+          }
+        }
         return;
       }
       var zoom = event.target.closest('[data-floor-zoom]');
@@ -633,8 +787,108 @@
         floorPlanZoom = action === 'reset' ? 1 : Math.max(1, Math.min(2.5, floorPlanZoom + Number(action) * 0.25));
         var drawing = floorContent.querySelector('.floorplan-drawing');
         if (drawing) drawing.style.width = (floorPlanZoom * 100) + '%';
+        return;
       }
+      if (event.target.closest('[data-room-place]')) {
+        var editorBox = floorContent.querySelector('.room-editor');
+        var num = editorBox && editorBox.querySelector('[data-room-number]');
+        var name = editorBox && editorBox.querySelector('[data-room-name]');
+        var numberValue = num ? num.value.trim() : '';
+        if (!numberValue) { setRoomEditorStatus('Сначала укажите номер кабинета.'); if (num) num.focus(); return; }
+        roomEditor.draft = { number: numberValue, name: name ? name.value.trim() : '' };
+        roomEditor.placing = true; roomEditor.start = null;
+        var svg = floorContent.querySelector('.floorplan-svg');
+        if (svg) svg.classList.add('is-placing-room');
+        setRoomEditorStatus('Проведите пальцем или мышью по плану, чтобы обвести кабинет. Короткое нажатие поставит стандартную метку.');
+        return;
+      }
+      if (event.target.closest('[data-room-cancel]')) {
+        roomEditor.placing = false; roomEditor.start = null; roomEditor.draft = null; roomEditor.editingId = null; roomEditor.movingId = null;
+        renderFloorPlan(activeFloorBuilding, activeFloorNumber); return;
+      }
+      if (event.target.closest('[data-room-save]')) {
+        var box = floorContent.querySelector('.room-editor');
+        var numberInput = box && box.querySelector('[data-room-number]');
+        var nameInput = box && box.querySelector('[data-room-name]');
+        var number = numberInput ? numberInput.value.trim() : '';
+        if (!number) { setRoomEditorStatus('Номер кабинета обязателен.'); return; }
+        var all = readManualRooms(), key = manualRoomKey(activeFloorBuilding, activeFloorNumber);
+        all[key] = (all[key] || []).map(function (item) {
+          if (String(item.id) !== String(roomEditor.editingId)) return item;
+          item.number = number; item.name = nameInput ? nameInput.value.trim() : '';
+          return item;
+        });
+        if (!writeManualRooms(all)) { setRoomEditorStatus('Не удалось сохранить. Проверьте доступное место в хранилище браузера.'); return; }
+        roomEditor.editingId = null; roomEditor.movingId = null; roomEditor.draft = null;
+        renderFloorPlan(activeFloorBuilding, activeFloorNumber); setRoomEditorStatus('Изменения сохранены.');
+        return;
+      }
+      if (event.target.closest('[data-room-delete]')) {
+        var allRooms = readManualRooms(), roomKey = manualRoomKey(activeFloorBuilding, activeFloorNumber);
+        allRooms[roomKey] = (allRooms[roomKey] || []).filter(function (item) { return String(item.id) !== String(roomEditor.editingId); });
+        writeManualRooms(allRooms);
+        roomEditor.editingId = null; roomEditor.movingId = null; roomEditor.draft = null;
+        renderFloorPlan(activeFloorBuilding, activeFloorNumber); setRoomEditorStatus('Кабинет удалён.');
+        return;
+      }
+      if (event.target.closest('[data-room-export]')) { exportManualRooms(); setRoomEditorStatus('Файл JSON подготовлен. Он содержит все ручные кабинеты с этого устройства.'); return; }
+      if (event.target.closest('[data-room-import]')) { var file = floorContent.querySelector('[data-room-file]'); if (file) file.click(); return; }
     });
+    if (floorContent) {
+      floorContent.addEventListener('change', function (event) {
+        if (event.target.matches('[data-room-file]')) {
+          importManualRooms(event.target.files && event.target.files[0]);
+          event.target.value = '';
+        }
+      });
+      floorContent.addEventListener('pointerdown', function (event) {
+        if (!roomEditor.placing || event.target.closest('[data-user-room-id]')) return;
+        var svg = event.target.closest('svg.floorplan-svg');
+        if (!svg) return;
+        var point = roomPoint(event, svg);
+        roomEditor.start = { svg: svg, point: point };
+        svg.classList.add('is-placing-room');
+        try { svg.setPointerCapture(event.pointerId); } catch (error) {}
+        event.preventDefault();
+      });
+      floorContent.addEventListener('pointermove', function (event) {
+        if (!roomEditor.placing || !roomEditor.start) return;
+        var svg = roomEditor.start.svg, a = roomEditor.start.point, b = roomPoint(event, svg);
+        var x = Math.min(a.x,b.x), y = Math.min(a.y,b.y), w = Math.abs(a.x-b.x), h = Math.abs(a.y-b.y);
+        roomPreview(svg,x,y,Math.max(1,w),Math.max(1,h));
+      });
+      floorContent.addEventListener('pointerup', function (event) {
+        if (!roomEditor.placing || !roomEditor.start) return;
+        var svg = roomEditor.start.svg, a = roomEditor.start.point, b = roomPoint(event, svg);
+        var width = Math.abs(a.x-b.x), height = Math.abs(a.y-b.y);
+        if (width < 18 || height < 18) { width = 78; height = 48; }
+        var x = Math.max(8, Math.min(a.width-width-8, Math.min(a.x,b.x) - (Math.abs(a.x-b.x)<18 ? width/2 : 0)));
+        var y = Math.max(88, Math.min(a.height-50-height, Math.min(a.y,b.y) - (Math.abs(a.y-b.y)<18 ? height/2 : 0)));
+        var all = readManualRooms(), key = manualRoomKey(activeFloorBuilding, activeFloorNumber);
+        var entries = all[key] || [];
+        if (roomEditor.movingId) {
+          entries = entries.map(function(item) {
+            if (String(item.id) !== String(roomEditor.movingId)) return item;
+            item.x=x; item.y=y; item.w=width; item.h=height; return item;
+          });
+        } else {
+          entries.push({ id: String(Date.now()) + '-' + Math.random().toString(36).slice(2,7),
+            number: roomEditor.draft.number, name: roomEditor.draft.name || '', x:x, y:y, w:width, h:height });
+        }
+        all[key] = entries;
+        var saved = writeManualRooms(all);
+        roomEditor.placing = false; roomEditor.start = null; roomEditor.editingId = null; roomEditor.movingId = null; roomEditor.draft = null;
+        renderFloorPlan(activeFloorBuilding, activeFloorNumber);
+        setRoomEditorStatus(saved ? 'Кабинет сохранён на этом устройстве. Нажмите на его метку, чтобы изменить или удалить.' : 'Не удалось сохранить кабинет: хранилище браузера недоступно.');
+      });
+      floorContent.addEventListener('pointercancel', function () {
+        if (roomEditor.start && roomEditor.start.svg) {
+          var preview = roomEditor.start.svg.querySelector('.fp-room-preview'); if (preview) preview.remove();
+        }
+        roomEditor.start = null; roomEditor.placing = false;
+        setRoomEditorStatus('Размещение отменено.');
+      });
+    }
     var floorPanel = $('floorplan');
     if (floorPanel) floorPanel.addEventListener('click', function (event) { if (event.target === floorPanel) closeFloorPlan(); });
     var infoButton = $('infoBtn');
