@@ -585,6 +585,8 @@ fn dating_profile_screen(
             button("✏️ Имя", "dating:name"),
             button("📝 Описание", "dating:bio"),
         ],
+        vec![button("💚 Кто меня лайкнул", "dating:likes")],
+        vec![button("📷 Фото анкеты", "dating:photo")],
     ];
     for chunk in TAGS.chunks(2) {
         rows.push(
@@ -664,6 +666,28 @@ async fn dating_action(
         .unwrap_or(("Студент".into(),));
         sqlx::query("INSERT INTO bot_dating_profiles(telegram_id,display_name,tags,age_confirmed_at) VALUES($1,$2,ARRAY['study']::text[],now()) ON CONFLICT(telegram_id) DO UPDATE SET age_confirmed_at=COALESCE(bot_dating_profiles.age_confirmed_at,now()),is_active=TRUE,is_paused=FALSE,updated_at=now()")
             .bind(actor).bind(row.0).execute(db).await?;
+        let (text, kb) = dating_home(db, actor).await;
+        (text, kb, None)
+    } else if action == "dating:likes" {
+        incoming_likes_screen(db, actor, 0).await?
+    } else if let Some(page_text) = action.strip_prefix("dating:likes:") {
+        let page = page_text.parse::<i64>().unwrap_or(0).clamp(0, 10_000);
+        incoming_likes_screen(db, actor, page).await?
+    } else if let Some(liker_text) = action.strip_prefix("dating:likeview:") {
+        let liker = liker_text.parse::<i64>().unwrap_or_default();
+        incoming_like_card(db, actor, liker).await?
+    } else if action == "dating:photo" {
+        (
+            "📷 Отправь фотографию следующим сообщением в этот личный чат. Она будет показываться только в анкете знакомств. Не отправляй чужие фотографии без согласия человека.".into(),
+            InlineKeyboardMarkup::new(vec![
+                vec![button("🗑 Удалить фото", "dating:photo:delete")],
+                nav("dating:profile"),
+            ]),
+            None,
+        )
+    } else if action == "dating:photo:delete" {
+        sqlx::query("UPDATE bot_dating_profiles SET photo_file_id=NULL,updated_at=now() WHERE telegram_id=$1")
+            .bind(actor).execute(db).await?;
         let (text, kb) = dating_home(db, actor).await;
         (text, kb, None)
     } else if action == "dating:pause" {
@@ -942,6 +966,66 @@ async fn block_user(db: &PgPool, actor: i64, target: i64) -> Result<(), sqlx::Er
     };
     sqlx::query("UPDATE bot_dating_matches SET status='ended',ended_at=now() WHERE user1_telegram_id=$1 AND user2_telegram_id=$2 AND status='active'").bind(one).bind(two).execute(db).await?;
     Ok(())
+}
+
+async fn incoming_likes_screen(
+    db: &PgPool,
+    actor: i64,
+    page: i64,
+) -> SocialResult<(String, InlineKeyboardMarkup, Option<(i64, String)>)> {
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1))"
+    ).bind(actor).fetch_one(db).await?;
+    let pages = total.max(1);
+    let page = page.clamp(0, pages - 1);
+    let liker = sqlx::query_scalar::<_, i64>(
+        "SELECT s.from_telegram_id FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1)) ORDER BY s.created_at DESC LIMIT 1 OFFSET $2"
+    ).bind(actor).bind(page).fetch_optional(db).await?;
+    let mut rows = Vec::new();
+    if let Some(liker) = liker {
+        rows.push(vec![button("Открыть анкету", format!("dating:likeview:{liker}"))]);
+    }
+    if page > 0 {
+        rows.push(vec![button("◀️ Предыдущий лайк", format!("dating:likes:{}", page - 1))]);
+    }
+    if page + 1 < pages {
+        rows.push(vec![button("Следующий лайк ▶️", format!("dating:likes:{}", page + 1))]);
+    }
+    rows.push(vec![button("⬅️ К анкете", "dating:profile"), button("🏠 Меню", "ui:main")]);
+    Ok((
+        format!("💚 Тебя лайкнули: {total}.\n{}",
+            if total == 0 { "Пока нет входящих лайков.".to_owned() } else { format!("Анкета {} из {} доступна для просмотра.", page + 1, total) }),
+        InlineKeyboardMarkup::new(rows),
+        None,
+    ))
+}
+
+async fn incoming_like_card(
+    db: &PgPool,
+    actor: i64,
+    liker: i64,
+) -> SocialResult<(String, InlineKeyboardMarkup, Option<(i64, String)>)> {
+    let card = sqlx::query_as::<_, (String, String, Vec<String>)>(
+        "SELECT p.display_name,p.bio,p.tags FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.from_telegram_id=$2 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=$2) OR (b.blocker_telegram_id=$2 AND b.blocked_telegram_id=$1))"
+    ).bind(actor).bind(liker).fetch_optional(db).await?;
+    let Some((name, bio, tags)) = card else {
+        return Ok((
+            "Этот лайк больше недоступен.".into(),
+            InlineKeyboardMarkup::new(vec![nav("dating:likes")]),
+            None,
+        ));
+    };
+    let interests = if tags.is_empty() { "не указаны".to_owned() } else { tags.iter().map(|tag| tag_label(tag)).collect::<Vec<_>>().join(" · ") };
+    let text = format!("💚 ТЕБЯ ЛАЙКНУЛИ\n\n{name} · 18+\n{}\n\nИнтересы: {interests}\n\nЕсли симпатия взаимная, поставь лайк в ответ.", if bio.is_empty() { "Без описания" } else { &bio });
+    Ok((
+        text,
+        InlineKeyboardMarkup::new(vec![
+            vec![button("💚 Ответить лайком", format!("dating:like:{liker}"))],
+            vec![button("Следующий лайк ▶️", "dating:likes:next")],
+            nav("dating:profile"),
+        ]),
+        None,
+    ))
 }
 
 async fn matches_screen(
