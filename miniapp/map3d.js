@@ -102,6 +102,8 @@
       { id: 'path', type: 'line', source: 'ground', filter: ['==', ['get', 'kind'], 'path'],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 20, 1.6] } },
+      { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.94, 'fill-outline-color': '#625e55' } },
       { id: 'shadow', type: 'fill', source: 'shadow',
         paint: { 'fill-color': '#16231a', 'fill-opacity': ['match', ['get', 'k'], 't', 0.24, 0.42] } },
       extrusion('bld', 'solid', 0, 1),
@@ -142,7 +144,7 @@
     setStatus('3D-карта требует WebGL, а он недоступен: ' + e.message, true);
     return;
   }
-  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' }), 'bottom-right');
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL) · Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
 
@@ -220,6 +222,9 @@
     html += '<h3>' + esc(title) + '</h3>';
     if (camp && camp.description) { html += '<p>' + esc(camp.description) + '</p>'; }
     if (camp && camp.address) { html += '<p class="muted">' + esc(camp.address) + '</p>'; }
+    if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'указана в источнике') + ')</p>'; }
+    else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по числу этажей источника') + ')</p>'; }
+    else if (p.hq === 'unknown') { html += '<p><b>3D-высота:</b> не указана в источнике; показан только реальный контур</p>'; }
     if (heritage) {
       if (heritage.built) html += '<p><b>Построен:</b> ' + esc(heritage.built) + '</p>';
       if (heritage.style) html += '<p><b>Стиль:</b> ' + esc(heritage.style) + '</p>';
@@ -259,7 +264,7 @@
   }
 
   map.on('click', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'win'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'win', 'bld-footprint'] });
     if (!hits.length) { clearSelection(); return; }
     selectBuilding(String(hits[0].properties.pid), e.lngLat);
   });

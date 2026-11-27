@@ -239,29 +239,37 @@
 
   /* ---------- buildings ---------- */
 
-  function wallColour(props, pid) {
+  function wallColour(props) {
     if (isHex(props.styleColor)) { return props.styleColor.trim(); }
     var clad = String(props.cladding || '').toLowerCase();
-    if (/brick/.test(clad)) { return pick(WALL_BRICK, pid); }
-    if (/(concrete|panel|cement)/.test(clad)) { return pick(WALL_PANEL, pid); }
-    return pick(WALL_WARM, pid);
+    if (/brick/.test(clad)) { return '#a46f59'; }
+    if (/(concrete|panel|cement)/.test(clad)) { return '#b7b5ad'; }
+    if (/stone|limestone/.test(clad)) { return '#c6bda9'; }
+    if (/wood|timber/.test(clad)) { return '#98785e'; }
+    if (/glass/.test(clad)) { return '#748e9d'; }
+    if (/plaster|stucco/.test(clad)) { return '#d5d0c4'; }
+    return '#c8c5bb';
   }
 
-  function roofColour(props, pid, shaped) {
+  function roofColour(props) {
     if (isHex(props.roofColor)) { return props.roofColor.trim(); }
     var m = String(props.roofMaterial || '').toLowerCase();
     if (/tile/.test(m)) return '#9a5a48';
     if (/metal|steel|zinc/.test(m)) return '#6f7a82';
-    return shaped ? '#8a5b4d' : '#5f6368';
+    if (/slate/.test(m)) return '#666c72';
+    return '#85847d';
   }
 
   function heightInfo(props) {
-    if (props.heightKnown && typeof props.heightMeters === 'number') {
+    if (props.heightKnown && typeof props.heightMeters === 'number' && props.heightMeters > 0) {
       var fromLevels = /level|estimate/i.test(String(props.heightSource || ''));
       return { h: props.heightMeters, q: fromLevels ? 'levels' : 'known' };
     }
-    var type = String(props.osmBuilding || '').toLowerCase();
-    return { h: LOW_TYPES[type] ? 3.2 : DEFAULT_H, q: 'assumed' };
+    var lv = parseInt(props.levels, 10);
+    if (isFinite(lv) && lv > 0) {
+      return { h: Math.max(3.0, Math.min(60, lv * 3.2)), q: 'levels' };
+    }
+    return { h: 0, q: 'unknown' };
   }
 
   /* One window = a cream surround (a shallow solid box, a little larger than the glass)
@@ -296,8 +304,7 @@
           if (glass.length >= cap) { return; }
           var z0 = f * fh + fh * 0.32;
           add(frames, [box(cx, cy, fw, 0.01, 0.07)], { pid: pid, col: '#e4dac6', z0: z0 - 0.08, z1: z0 + wh + 0.1 });
-          var r = rnd(seed + '|' + i + '|' + k + '|' + f);
-          var col = r < 0.1 ? '#263849' : r < 0.45 ? '#40566c' : r < 0.8 ? '#34495d' : '#526b82';
+          var col = '#40566c';
           add(glass, [box(cx, cy, gw, 0.07, 0.11)], { pid: pid, col: col, z0: z0, z1: z0 + wh });
         }
         if (deco && deco.pilaster && k % 4 === 3 && k + 1 < count) {
@@ -317,7 +324,7 @@
 
     var out = {
       ground: [], solid: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
-      stats: { buildings: 0, known: 0, levels: 0, assumed: 0, windows: 0, trees: 0, dropped: 0 }
+      stats: { buildings: 0, known: 0, levels: 0, assumed: 0, unknown: 0, windows: 0, trees: 0, dropped: 0 }
     };
     var features = (scene && scene.features) || [];
     var GROUND = { 'park-boundary': 1, 'green-area': 1, water: 1, path: 1 };
@@ -386,19 +393,19 @@
       var floors = isFinite(levels) && levels > 0 ? Math.min(levels, 14) : Math.max(1, Math.round(h / FLOOR_H));
       floors = Math.min(floors, Math.max(1, Math.round(h / 2.6)));
       var fh = h / floors;
-      var wall = wallColour(props, pid);
+      var wall = wallColour(props);
       var plinth = shade(wall, 0.74);
       var ledge = lighten(wall, 0.08);
       var trim = lighten(wall, 0.2);
       var rawShape = String(props.roofShape || '').toLowerCase();
       var shaped = /^(hipped|gabled|pyramidal|half-hipped|gambrel|mansard|hip|gable)/.test(rawShape);
-      var roof = roofColour(props, pid, shaped);
+      var roof = roofColour(props);
       var camp = campusByOsm[pid];
       var isHistoric = !!(camp && camp.heritage && /ампир|empire/i.test(String(camp.heritage.style || '')));
       var base = {
         pid: pid, name: props.name || '', hm: Math.round(h * 10) / 10, hq: hi.q,
         bt: props.osmBuilding || '', lv: props.levels || '', src: props.sourceUrl || '',
-        campus: props.campusNumber || (camp ? String(camp.number) : '')
+        campus: props.campusNumber || (camp ? String(camp.number) : ''), hs: props.heightSource || '', ds: props.dataSource || ''
       };
       function part(rings, z0, z1, col) {
         if (!rings) return;
@@ -420,6 +427,17 @@
         var hasHoles = rings.length > 1;
         var hullPts = hull(outer);
         var convex = !hasHoles && Math.abs(signedArea(outer)) / Math.max(1e-6, Math.abs(signedArea(hullPts))) >= 0.88;
+
+        /* Missing source height is not an invitation to invent a 3D block.
+           Keep the actual footprint and make it selectable instead. */
+        if (!(h > 0)) {
+          add(out.ground, rings, {
+            kind: 'building-footprint', pid: pid, campus: base.campus,
+            name: base.name, src: base.src, col: wall, heightQuality: 'unknown'
+          });
+          add(hl, rings, { col: '#ffd25a', z0: 0, z1: 0.18 });
+          return;
+        }
 
         // Massing. The walls are one extrusion of the real footprint including
         // courtyard holes; trims are mitred offsets so they never share a plane with the wall.
@@ -464,22 +482,23 @@
       if (!okPolys) return;
 
       out.stats.buildings++;
-      out.stats[hi.q === 'known' ? 'known' : hi.q === 'levels' ? 'levels' : 'assumed']++;
+      out.stats[hi.q === 'known' ? 'known' : hi.q === 'levels' ? 'levels' : 'unknown']++;
       out.index[pid] = base;
       out.highlight[pid] = hl;
     });
     out.stats.windows = out.windows.length;
 
-    // Mapped trees are kept as-is. The OSM tree layer is sparse, so mapped woodland
-    // and arboretum polygons are filled with deterministic illustrative trees.
-    // These visualise vegetation density; they are not surveyed individual trees.
+    // Only individual OSM tree points become 3D tree symbols. Green-area polygons
+    // remain ground cover; they do not imply surveyed individual tree locations.
+    // Crown bands are illustrative because tree height and crown profiles are not mapped.
     var TIERS = [
-      { f: 1.0, z0: 2.2, z1: 5.0, l: 0 },
-      { f: 0.74, z0: 5.0, z1: 7.8, l: 0.07 },
-      { f: 0.46, z0: 7.8, z1: 10.4, l: 0.14 }
+      { f: 0.92, z0: 2.2, z1: 3.4, l: 0 },
+      { f: 1.00, z0: 3.4, z1: 4.5, l: 0.025 },
+      { f: 0.84, z0: 4.5, z1: 5.5, l: 0.055 },
+      { f: 0.60, z0: 5.5, z1: 6.2, l: 0.09 },
+      { f: 0.30, z0: 6.2, z1: 6.6, l: 0.13 }
     ];
     var TREE_SHADOW = 5.5;
-    var mappedTreePoints = [];
     features.forEach(function (f) {
       var p = f && f.properties;
       if (!p || !f.geometry || f.geometry.type !== 'Polygon') return;
@@ -488,13 +507,11 @@
       var osmId = String(p.osmId || f.id);
       if (p.kind === 'tree-trunk') {
         var tc = centroid(ring);
-        mappedTreePoints.push(tc);
         add(out.trees, [circle(tc[0], tc[1], 0.32, 8)], { col: '#6b5640', z0: 0, z1: 2.4 });
       } else if (p.kind === 'tree-canopy') {
         var cen = centroid(ring);
-        var v = 0.85 + rnd('tree' + osmId) * 0.4;
+        var v = 1; // mapped position; crown dimensions stay explicitly illustrative
         var col = isHex(p.foliageColor) ? p.foliageColor : '#4f8349';
-        mappedTreePoints.push(cen);
         TIERS.forEach(function (t) {
           add(out.trees, [scaleAbout(ring, t.f * v, t.f * v, cen[0], cen[1])], { col: lighten(col, t.l), z0: t.z0 * v, z1: t.z1 * v });
         });
@@ -502,130 +519,6 @@
         add(out.shadows, [hull(ring.concat(sh))], { k: 't' });
         out.stats.trees++;
       }
-    });
-
-    function pointInRing(pt, ring) {
-      var inside = false;
-      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        var a = ring[i], b = ring[j];
-        var crosses = ((a[1] > pt[1]) !== (b[1] > pt[1])) &&
-          (pt[0] < (b[0] - a[0]) * (pt[1] - a[1]) / ((b[1] - a[1]) || 1e-12) + a[0]);
-        if (crosses) inside = !inside;
-      }
-      return inside;
-    }
-    function pointInPolygon(pt, rings) {
-      if (!rings.length || !pointInRing(pt, rings[0])) return false;
-      for (var h = 1; h < rings.length; h++) if (pointInRing(pt, rings[h])) return false;
-      return true;
-    }
-    function distanceToSegment(pt, a, b) {
-      var dx = b[0] - a[0], dy = b[1] - a[1];
-      var den = dx * dx + dy * dy;
-      var t = den ? Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / den)) : 0;
-      var x = a[0] + t * dx, y = a[1] + t * dy;
-      var ex = pt[0] - x, ey = pt[1] - y;
-      return Math.sqrt(ex * ex + ey * ey);
-    }
-    function ringDistance(pt, ring) {
-      var best = Infinity;
-      for (var i = 0; i < ring.length; i++) {
-        best = Math.min(best, distanceToSegment(pt, ring[i], ring[(i + 1) % ring.length]));
-      }
-      return best;
-    }
-    var pathSegments = [];
-    var buildingRings = [];
-    features.forEach(function (f) {
-      if (!f || !f.geometry) return;
-      var p = f.properties || {};
-      if (p.kind === 'path' && f.geometry.type === 'LineString') {
-        var line = f.geometry.coordinates.map(P.toM);
-        for (var i = 1; i < line.length; i++) pathSegments.push([line[i - 1], line[i]]);
-      } else if (p.kind === 'building') {
-        polygonsOf(f.geometry).forEach(function (poly) {
-          poly.forEach(function (r) { buildingRings.push(stripClose(r.map(P.toM))); });
-        });
-      }
-    });
-    var GARDEN_RE = /дендролог|дендропарк|сад/i;
-    var greenFeatures = features.filter(function (f) {
-      return f && f.properties && f.properties.kind === 'green-area' &&
-        (/wood|forest|orchard|garden|grass|meadow/i.test(String(f.properties.areaType || 'wood')) ||
-         GARDEN_RE.test(String(f.properties.name || '')));
-    });
-    var gardenPolygons = [];
-    greenFeatures.filter(function (f) { return GARDEN_RE.test(String(f.properties.name || '')); }).forEach(function (f) {
-      polygonsOf(f.geometry).forEach(function (poly) {
-        gardenPolygons.push(poly.map(function (r) { return stripClose(r.map(P.toM)); }));
-      });
-    });
-    var generatedPoints = [];
-    var generatedLimit = 720;
-    function addIllustrativeTree(x, y, seed) {
-      var radius = 3.0 + rnd(seed + '|radius') * 1.15;
-      var v = 0.86 + rnd(seed + '|height') * 0.28;
-      var col = pick(['#356c3d', '#477e43', '#5a874b', '#3f7548', '#668c50'], seed);
-      var crown = circle(x, y, radius, 10);
-      add(out.trees, [circle(x, y, 0.18, 7)], { col: '#66513b', z0: 0, z1: 3.0 * v });
-      TIERS.forEach(function (t) {
-        add(out.trees, [scaleAbout(crown, t.f, t.f, x, y)], { col: lighten(col, t.l), z0: t.z0 * v, z1: t.z1 * v });
-      });
-      var sh = crown.map(function (q) { return [q[0] + sx * TREE_SHADOW * v, q[1] + sy * TREE_SHADOW * v]; });
-      add(out.shadows, [hull(crown.concat(sh))], { k: 't' });
-      generatedPoints.push([x, y]);
-      out.stats.trees++;
-    }
-    function nearPath(pt, limit) {
-      for (var i = 0; i < pathSegments.length; i++) {
-        if (distanceToSegment(pt, pathSegments[i][0], pathSegments[i][1]) < limit) return true;
-      }
-      return false;
-    }
-    function nearBuilding(pt, limit) {
-      for (var i = 0; i < buildingRings.length; i++) {
-        if (pointInRing(pt, buildingRings[i]) || ringDistance(pt, buildingRings[i]) < limit) return true;
-      }
-      return false;
-    }
-    function nearExistingTree(pt, limit) {
-      for (var i = 0; i < mappedTreePoints.length; i++) {
-        var dx = pt[0] - mappedTreePoints[i][0], dy = pt[1] - mappedTreePoints[i][1];
-        if (dx * dx + dy * dy < limit * limit) return true;
-      }
-      for (var j = 0; j < generatedPoints.length; j++) {
-        var gx = pt[0] - generatedPoints[j][0], gy = pt[1] - generatedPoints[j][1];
-        if (gx * gx + gy * gy < limit * limit) return true;
-      }
-      return false;
-    }
-    // Named arboretums get a dense planting pattern; the surrounding mapped
-    // woodland gets a looser pattern so the park does not look empty or overplanted.
-    greenFeatures.sort(function (a, b) {
-      var ag = GARDEN_RE.test(String(a.properties.name || '')) ? 0 : 1;
-      var bg = GARDEN_RE.test(String(b.properties.name || '')) ? 0 : 1;
-      return ag - bg;
-    }).forEach(function (f, fi) {
-      if (generatedPoints.length >= generatedLimit) return;
-      var isGarden = GARDEN_RE.test(String(f.properties.name || ''));
-      var spacing = isGarden ? 10.5 : 19;
-      polygonsOf(f.geometry).forEach(function (poly, pi) {
-        if (!poly.length || generatedPoints.length >= generatedLimit) return;
-        var rings = poly.map(function (r) { return stripClose(r.map(P.toM)); });
-        var b = bbox(rings[0]);
-        var jitterX = rnd(String(f.properties.osmId) + '|x|' + pi) * spacing;
-        var jitterY = rnd(String(f.properties.osmId) + '|y|' + pi) * spacing;
-        for (var x = b.x0 + jitterX; x <= b.x1 && generatedPoints.length < generatedLimit; x += spacing) {
-          for (var y = b.y0 + jitterY; y <= b.y1 && generatedPoints.length < generatedLimit; y += spacing) {
-            var seed = String(f.properties.osmId || fi) + '|' + Math.round(x) + '|' + Math.round(y);
-            var pt = [x + (rnd(seed + '|jx') - 0.5) * spacing * 0.42, y + (rnd(seed + '|jy') - 0.5) * spacing * 0.42];
-            if (!pointInPolygon(pt, rings)) continue;
-            if (!isGarden && gardenPolygons.some(function (gr) { return pointInPolygon(pt, gr); })) continue;
-            if (nearPath(pt, 3.0) || nearBuilding(pt, 3.8) || nearExistingTree(pt, isGarden ? 6.0 : 11.5)) continue;
-            addIllustrativeTree(pt[0], pt[1], seed);
-          }
-        }
-      });
     });
 
     // Final gate: nothing invalid or oversized reaches MapLibre.

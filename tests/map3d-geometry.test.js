@@ -65,9 +65,12 @@ function inRing(pt, r) {
 test('height quality is classified from OSM data', () => {
   const out = G.buildScene(sampleScene(), campus);
   assert.strictEqual(out.index['1'].hq, 'known');
-  assert.strictEqual(out.index['3'].hq, 'assumed');
-  assert.strictEqual(out.index['3'].hm, G.DEFAULT_H);
-  assert.strictEqual(out.index['4'].hm, 3.2);
+  assert.strictEqual(out.index['3'].hq, 'unknown');
+  assert.strictEqual(out.index['3'].hm, 0);
+  assert.strictEqual(out.index['4'].hq, 'unknown');
+  assert.strictEqual(out.index['4'].hm, 0);
+  assert.ok(out.ground.some(f => f.properties.kind === 'building-footprint' && f.properties.pid === '3'));
+  assert.ok(!out.solid.some(f => f.properties.pid === '3'), 'unknown height must not create a fake extrusion');
   assert.strictEqual(out.stats.buildings, 4);
 });
 
@@ -203,10 +206,19 @@ test('oversized or corrupted geometry is dropped by the sanitize gate', () => {
 });
 
 test('ground features are passed through and trees are built', () => {
-  const out = G.buildScene(sampleScene(), campus);
-  assert.strictEqual(out.ground.length, 2);
+  const input = sampleScene();
+  const expectedGround = input.features.filter(f => ['park-boundary', 'green-area', 'water', 'path'].includes(f.properties.kind)).length;
+  const expectedFootprints = input.features.filter(f => {
+    const p = f.properties || {};
+    const hasHeight = p.heightKnown && typeof p.heightMeters === 'number' && p.heightMeters > 0;
+    const hasLevels = Number.isFinite(parseInt(p.levels, 10)) && parseInt(p.levels, 10) > 0;
+    return p.kind === 'building' && !hasHeight && !hasLevels;
+  }).length;
+  const out = G.buildScene(input, campus);
+  assert.strictEqual(out.ground.filter(f => f.properties.kind !== 'building-footprint').length, expectedGround);
+  assert.strictEqual(out.ground.filter(f => f.properties.kind === 'building-footprint').length, expectedFootprints);
   assert.strictEqual(out.stats.trees, 1);
-  assert.strictEqual(out.trees.length, 4);
+  assert.ok(out.trees.length >= 4, 'a mapped tree point receives trunk and crown layers');
 });
 
 test('named arboretum polygons generate clustered trees while respecting paths', () => {
@@ -222,8 +234,8 @@ test('named arboretum polygons generate clustered trees while respecting paths',
     }]
   };
   const out = G.buildScene(garden, null);
-  assert.ok(out.stats.trees >= 20);
-  assert.ok(out.trees.length >= out.stats.trees * 3);
+  assert.strictEqual(out.stats.trees, 0, 'woodland polygons do not prove individual tree locations');
+  assert.strictEqual(out.trees.length, 0, 'do not invent tree points from vegetation polygons');
   const pathY = 0;
   for (const f of out.trees) {
     if (f.properties.z0 === 0) {   // trunks mark the planting point

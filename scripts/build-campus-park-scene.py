@@ -70,7 +70,7 @@ def height_for(tags: dict[str, str]) -> tuple[float | None, str]:
         return max(1.0, min(100.0, float(match.group().replace(",", ".")))), "OSM height"
     levels = re.search(r"\d+", tags.get("building:levels", tags.get("levels", "")))
     if levels:
-        return max(1.0, min(100.0, int(levels.group()) * 3.4)), "OSM levels × 3.4 m (estimate)"
+        return max(1.0, min(100.0, int(levels.group()) * 3.2)), "OSM levels × 3.2 m (estimate)"
     return None, "unknown; height not mapped in OSM"
 
 
@@ -231,10 +231,7 @@ def main() -> None:
             if kind == "tree":
                 crown_diameter = re.search(r"\d+(?:[.,]\d+)?", tags.get("diameter_crown", ""))
                 crown_radius = max(2.2, min(5.0, float(crown_diameter.group().replace(",", ".")) / 2)) if crown_diameter else 3.2
-                foliage_palette = ["#3f7744", "#54884b", "#628f50", "#417354"]
-                foliage_color = foliage_palette[sum(ord(char) for char in osm_id) % len(foliage_palette)]
                 properties.update({"kind": "tree-canopy", "canopyBaseMeters": 2.2, "heightMeters": 6.5,
-                                   "foliageColor": foliage_color,
                                    "treeShapeNote": "illustrative crown size; OSM maps only the tree point"})
                 geometry = {"type": "Polygon", "coordinates": [tree_crown(coordinate[0], coordinate[1], crown_radius)]}
                 features.append({"type": "Feature", "id": f"node/{osm_id}-trunk", "properties": {
