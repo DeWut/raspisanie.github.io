@@ -419,41 +419,128 @@ async fn handle_chat_settings_callback(
             .show_alert(true).await?;
         return Ok(true);
     };
-    let chat_id=message.chat.id;
-    let actor=i64::try_from(query.from.id.0).unwrap_or_default();
+    let chat_id = message.chat.id;
+    let actor = i64::try_from(query.from.id.0).unwrap_or_default();
     if chat_id.0 >= 0 {
-        bot.answer_callback_query(query.id.clone()).text("Настройки доступны только в групповом чате.").show_alert(true).await?;
+        bot.answer_callback_query(query.id.clone())
+            .text("Настройки доступны только в групповом чате.")
+            .show_alert(true).await?;
         return Ok(true);
     }
-    let role=crate::services::chat_roles::sync_member(bot,&state.db,chat_id,actor,None).await.ok().flatten();
-    if !matches!(role.as_deref(),Some("owner"|"admin")) {
-        bot.answer_callback_query(query.id.clone()).text("Настраивать учебный чат могут только администраторы Telegram.").show_alert(true).await?;
+    let role = crate::services::chat_roles::sync_member(
+        bot, &state.db, chat_id, actor, None
+    ).await.ok().flatten();
+    if !matches!(role.as_deref(), Some("owner" | "admin")) {
+        bot.answer_callback_query(query.id.clone())
+            .text("Настраивать учебный чат могут только администраторы Telegram.")
+            .show_alert(true).await?;
         return Ok(true);
     }
-    if action != "chatsettings:open" {
-        let column = match action {
-            "chatsettings:daily" => "daily_schedule_enabled",
-            "chatsettings:lessons" => "lesson_notifications_enabled",
-            "chatsettings:digest" => "daily_digest_enabled",
-            "chatsettings:assistant" => "assistant_enabled",
-            "chatsettings:context" => "context_enabled",
-            _ => "",
-        };
-        if column.is_empty() {
-            bot.answer_callback_query(query.id.clone()).text("Кнопка устарела.").await?;
+
+    match action {
+        "chatsettings:context" => {
+            let enabled = sqlx::query_scalar::<_, bool>(
+                "SELECT context_enabled FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(chat_id.0).fetch_optional(&state.db).await.ok().flatten().unwrap_or(false);
+            bot.answer_callback_query(query.id.clone()).await?;
+            if !enabled {
+                let text = "🔐 СОГЛАСИЕ НА КОНТЕКСТНЫЕ ОТВЕТЫ\n\nЕсли включить эту функцию, бот будет сохранять только сообщения, которыми участники отвечают на сообщения самого бота в этом учебном чате.\n\n• Обычная переписка без ответа боту не сохраняется.\n• История привязана только к этому chat_id и не смешивается с другими чатами.\n• Контекст хранится до 7 дней, затем автоматически очищается.\n• Администратор может отключить функцию и удалить историю в любой момент.\n\nПодтверди согласие, чтобы включить сбор этого ограниченного контекста.";
+                let keyboard = InlineKeyboardMarkup::new(vec![
+                    vec![ui_button("✅ Подтверждаю и включаю", "chatsettings:context:confirm")],
+                    vec![ui_button("Отмена", "chatsettings:open")],
+                ]);
+                bot.edit_message_text(chat_id, message.id, text).reply_markup(keyboard).await?;
+            } else {
+                let text = "Отключить контекстные ответы и удалить всю сохранённую историю этого чата?";
+                let keyboard = InlineKeyboardMarkup::new(vec![
+                    vec![ui_button("🗑 Отключить и удалить историю", "chatsettings:context:disable")],
+                    vec![ui_button("⬅️ Назад", "chatsettings:open")],
+                ]);
+                bot.edit_message_text(chat_id, message.id, text).reply_markup(keyboard).await?;
+            }
             return Ok(true);
         }
-        let sql=format!("UPDATE bot_chat_settings SET {column}=NOT {column},updated_at=now() WHERE chat_id=$1");
-        let updated=sqlx::query(&sql).bind(chat_id.0).execute(&state.db).await;
-        if !matches!(updated,Ok(ref result) if result.rows_affected()==1) {
-            bot.answer_callback_query(query.id.clone()).text("Не удалось сохранить настройку.").show_alert(true).await?;
-            return Ok(true);
+        "chatsettings:context:confirm" => {
+            let result = sqlx::query(
+                "UPDATE bot_chat_settings SET context_enabled=TRUE,context_retention_days=7,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(chat_id.0).execute(&state.db).await;
+            if !matches!(result, Ok(ref r) if r.rows_affected()==1) {
+                bot.answer_callback_query(query.id.clone()).text("Не удалось включить контекст.").show_alert(true).await?;
+                return Ok(true);
+            }
+            let _ = sqlx::query(
+                "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,'context_enabled','true'::jsonb)"
+            ).bind(chat_id.0).bind(actor).execute(&state.db).await;
         }
-        let _=sqlx::query(
-            "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,$3,to_jsonb((SELECT CASE WHEN $3='daily_schedule_enabled' THEN daily_schedule_enabled WHEN $3='lesson_notifications_enabled' THEN lesson_notifications_enabled WHEN $3='daily_digest_enabled' THEN daily_digest_enabled WHEN $3='assistant_enabled' THEN assistant_enabled ELSE context_enabled END FROM bot_chat_settings WHERE chat_id=$1)))"
-        ).bind(chat_id.0).bind(actor).bind(column).execute(&state.db).await;
+        "chatsettings:context:disable" => {
+            let result = sqlx::query(
+                "UPDATE bot_chat_settings SET context_enabled=FALSE,assistant_enabled=FALSE,updated_at=now() WHERE chat_id=$1"
+            ).bind(chat_id.0).execute(&state.db).await;
+            if !matches!(result, Ok(ref r) if r.rows_affected()==1) {
+                bot.answer_callback_query(query.id.clone()).text("Не удалось отключить контекст.").show_alert(true).await?;
+                return Ok(true);
+            }
+            if let Err(error) = sqlx::query("DELETE FROM bot_chat_context_messages WHERE chat_id=$1")
+                .bind(chat_id.0).execute(&state.db).await {
+                tracing::error!("Could not erase chat context after opt-out: {}", error);
+            }
+            let _ = sqlx::query(
+                "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,'context_enabled','false'::jsonb)"
+            ).bind(chat_id.0).bind(actor).execute(&state.db).await;
+        }
+        "chatsettings:assistant" => {
+            let row = sqlx::query_as::<_, (bool, bool)>(
+                "SELECT assistant_enabled,context_enabled FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(chat_id.0).fetch_optional(&state.db).await;
+            let Ok(Some((assistant_enabled, context_enabled))) = row else {
+                bot.answer_callback_query(query.id.clone()).text("Сначала настрой учебную группу.").show_alert(true).await?;
+                return Ok(true);
+            };
+            if !assistant_enabled && !context_enabled {
+                bot.answer_callback_query(query.id.clone())
+                    .text("Сначала включи контекстные ответы и подтверди согласие.")
+                    .show_alert(true).await?;
+                return Ok(true);
+            }
+            let enabled = !assistant_enabled;
+            let result = sqlx::query(
+                "UPDATE bot_chat_settings SET assistant_enabled=$2,updated_at=now() WHERE chat_id=$1"
+            ).bind(chat_id.0).bind(enabled).execute(&state.db).await;
+            if let Err(error) = result {
+                tracing::error!("Could not change group assistant setting: {}", error);
+                bot.answer_callback_query(query.id.clone()).text("Не удалось сохранить настройку помощника.").show_alert(true).await?;
+                return Ok(true);
+            }
+            let _ = sqlx::query(
+                "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,'assistant_enabled',to_jsonb($3::boolean))"
+            ).bind(chat_id.0).bind(actor).bind(enabled).execute(&state.db).await;
+        }
+        _ => {
+            let column = match action {
+                "chatsettings:daily" => "daily_schedule_enabled",
+                "chatsettings:lessons" => "lesson_notifications_enabled",
+                "chatsettings:digest" => "daily_digest_enabled",
+                _ => "",
+            };
+            if column.is_empty() {
+                bot.answer_callback_query(query.id.clone()).text("Кнопка устарела.").await?;
+                return Ok(true);
+            }
+            let sql = format!("UPDATE bot_chat_settings SET {column}=NOT {column},updated_at=now() WHERE chat_id=$1");
+            let result = sqlx::query(&sql).bind(chat_id.0).execute(&state.db).await;
+            if !matches!(result, Ok(ref r) if r.rows_affected()==1) {
+                bot.answer_callback_query(query.id.clone()).text("Не удалось сохранить настройку.").show_alert(true).await?;
+                return Ok(true);
+            }
+            let value: bool = sqlx::query_scalar(&format!("SELECT {column} FROM bot_chat_settings WHERE chat_id=$1"))
+                .bind(chat_id.0).fetch_one(&state.db).await.unwrap_or(false);
+            let _ = sqlx::query(
+                "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,$3,to_jsonb($4::boolean))"
+            ).bind(chat_id.0).bind(actor).bind(column).bind(value).execute(&state.db).await;
+        }
     }
-    let row=sqlx::query_as::<_,(String,bool,bool,bool,bool,bool)>(
+
+    let row = sqlx::query_as::<_, (String,bool,bool,bool,bool,bool)>(
         "SELECT g.name,c.daily_schedule_enabled,c.lesson_notifications_enabled,c.daily_digest_enabled,c.assistant_enabled,c.context_enabled FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1 AND c.is_active=TRUE"
     ).bind(chat_id.0).fetch_optional(&state.db).await;
     let Ok(Some((group,daily,lessons,digest,assistant,context)))=row else {
@@ -461,13 +548,13 @@ async fn handle_chat_settings_callback(
         return Ok(true);
     };
     bot.answer_callback_query(query.id.clone()).await?;
-    let text=format!(
-        "⚙️ НАСТРОЙКИ УЧЕБНОГО ЧАТА\n\nГруппа: {group}\nЧасовой пояс: Москва (UTC+3)\n\nЕжедневная публикация: {}\nУведомления о парах: {}\nДайджест: {} · 07:00 МСК\nПомощник в ответах: {}\nКонтекст ответов: {}\n\nКонтекст сохраняется отдельно для этого чата в Neon. Сообщения не собираются, пока помощник и контекст не включены администратором.",
-        if daily{"включена"}else{"выключена"},
-        if lessons{"включены"}else{"выключены"},
-        if digest{"включён"}else{"выключен"},
-        if assistant{"включён"}else{"выключен"},
-        if context{"включён"}else{"выключен"},
+    let text = format!(
+        "⚙️ НАСТРОЙКИ УЧЕБНОГО ЧАТА\n\nГруппа: {group}\nЧасовой пояс: Москва (UTC+3)\n\nЕжедневная публикация: {}\nУведомления о парах: {}\nДайджест: {} · 07:00 МСК\nПомощник в ответах: {}\nКонтекст ответов: {}\n\nКонтекст собирается только при ответе на сообщение самого бота; он хранится отдельно для этого чата до 7 дней.",
+        if daily {"включена"} else {"выключена"},
+        if lessons {"включены"} else {"выключены"},
+        if digest {"включён"} else {"выключен"},
+        if assistant {"включён"} else {"выключен"},
+        if context {"включён"} else {"выключен"},
     );
     bot.edit_message_text(chat_id,message.id,text)
         .reply_markup(chat_settings_keyboard(chat_id,&group,daily,lessons,digest,assistant,context))
