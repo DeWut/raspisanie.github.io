@@ -531,6 +531,14 @@
       .replace(/[^0-9A-ZА-Я]/g, '');
   }
 
+  function isNumberedRoom(value) {
+    return /^\s*\d{1,4}[А-Яа-яA-Za-z]?(?:[-/]\d+)?(?:\s*,\s*\d{1,4}[А-Яа-яA-Za-z]?)?\s*$/.test(String(value || '').trim());
+  }
+
+  function isRoomLocation(value) {
+    return isNumberedRoom(value) || /(?:^|\b)([1-9])\s*[- ]?й\s*этаж/i.test(String(value || '').trim());
+  }
+
   function roomUnit(building, room) {
     var key = normalizeRoom(room);
     return ((building && building.units) || []).find(function (unit) {
@@ -625,7 +633,9 @@
       detail.hidden = false;
       detail.innerHTML = '';
       var heading = document.createElement('b');
-      heading.textContent = unit ? (unit.room || room) : ('Аудитория ' + room);
+      heading.textContent = unit
+        ? (isNumberedRoom(unit.room) ? 'Аудитория ' + unit.room : (unit.room || unit.name))
+        : ('Аудитория ' + room);
       var description = document.createElement('span');
       description.textContent = unit ? unit.name : 'Помещение на плане';
       var locationNote = document.createElement('small');
@@ -790,7 +800,13 @@
         var text = [unit.room, unit.name].join(' ').toLocaleLowerCase('ru');
         var roomMatches = normalizedValue && normalizeRoom(unit.room).indexOf(normalizedValue) !== -1;
         if (roomMatches || text.indexOf(value) !== -1 || String(unit.name || '').toLocaleLowerCase('ru').indexOf(value) !== -1) {
-          results.push({ building: building, room: unit.room || '', title: (unit.room ? 'Аудитория ' + unit.room : unit.name), subtitle: unit.name || building.name });
+          var roomLocation = isRoomLocation(unit.room) ? unit.room : '';
+          results.push({
+            building: building,
+            room: roomLocation,
+            title: isNumberedRoom(unit.room) ? 'Аудитория ' + unit.room : (unit.name || unit.room || 'Подразделение'),
+            subtitle: (unit.room ? unit.room + ' · ' : '') + building.name
+          });
         }
       });
     });
