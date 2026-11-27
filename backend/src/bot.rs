@@ -1680,7 +1680,7 @@ async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> Stri
     // If today's remaining lessons are over, or tomorrow is a non-study day,
     // find the next actual date with lessons instead of showing an empty weekend.
     if rows.is_empty() && (is_today || is_tomorrow) {
-        let start_day = local_now.date_naive() + ChronoDuration::days(1);
+        let start_day = local_now.date_naive() + ChronoDuration::days(if is_tomorrow { 2 } else { 1 });
         let search_from = moscow_midnight_utc(start_day);
         let nearest: Option<NaiveDate> = sqlx::query_scalar(
             "SELECT min((starts_at AT TIME ZONE 'Europe/Moscow')::date) FROM lessons WHERE group_id=$1 AND starts_at >= $2 AND starts_at < $2 + interval '30 days'"
@@ -1724,8 +1724,8 @@ async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> Stri
         }
     };
     let mut output = format!("{}\\n\\n", heading);
-    if is_today && selected.iter().all(|(_, start, _, _, _)| *start < now) {
-        output.push_str("Сейчас идёт последняя оставшаяся пара или все занятия на сегодня завершились.\\n");
+    if is_today && selected.iter().any(|(_, start, end, _, _)| *start <= now && *end > now) {
+        output.push_str("Сейчас идёт пара. Ниже показаны текущая и оставшиеся пары.\\n");
     }
     for (subject, start, end, room, teacher) in selected {
         output.push_str(&format!(
