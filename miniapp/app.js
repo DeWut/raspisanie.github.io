@@ -131,6 +131,7 @@
     try {
       const profile = await accountApi('/api/me');
       state.account = profile;
+      $('#settings-link-group').hidden = Boolean(profile.group_id || !state.schedule?.id);
       const settings = profile.settings || {};
       $('#settings-reminders').checked = settings.reminders_enabled === true;
       $('#settings-digest').checked = settings.daily_digest_enabled === true;
@@ -148,8 +149,13 @@
         }
       } else {
         updateSettingsGroupLabel();
+        $('#settings-link-group').hidden = !state.schedule?.id;
+        if (state.schedule?.id) status.textContent = 'На этом устройстве выбрана группа. Нажми «Привязать к аккаунту», чтобы сохранить её отдельно для своего Telegram.';
       }
-      status.textContent = 'Аккаунт Telegram связан. Изменения будут сохранены в Neon.';
+      status.textContent = profile.group_id
+        ? 'Аккаунт Telegram связан. Изменения будут сохранены в Neon.'
+        : (state.schedule?.id ? 'Выбранную на этом устройстве группу можно отдельно привязать к Telegram-аккаунту.' : 'Сначала выбери учебную группу.');
+
       note.textContent = 'Настройки аккаунта загружены из Neon.';
     } catch (error) {
       console.warn('Could not load Telegram account settings:', error);
@@ -200,6 +206,7 @@
         body: JSON.stringify({ external_id: String(externalId) }),
       });
       if (state.account) state.account.group_id = result.group_id;
+      $('#settings-link-group').hidden = true;
       $('#settings-group-name').textContent = result.group_name || state.schedule?.name || 'Выбрана';
       showToast('Группа привязана к Telegram-аккаунту в Neon');
     } catch (error) {
@@ -441,7 +448,9 @@
   }
   function setGreeting() {
     const name = tg?.initDataUnsafe?.user?.first_name;
-    $('#greeting').textContent = name ? `Привет, ${name}!` : 'Привет!';
+    const greeting = name ? 'Привет, ' + name + '!' : 'Привет!';
+    $('#greeting').textContent = greeting;
+    $('#home-greeting').textContent = name ? 'Добро пожаловать, ' + name : 'Добро пожаловать';
   }
   function showToast(message) {
     const toast = $('#toast');
@@ -778,7 +787,7 @@
       }
       const saved = safeStorageGet(GROUP_KEY) || safeStorageGet('groupId');
       const match = state.groups.find((group) => String(group.id) === String(saved));
-      if (match) await selectGroup(match.id);
+      if (match) await selectGroup(match.id, { persist: false, announce: false });
       else if (state.groups.length) { renderAll(); updateSettingsGroupLabel(); }
       else throw new Error('no-groups');
     } catch {
@@ -1973,6 +1982,13 @@ async function addCampusParkLayers(map) {
     $('#schedule-back-home')?.addEventListener('click', () => showView('home'));
     $('#settings-back-home')?.addEventListener('click', () => showView('home'));
     $('#settings-group-button')?.addEventListener('click', openGroupDialog);
+    $('#settings-link-group')?.addEventListener('click', () => {
+      if (state.schedule?.id) void saveSelectedGroupToAccount(state.schedule.id);
+      else {
+        showView('schedule');
+        openGroupDialog();
+      }
+    });
     $('#settings-save')?.addEventListener('click', () => void saveMiniAppSettings());
     document.querySelectorAll('[data-view-toggle]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.viewToggle)));
     $('#lesson-dialog').addEventListener('click', (event) => { if (event.target === $('#lesson-dialog')) $('#lesson-dialog').close(); });
