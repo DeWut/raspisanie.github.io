@@ -57,33 +57,204 @@
       <section class="miniapp-settings-view hidden" id="miniapp-settings-view">
         <div class="settings-view-header">
           <button class="back-link" id="settings-back-home" type="button">← Назад</button>
-          <p class="eyebrow">ЛИЧНЫЙ АККАУНТ</p>
-          <h1>Настройки</h1>
-          <p>Настройки сохраняются к Telegram-аккаунту в Neon, когда Mini App открыт из Telegram.</p>
+          <p class="eyebrow">ЛИЧНЫЙ АККАУНТ · УПРАВЛЕНИЕ</p>
+          <h1>Центр управления</h1>
+          <p>Личные уведомления, настройки учебных чатов, инструменты и помощник. Все изменения применяются к Telegram-боту через Neon.</p>
         </div>
-        <section class="settings-card">
-          <div class="settings-group-row">
-            <div><p class="eyebrow">УЧЕБНАЯ ГРУППА</p><strong id="settings-group-name">Не выбрана</strong></div>
-            <button class="text-button" id="settings-group-button" type="button">Изменить</button>
-            <button class="text-button" id="settings-link-group" type="button" hidden>Привязать к аккаунту</button>
-          </div>
-          <div class="settings-divider"></div>
-          <label class="settings-toggle-row">
-            <span><strong>Напоминания о парах</strong><small>Уведомления от Telegram-бота</small></span>
-            <input id="settings-reminders" type="checkbox" disabled />
-          </label>
-          <label class="settings-toggle-row">
-            <span><strong>Ежедневный дайджест</strong><small>Каждый день в 07:00 по Москве</small></span>
-            <input id="settings-digest" type="checkbox" disabled />
-          </label>
-          <label class="settings-toggle-row">
-            <span><strong>Изменения расписания</strong><small>Сообщения об обновлении расписания</small></span>
-            <input id="settings-changes" type="checkbox" disabled />
-          </label>
-          <div class="settings-actions">
-            <button class="primary-button" id="settings-save" type="button" disabled>Сохранить настройки</button>
-            <p id="settings-save-status" role="status">Проверяем подключение к аккаунту…</p>
-          </div>
+
+        <div class="control-center-status" id="control-api-note" role="status">Подключаемся к аккаунту…</div>
+        <nav class="control-tabs" aria-label="Разделы управления">
+          <button type="button" class="active" data-control-tab="personal">Личное</button>
+          <button type="button" data-control-tab="groups">Группы</button>
+          <button type="button" data-control-tab="tools">Функции</button>
+          <button type="button" data-control-tab="assistant">Помощник</button>
+          <button type="button" data-control-tab="diagnostics">Уведомления</button>
+        </nav>
+
+        <section class="control-pane" data-control-pane="personal">
+          <section class="settings-card">
+            <div class="control-card-heading">
+              <div><p class="eyebrow">УЧЕБНАЯ ГРУППА</p><strong id="settings-group-name">Не выбрана</strong></div>
+              <div class="control-inline-actions">
+                <button class="text-button" id="settings-group-button" type="button">Изменить</button>
+                <button class="text-button" id="settings-link-group" type="button" hidden>Привязать</button>
+              </div>
+            </div>
+            <p class="control-description">Группа связана с твоим Telegram-аккаунтом. Бот использует её для расписания, ДЗ и дедлайнов.</p>
+          </section>
+
+          <section class="settings-card">
+            <div class="control-section-title"><p class="eyebrow">ЛИЧНЫЕ УВЕДОМЛЕНИЯ</p><h2>Что присылать в Telegram</h2></div>
+            <label class="settings-toggle-row">
+              <span><strong>Напоминания о парах</strong><small>Сообщение перед началом занятия</small></span>
+              <input id="settings-reminders" type="checkbox" disabled />
+            </label>
+            <label class="control-field">
+              <span>За сколько минут напоминать</span>
+              <select id="settings-reminder-minutes" disabled>
+                <option value="10">За 10 минут</option>
+                <option value="60">За 1 час</option>
+                <option value="180">За 3 часа</option>
+                <option value="1440">За 1 день</option>
+              </select>
+            </label>
+            <div class="control-divider"></div>
+            <label class="settings-toggle-row">
+              <span><strong>Ежедневный дайджест</strong><small>Расписание и дедлайны на день</small></span>
+              <input id="settings-digest" type="checkbox" disabled />
+            </label>
+            <label class="control-field">
+              <span>Время дайджеста · Москва</span>
+              <input id="settings-digest-time" type="time" value="07:00" disabled />
+            </label>
+            <div class="control-divider"></div>
+            <label class="settings-toggle-row">
+              <span><strong>Изменения расписания</strong><small>Переносы, аудитории и отмены занятий</small></span>
+              <input id="settings-changes" type="checkbox" disabled />
+            </label>
+            <div class="settings-actions">
+              <button class="primary-button" id="settings-save" type="button" disabled>Сохранить личные настройки</button>
+              <p id="settings-save-status" role="status">Проверяем подключение…</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="control-pane hidden" data-control-pane="groups">
+          <section class="settings-card">
+            <div class="control-section-title"><p class="eyebrow">ГРУППОВЫЕ ЧАТЫ</p><h2>Управление учебным чатом</h2></div>
+            <p class="control-description">Здесь появятся чаты, где Telegram подтвердил, что ты владелец или администратор. Настройки сохраняются отдельно для каждого чата.</p>
+            <label class="control-field"><span>Выбери чат</span><select id="managed-chat-select" disabled><option value="">Загрузка доступных чатов…</option></select></label>
+            <div id="managed-chat-empty" class="control-empty" hidden>Не найдено групповых чатов, где у твоего Telegram-аккаунта есть права администратора. Добавь бота в группу, настрой /setgroup и открой /chat_settings в этом чате.</div>
+            <div id="managed-chat-editor" hidden>
+              <div class="control-group-picker">
+                <label class="control-field"><span>Учебная группа этого чата</span><select id="managed-chat-group"></select></label>
+                <button class="secondary-button" id="managed-chat-group-save" type="button">Изменить группу чата</button>
+              </div>
+              <div class="control-divider"></div>
+              <p class="eyebrow">РАСПИСАНИЕ И ДАЙДЖЕСТ</p>
+              <label class="settings-toggle-row"><span><strong>Ежедневно публиковать расписание</strong><small>Отдельное сообщение в выбранное время</small></span><input id="chat-setting-daily-schedule" type="checkbox" /></label>
+              <label class="control-field"><span>Время расписания · Москва</span><input id="chat-setting-schedule-time" type="time" value="07:00" /></label>
+              <label class="settings-toggle-row"><span><strong>Групповой дайджест</strong><small>Расписание и активные задания отдельным сообщением</small></span><input id="chat-setting-digest" type="checkbox" /></label>
+              <label class="control-field"><span>Время дайджеста · Москва</span><input id="chat-setting-digest-time" type="time" value="07:00" /></label>
+              <label class="settings-toggle-row"><span><strong>Напоминать группе о начале пары</strong><small>Примерно за 10 минут до занятия</small></span><input id="chat-setting-lesson-notifications" type="checkbox" /></label>
+              <label class="settings-toggle-row"><span><strong>Публиковать изменения расписания</strong><small>Уведомлять группу об изменениях</small></span><input id="chat-setting-changes" type="checkbox" /></label>
+
+              <div class="control-divider"></div>
+              <p class="eyebrow">ДОМАШНИЕ ЗАДАНИЯ И МОДЕРАЦИЯ</p>
+              <label class="settings-toggle-row"><span><strong>Автосбор кандидатов ДЗ</strong><small>Распознаёт только сообщения с признаками задания; публикация после подтверждения</small></span><input id="chat-setting-autodz" type="checkbox" /></label>
+              <label class="control-field"><span>Кто подтверждает найденные задания</span>
+                <select id="chat-setting-approver"><option value="class_leader">Староста</option><option value="moderator">Модератор</option><option value="admin">Администратор Telegram</option></select>
+              </label>
+              <label class="settings-toggle-row"><span><strong>Фильтр повторяющегося спама</strong><small>Создаёт сигнал после повторов; автоматически сообщения не удаляет</small></span><input id="chat-setting-spam" type="checkbox" /></label>
+              <label class="settings-toggle-row"><span><strong>Мемы и развлекательные ответы</strong><small>Разрешить необязательные ответы бота</small></span><input id="chat-setting-memes" type="checkbox" /></label>
+
+              <div class="control-divider"></div>
+              <p class="eyebrow">КОНТЕКСТНЫЙ ПОМОЩНИК</p>
+              <label class="settings-toggle-row"><span><strong>Учебный помощник в этом чате</strong><small>Отвечает на вопросы о расписании, ДЗ и учебных сроках</small></span><input id="chat-setting-assistant" type="checkbox" /></label>
+              <label class="settings-toggle-row"><span><strong>Сохранять учебный контекст ответов бота</strong><small>Только ответы бота и сообщения-ответы на них; без чтения всей переписки</small></span><input id="chat-setting-context" type="checkbox" /></label>
+              <label class="control-field"><span>Срок хранения учебного контекста</span><select id="chat-setting-retention"><option value="1">1 день</option><option value="3">3 дня</option><option value="7">7 дней</option><option value="14">14 дней</option><option value="30">30 дней</option></select></label>
+              <label class="consent-row"><input id="chat-setting-consent" type="checkbox" /><span>Я администратор этого чата и подтверждаю, что участники уведомлены о включении ограниченного учебного контекста и его сроке хранения.</span></label>
+              <div class="settings-actions">
+                <button class="primary-button" id="managed-chat-settings-save" type="button">Сохранить настройки чата в Neon</button>
+                <p id="managed-chat-status" role="status"></p>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="control-pane hidden" data-control-pane="tools">
+          <section class="settings-card">
+            <div class="control-section-title"><p class="eyebrow">ФУНКЦИИ БОТА В MINI APP</p><h2>Учебная группа</h2></div>
+            <p class="control-description">Mini App вызывает те же обработчики, что и бот, с теми же проверками ролей. Действия, зависящие от ответа на конкретное Telegram-сообщение или отправки файла, по-прежнему выполняются в чате.</p>
+            <label class="control-field"><span>Чат, в котором выполнить действие</span><select id="command-chat-select"><option value="">Выбери групповой чат</option></select></label>
+            <div class="command-shortcuts">
+              <button type="button" data-group-command="/dz">Домашние задания</button>
+              <button type="button" data-group-command="/my_dz">Мои задания</button>
+              <button type="button" data-group-command="/exams">Экзамены</button>
+              <button type="button" data-group-command="/events">Мероприятия</button>
+              <button type="button" data-group-command="/resources">Материалы</button>
+              <button type="button" data-group-command="/lost_found">Потеряно / найдено</button>
+              <button type="button" data-group-command="/report_queue">Очередь жалоб</button>
+              <button type="button" data-group-command="/subject_aliases">Предметы и сокращения</button>
+              <button type="button" data-group-command="/group_stats">Статистика группы</button>
+              <button type="button" data-group-command="/my_stats">Моя статистика</button>
+              <button type="button" data-group-command="/search">Поиск по материалам</button>
+            </div>
+            <form id="group-command-form" class="control-command-form">
+              <label class="control-field"><span>Действие</span>
+                <select id="group-command-name">
+                  <optgroup label="Домашние задания">
+                    <option value="/dz">Показать ДЗ</option><option value="/my_dz">Мои невыполненные ДЗ</option>
+                    <option value="/add_dz">Добавить ДЗ</option><option value="/edit_dz">Изменить ДЗ</option>
+                    <option value="/delete_dz">Удалить ДЗ</option><option value="/done">Отметить выполненным</option>
+                    <option value="/priority_dz">Приоритет ДЗ</option>
+                  </optgroup>
+                  <optgroup label="Экзамены и мероприятия">
+                    <option value="/exams">Экзамены</option><option value="/add_exam">Добавить экзамен</option>
+                    <option value="/edit_exam">Изменить экзамен</option><option value="/exam_info">Информация об экзамене</option>
+                    <option value="/delete_exam">Архивировать экзамен</option><option value="/events">Мероприятия</option>
+                    <option value="/add_event">Добавить мероприятие</option><option value="/edit_event">Изменить мероприятие</option>
+                    <option value="/cancel_event">Отменить мероприятие</option><option value="/join_event">Записаться</option>
+                    <option value="/leave_event">Отменить запись</option><option value="/event_maybe">Возможно, пойду</option>
+                    <option value="/event_no">Не пойду</option><option value="/event_attendees">Участники мероприятия</option>
+                  </optgroup>
+                  <optgroup label="Материалы и учебный чат">
+                    <option value="/resources">Материалы</option><option value="/add_resource">Добавить материал</option>
+                    <option value="/search">Поиск по материалам</option><option value="/lost_found">Потеряно / найдено</option>
+                    <option value="/lost">Сообщить о потере</option><option value="/found">Сообщить о находке</option>
+                  </optgroup>
+                  <optgroup label="Администрирование">
+                    <option value="/autodz_on">Включить автосбор ДЗ</option><option value="/autodz_off">Выключить автосбор ДЗ</option>
+                    <option value="/autodz_approver">Изменить подтверждающую роль</option>
+                    <option value="/spam_filter_on">Включить фильтр повторов</option><option value="/spam_filter_off">Выключить фильтр повторов</option>
+                    <option value="/subject_alias">Добавить сокращение предмета</option><option value="/subject_aliases">Список сокращений</option>
+                    <option value="/content_rights">Права разделов</option><option value="/content_editor">Редакторы разделов</option>
+                    <option value="/report_queue">Очередь жалоб</option><option value="/report_resolve">Закрыть жалобу</option>
+                  </optgroup>
+                  <optgroup label="Статистика">
+                    <option value="/group_stats">Статистика группы</option><option value="/my_stats">Моя статистика</option>
+                  </optgroup>
+                </select>
+              </label>
+              <label class="control-field"><span>Параметры действия</span><input id="group-command-argument" type="text" maxlength="4000" placeholder="Например: Математика | решить задачи 1–5 | завтра" /></label>
+              <p class="control-hint" id="group-command-hint">Для просмотра списка оставь параметры пустыми.</p>
+              <button class="primary-button" id="group-command-run" type="submit">Выполнить в выбранном чате</button>
+            </form>
+            <pre id="group-command-result" class="control-result" aria-live="polite">Здесь появится результат выполнения команды.</pre>
+          </section>
+        </section>
+
+        <section class="control-pane hidden" data-control-pane="assistant">
+          <section class="settings-card assistant-card">
+            <div class="control-section-title"><p class="eyebrow">УЧЕБНЫЙ ПОМОЩНИК</p><h2>Задай вопрос</h2></div>
+            <p class="control-description">Помощник использует только учебные данные SPBFTUIT: расписание, ДЗ, дедлайны, преподавателей и аудитории. Он работает на локальном классификаторе, не отправляет запросы внешним AI API и хранит только короткий учебный контекст.</p>
+            <div class="assistant-quick-prompts">
+              <button type="button" data-assistant-prompt="Какая следующая пара?">Следующая пара</button>
+              <button type="button" data-assistant-prompt="Что задали по домашнему заданию?">Мои ДЗ</button>
+              <button type="button" data-assistant-prompt="Какие ближайшие дедлайны?">Дедлайны</button>
+              <button type="button" data-assistant-prompt="Какое расписание завтра?">Завтра</button>
+            </div>
+            <div id="assistant-messages" class="assistant-messages" aria-live="polite"><div class="assistant-message assistant-message-bot">Привет. Спроси про расписание, пары, ДЗ или дедлайны.</div></div>
+            <form id="assistant-form" class="assistant-form">
+              <input id="assistant-input" type="text" maxlength="600" autocomplete="off" placeholder="Например: а завтра?" />
+              <button class="primary-button" id="assistant-send" type="submit">Отправить</button>
+            </form>
+            <p class="control-hint" id="assistant-status" role="status"></p>
+          </section>
+        </section>
+
+        <section class="control-pane hidden" data-control-pane="diagnostics">
+          <section class="settings-card">
+            <div class="control-section-title"><p class="eyebrow">ДОСТАВКА TELEGRAM</p><h2>Проверка уведомлений</h2></div>
+            <p class="control-description">Проверяем состояние фонового цикла и журнал последних отправок. Тестовое сообщение отправляется только тебе в личный чат Telegram.</p>
+            <div id="notification-worker-status" class="diagnostic-status">Загружаем состояние…</div>
+            <button type="button" class="secondary-button" id="notification-refresh">Обновить состояние</button>
+            <button type="button" class="primary-button" id="notification-test">Отправить тестовое уведомление мне</button>
+            <p id="notification-test-status" class="control-hint" role="status"></p>
+            <div class="control-divider"></div>
+            <p class="eyebrow">ИСТОРИЯ ДОСТАВКИ</p>
+            <div id="notification-deliveries" class="notification-deliveries">История пока не загружена.</div>
+          </section>
         </section>
       </section>
 
