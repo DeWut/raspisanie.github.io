@@ -20,8 +20,8 @@
   var SUN_FROM_AZ = 215;                 // azimuth the light comes from, degrees clockwise from north
   var SHADOW_AZ = (SUN_FROM_AZ + 180) % 360;
 
-  var WALL_WARM = ['#d9c28d', '#e6d9bb', '#d8b9a6', '#cbc7bc', '#e9e4d9', '#c9b79c', '#dcc9a0'];
-  var WALL_BRICK = ['#a8624b', '#b06f55', '#9c5a45'];
+  var WALL_WARM = ['#d8d0bd', '#e3ddcf', '#c9c1b2', '#d5c9b7', '#e7e1d5', '#c6b9a7', '#d9cdbb'];
+  var WALL_BRICK = ['#985f4d', '#a66a55', '#8f5949'];
   var WALL_PANEL = ['#bdbbb5', '#cbc8c0', '#b4b2ad'];
 
   /* ---------- small helpers ---------- */
@@ -181,11 +181,11 @@
     return { h: LOW_TYPES[type] ? 3.2 : DEFAULT_H, q: 'assumed' };
   }
 
-  function windowsForRing(ring, isHole, fh, floors, seed, pid, out, P, cap) {
+  function windowsForRing(ring, isHole, fh, floors, seed, pid, out, frames, P, cap) {
     var ccw = signedArea(ring) > 0;
     var s = (ccw ? 1 : -1) * (isHole ? -1 : 1);
-    var ww = 1.15, sp = 3.0;
-    var wh = Math.min(1.7, fh * 0.45);
+    var ww = 1.05, sp = 3.0;
+    var wh = Math.min(1.55, fh * 0.43);
     for (var i = 0; i < ring.length; i++) {
       var a = ring[i], b = ring[(i + 1) % ring.length];
       var dx = b[0] - a[0], dy = b[1] - a[1];
@@ -199,16 +199,34 @@
       for (var k = 0; k < count; k++) {
         var t = start + k * sp;
         var cx = a[0] + ux * t, cy = a[1] + uy * t;
-        var p1 = [cx - ux * ww / 2 + nx * 0.02, cy - uy * ww / 2 + ny * 0.02];
-        var p2 = [cx + ux * ww / 2 + nx * 0.02, cy + uy * ww / 2 + ny * 0.02];
-        var p3 = [p2[0] + nx * 0.18, p2[1] + ny * 0.18];
-        var p4 = [p1[0] + nx * 0.18, p1[1] + ny * 0.18];
         for (var f = 0; f < floors; f++) {
-          if (out.length >= cap) { return; }
+          if (out.length + frames.length >= cap * 2) { return; }
           var z0 = f * fh + fh * 0.32;
+          var frameW = 1.42, frameD = 0.25;
+          var fx1 = cx - ux * frameW / 2 + nx * 0.025;
+          var fy1 = cy - uy * frameW / 2 + ny * 0.025;
+          var fx2 = cx + ux * frameW / 2 + nx * 0.025;
+          var fy2 = cy + uy * frameW / 2 + ny * 0.025;
+          var fx3 = [fx2 + nx * frameD, fy2 + ny * frameD];
+          var fx4 = [fx1 + nx * frameD, fy1 + ny * frameD];
+          var outer = [[fx1, fy1], [fx2, fy2], fx3, fx4];
+          var inset = 0.13;
+          var ix1 = cx - ux * (frameW / 2 - inset) + nx * 0.04;
+          var iy1 = cy - uy * (frameW / 2 - inset) + ny * 0.04;
+          var ix2 = cx + ux * (frameW / 2 - inset) + nx * 0.04;
+          var iy2 = cy + uy * (frameW / 2 - inset) + ny * 0.04;
+          var ix3 = [ix2 + nx * (frameD - 0.08), iy2 + ny * (frameD - 0.08)];
+          var ix4 = [ix1 + nx * (frameD - 0.08), iy1 + ny * (frameD - 0.08)];
+          frames.push(polyFeature([outer, [ix1, iy1, ix2, iy2, ix3, ix4]], P, {
+            pid: pid, col: '#e4dac6', z0: z0, z1: z0 + wh + 0.16
+          }));
+          var p1 = [cx - ux * ww / 2 + nx * 0.055, cy - uy * ww / 2 + ny * 0.055];
+          var p2 = [cx + ux * ww / 2 + nx * 0.055, cy + uy * ww / 2 + ny * 0.055];
+          var p3 = [p2[0] + nx * 0.09, p2[1] + ny * 0.09];
+          var p4 = [p1[0] + nx * 0.09, p1[1] + ny * 0.09];
           var r = rnd(seed + '|' + i + '|' + k + '|' + f);
-          var col = r < 0.1 ? '#2f3d4d' : r < 0.45 ? '#4c6076' : r < 0.8 ? '#3f5164' : '#586f86';
-          out.push(polyFeature([[p1, p2, p3, p4]], P, { pid: pid, col: col, z0: z0, z1: z0 + wh }));
+          var col = r < 0.1 ? '#263849' : r < 0.45 ? '#40566c' : r < 0.8 ? '#34495d' : '#526b82';
+          out.push(polyFeature([[p1, p2, p3, p4]], P, { pid: pid, col: col, z0: z0 + 0.12, z1: z0 + wh }));
         }
       }
     }
@@ -222,7 +240,7 @@
     var sx = Math.sin(SHADOW_AZ * Math.PI / 180), sy = Math.cos(SHADOW_AZ * Math.PI / 180);
 
     var out = {
-      ground: [], solid: [], windows: [], trees: [], shadows: [], highlight: {}, index: {},
+      ground: [], solid: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
       stats: { buildings: 0, known: 0, levels: 0, assumed: 0, windows: 0, trees: 0 }
     };
     var features = (scene && scene.features) || [];
@@ -331,9 +349,9 @@
         // windows
         if (h >= 4.5 && item.area >= 25 && out.windows.length < maxWin) {
           var seed = pid + ':' + pi;
-          windowsForRing(outer, false, fh, floors, seed, pid, out.windows, P, maxWin);
+          windowsForRing(outer, false, fh, floors, seed, pid, out.windows, out.windowFrames, P, maxWin);
           for (var hi2 = 1; hi2 < rings.length; hi2++) {
-            windowsForRing(rings[hi2], true, fh, floors, seed + 'h' + hi2, pid, out.windows, P, maxWin);
+            windowsForRing(rings[hi2], true, fh, floors, seed + 'h' + hi2, pid, out.windows, out.windowFrames, P, maxWin);
           }
         }
 
