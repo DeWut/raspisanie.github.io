@@ -1,7 +1,7 @@
 /* map3d-geometry.js
  * Builds the 3D campus scene from data/campus-park-scene.json and data/campus.json.
  * Output is plain GeoJSON for MapLibre fill-extrusion layers: building parts,
- * windows, trees, ground shadows and selection highlights.
+ * optional decorative details and selection highlights.
  *
  * Only footprints and mapped heights come from OSM. Ledges, windows, cornices,
  * stepped roofs, wall colours and tree crowns are generated here and are
@@ -490,19 +490,18 @@
         }
 
         if (opts.renderShadows !== false) {
-          // ground shadow (hull of footprint and its shifted copy when the shape is convex)
+          // Ground shadows are optional decorative geometry.
           var len = Math.min(h, 40) * 0.55;
           var shifted = outer.map(function (p) { return [p[0] + sx * len, p[1] + sy * len]; });
           add(out.shadows, [convex ? hull(outer.concat(shifted)) : shifted], { k: 'b' });
-  
-          // windows (and pilasters between them on the historic building)
-          if (h >= 4.5 && item.area >= 25 && out.windows.length < maxWin) {
-            var seed = pid + ':' + pi;
-            var deco = isHistoric ? { pilaster: function (r) { part(r, 0.9, Math.max(1.4, h - 0.3), lighten(wall, 0.14)); } } : null;
-            windowsForRing(outer, false, fh, floors, seed, pid, out.windows, out.windowFrames, add, maxWin, deco);
-            for (var hi2 = 1; hi2 < rings.length; hi2++) {
-              windowsForRing(rings[hi2], true, fh, floors, seed + 'h' + hi2, pid, out.windows, out.windowFrames, add, maxWin, deco);
-            }
+        }
+
+        if (opts.renderWindows !== false && h >= 4.5 && item.area >= 25 && out.windows.length < maxWin) {
+          var seed = pid + ':' + pi;
+          var deco = isHistoric ? { pilaster: function (r) { part(r, 0.9, Math.max(1.4, h - 0.3), lighten(wall, 0.14)); } } : null;
+          windowsForRing(outer, false, fh, floors, seed, pid, out.windows, out.windowFrames, add, maxWin, deco);
+          for (var hi2 = 1; hi2 < rings.length; hi2++) {
+            windowsForRing(rings[hi2], true, fh, floors, seed + 'h' + hi2, pid, out.windows, out.windowFrames, add, maxWin, deco);
           }
         }
 
