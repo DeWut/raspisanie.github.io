@@ -544,17 +544,17 @@ pub async fn open_group_picker(
 }
 
 async fn dating_home(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarkup) {
-    let profile = sqlx::query_as::<_, (String, String, Vec<String>, Option<chrono::DateTime<chrono::Utc>>, bool, bool)>(
-        "SELECT display_name,bio,tags,age_confirmed_at,is_active,is_paused FROM bot_dating_profiles WHERE telegram_id=$1"
+    let profile = sqlx::query_as::<_, (String, String, Vec<String>, Option<chrono::DateTime<chrono::Utc>>, bool, bool, Option<String>, String, bool)>(
+        "SELECT display_name,bio,tags,age_confirmed_at,is_active,is_paused,gender,preferred_gender,repeat_profiles_enabled FROM bot_dating_profiles WHERE telegram_id=$1"
     ).bind(actor).fetch_optional(db).await.ok().flatten();
-    if let Some((name, bio, tags, age_confirmed, active, paused)) = profile {
+    if let Some((name, bio, tags, age_confirmed, active, paused, gender, preferred_gender, repeat_profiles_enabled)) = profile {
         if age_confirmed.is_none() || !active {
             return dating_intro();
         }
         let incoming_likes: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM bot_dating_swipes s JOIN bot_dating_profiles p ON p.telegram_id=s.from_telegram_id WHERE s.to_telegram_id=$1 AND s.action='like' AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes mutual WHERE mutual.from_telegram_id=$1 AND mutual.to_telegram_id=s.from_telegram_id AND mutual.action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=$1 AND b.blocked_telegram_id=s.from_telegram_id) OR (b.blocker_telegram_id=s.from_telegram_id AND b.blocked_telegram_id=$1))"
         ).bind(actor).fetch_one(db).await.unwrap_or(0);
-        return dating_profile_screen(name, bio, tags, paused, incoming_likes);
+        return dating_profile_screen(name, bio, tags, paused, incoming_likes, gender.as_deref(), &preferred_gender, repeat_profiles_enabled);
     }
     dating_intro()
 }
@@ -580,6 +580,9 @@ fn dating_profile_screen(
     tags: Vec<String>,
     paused: bool,
     incoming_likes: i64,
+    gender: Option<&str>,
+    preferred_gender: &str,
+    repeat_profiles_enabled: bool,
 ) -> (String, InlineKeyboardMarkup) {
     let tag_text = if tags.is_empty() {
         "пока не выбраны".into()
@@ -589,7 +592,10 @@ fn dating_profile_screen(
             .collect::<Vec<_>>()
             .join(" · ")
     };
-    let text = format!("💚 МОЯ АНКЕТА\n\n{name} · 18+\n{}\n\nИнтересы: {tag_text}\nСтатус: {}\n💚 Входящие лайки: {incoming_likes}\n\nАнкета показывается только взаимно подходящим участникам раздела знакомств.",
+    let gender_label = match gender { Some("male") => "мужской", Some("female") => "женский", _ => "не выбран" };
+    let preference_label = match preferred_gender { "male" => "мужские", "female" => "женские", _ => "любые" };
+    let text = format!("💚 МОЯ АНКЕТА\n\n{name} · 18+\nПол: {gender_label}\nПоказывать: {preference_label}\nПовтор анкет: {}\n{}\n\nИнтересы: {tag_text}\nСтатус: {}\n💚 Входящие лайки: {incoming_likes}\n\nАнкета показывается только взаимно подходящим участникам раздела знакомств.",
+        if repeat_profiles_enabled { "включён (шанс 1/100)" } else { "выключен" },
         if bio.is_empty() { "Описание пока пустое" } else { &bio },
         if paused { "на паузе" } else { "активна" });
     let mut rows = vec![
@@ -597,6 +603,16 @@ fn dating_profile_screen(
             button("🔎 Смотреть анкеты", "dating:discover"),
             button("💞 Мои совпадения", "dating:matches"),
         ],
+        vec![
+            button(format!("{} М", if gender == Some("male") { "✅" } else { " " }), "dating:gender:male"),
+            button(format!("{} Ж", if gender == Some("female") { "✅" } else { " " }), "dating:gender:female"),
+        ],
+        vec![
+            button(format!("{} Мужские", if preferred_gender == "male" { "✅" } else { " " }), "dating:pref:male"),
+            button(format!("{} Женские", if preferred_gender == "female" { "✅" } else { " " }), "dating:pref:female"),
+            button(format!("{} Все", if preferred_gender == "any" { "✅" } else { " " }), "dating:pref:any"),
+        ],
+        vec![button(if repeat_profiles_enabled { "🔁 Повтор анкет: ВКЛ" } else { "🔁 Повтор анкет: ВЫКЛ" }, "dating:repeat")],
         vec![
             button("✏️ Имя", "dating:name"),
             button("📝 Описание", "dating:bio"),
@@ -646,6 +662,7 @@ struct Candidate {
     name: String,
     bio: String,
     tags: Vec<String>,
+    gender: Option<String>,
     photo_file_id: Option<String>,
 }
 
@@ -658,6 +675,7 @@ async fn dating_action(
     action: &str,
     admin_id: i64,
 ) -> SocialResult<()> {
+    let mut displayed_photo: Option<String> = None;
     let (text, keyboard, notification) = if action == "dating:open" || action == "dating:profile" {
         let (text, kb) = dating_home(db, actor).await;
         (text, kb, None)
@@ -683,6 +701,29 @@ async fn dating_action(
         .unwrap_or(("Студент".into(),));
         sqlx::query("INSERT INTO bot_dating_profiles(telegram_id,display_name,tags,age_confirmed_at) VALUES($1,$2,ARRAY['study']::text[],now()) ON CONFLICT(telegram_id) DO UPDATE SET age_confirmed_at=COALESCE(bot_dating_profiles.age_confirmed_at,now()),is_active=TRUE,is_paused=FALSE,updated_at=now()")
             .bind(actor).bind(row.0).execute(db).await?;
+        let (text, kb) = dating_home(db, actor).await;
+        (text, kb, None)
+    } else if let Some(value) = action.strip_prefix("dating:gender:") {
+        if !["male", "female"].contains(&value) {
+            ("Некорректный выбор пола.".into(), InlineKeyboardMarkup::new(vec![nav("dating:profile")]), None)
+        } else {
+            sqlx::query("UPDATE bot_dating_profiles SET gender=$2,updated_at=now() WHERE telegram_id=$1 AND age_confirmed_at IS NOT NULL")
+                .bind(actor).bind(value).execute(db).await?;
+            let (text, kb) = dating_home(db, actor).await;
+            (text, kb, None)
+        }
+    } else if let Some(value) = action.strip_prefix("dating:pref:") {
+        if !["male", "female", "any"].contains(&value) {
+            ("Некорректный фильтр пола.".into(), InlineKeyboardMarkup::new(vec![nav("dating:profile")]), None)
+        } else {
+            sqlx::query("UPDATE bot_dating_profiles SET preferred_gender=$2,updated_at=now() WHERE telegram_id=$1 AND age_confirmed_at IS NOT NULL")
+                .bind(actor).bind(value).execute(db).await?;
+            let (text, kb) = dating_home(db, actor).await;
+            (text, kb, None)
+        }
+    } else if action == "dating:repeat" {
+        sqlx::query("UPDATE bot_dating_profiles SET repeat_profiles_enabled=NOT repeat_profiles_enabled,updated_at=now() WHERE telegram_id=$1 AND age_confirmed_at IS NOT NULL")
+            .bind(actor).execute(db).await?;
         let (text, kb) = dating_home(db, actor).await;
         (text, kb, None)
     } else if action == "dating:likes" {
@@ -766,13 +807,12 @@ async fn dating_action(
             let (text, kb) = dating_home(db, actor).await;
             (text, kb, None)
         }
-    } else if action == "dating:discover" {
+    } else if action == "dating:discover" || action == "dating:next" {
         match next_candidate(db, actor).await {
-            Some(candidate) => (
-                candidate_text(&candidate),
-                candidate_keyboard(candidate.id),
-                None,
-            ),
+            Some(candidate) => {
+                displayed_photo = candidate.photo_file_id.clone();
+                (candidate_text(&candidate), candidate_keyboard(candidate.id), None)
+            },
             None => (
                 "Пока новых анкет нет. Попробуй позже или измени интересы в своей анкете.".into(),
                 InlineKeyboardMarkup::new(vec![
@@ -781,6 +821,14 @@ async fn dating_action(
                 ]),
                 None,
             ),
+        }
+    } else if action == "dating:prev" {
+        match previous_candidate(db, actor).await {
+            Some(candidate) => {
+                displayed_photo = candidate.photo_file_id.clone();
+                (candidate_text(&candidate), candidate_keyboard(candidate.id), None)
+            }
+            None => ("Предыдущей анкеты пока нет.".into(), InlineKeyboardMarkup::new(vec![vec![button("🔎 Смотреть анкеты", "dating:discover")], nav("dating:profile")]), None),
         }
     } else if action.starts_with("dating:like:") || action.starts_with("dating:like_incoming:") || action.starts_with("dating:pass:") {
         let incoming_like = action.starts_with("dating:like_incoming:");
@@ -814,7 +862,10 @@ async fn dating_action(
             let (text, keyboard, _) = incoming_likes_screen(db, actor, incoming_page).await?;
             (text, keyboard, None)
         } else {
-            let (text,kb)=match next_candidate(db,actor).await { Some(c)=>(candidate_text(&c),candidate_keyboard(c.id)),None=>("Новые анкеты закончились.".into(),InlineKeyboardMarkup::new(vec![vec![button("Моя анкета","dating:profile")]])) };
+            let (text,kb)=match next_candidate(db,actor).await {
+                Some(c) => { displayed_photo = c.photo_file_id.clone(); (candidate_text(&c),candidate_keyboard(c.id)) },
+                None => ("Новых анкет сейчас нет.".into(),InlineKeyboardMarkup::new(vec![vec![button("Моя анкета","dating:profile")]]))
+            };
             (if is_like { format!("👍 Лайк отправлен.\n\n{text}") } else { text },kb,None)
         }
     } else if let Some(target_text) = action.strip_prefix("dating:reportmenu:") {
@@ -939,14 +990,10 @@ async fn dating_action(
 
     // Display a candidate's optional Telegram-hosted photo as a second message.
     // The file_id is private Telegram storage; no third-party image host is used.
-    if action == "dating:discover" || action.starts_with("dating:like:") || action.starts_with("dating:pass:") {
-        if let Some(candidate) = next_candidate(db, actor).await {
-            if let Some(file_id) = candidate.photo_file_id {
-                bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
-                    .caption("📷 Фото анкеты")
-                    .await?;
-            }
-        }
+    if let Some(file_id) = displayed_photo {
+        bot.send_photo(chat_id, teloxide::types::InputFile::file_id(file_id))
+            .caption("📷 Фото анкеты")
+            .await?;
     }
     if let Some(liker_text) = action.strip_prefix("dating:likeview:") {
         let liker = liker_text.split(':').next().and_then(|value| value.parse::<i64>().ok()).unwrap_or_default();
@@ -977,6 +1024,7 @@ fn candidate_keyboard(id: i64) -> InlineKeyboardMarkup {
             button("🚩 Пожаловаться", format!("dating:reportmenu:{id}")),
             button("🚫 Скрыть", format!("dating:block:{id}")),
         ],
+        vec![button("⬅️ Предыдущая", "dating:prev"), button("Следующая ➡️", "dating:next")],
         nav("dating:profile"),
     ])
 }
@@ -987,18 +1035,47 @@ fn candidate_text(candidate: &Candidate) -> String {
     } else {
         candidate.tags.iter().map(|tag| tag_label(tag)).collect::<Vec<_>>().join(" · ")
     };
+    let gender = match candidate.gender.as_deref() { Some("male") => "Мужской", Some("female") => "Женский", _ => "Не указан" };
     format!(
-        "💚 АНКЕТА\\n\\n{} · 18+\\n{}\\n\\nИнтересы: {}\\n\\nUsername будет скрыт; контакт откроется только после взаимного лайка.",
+        "💚 АНКЕТА\\n\\n{} · 18+\\nПол: {}\\n{}\\n\\nИнтересы: {}\\n\\nUsername будет скрыт; контакт откроется только после взаимного лайка.",
         candidate.name,
+        gender,
         if candidate.bio.is_empty() { "Без описания" } else { &candidate.bio },
         interests
     )
 }
 
 async fn next_candidate(db: &PgPool, actor: i64) -> Option<Candidate> {
-    sqlx::query_as::<_,(i64,String,String,Vec<String>,Option<String>)>(
-        "SELECT p.telegram_id,p.display_name,p.bio,p.tags,p.photo_file_id FROM bot_dating_profiles own CROSS JOIN bot_dating_profiles p WHERE own.telegram_id=$1 AND own.is_active=TRUE AND own.is_paused=FALSE AND own.age_confirmed_at IS NOT NULL AND p.telegram_id<>own.telegram_id AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes s WHERE s.from_telegram_id=own.telegram_id AND s.to_telegram_id=p.telegram_id) AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=own.telegram_id AND b.blocked_telegram_id=p.telegram_id) OR (b.blocker_telegram_id=p.telegram_id AND b.blocked_telegram_id=own.telegram_id)) AND NOT EXISTS(SELECT 1 FROM bot_dating_matches m WHERE m.status='active' AND ((m.user1_telegram_id=own.telegram_id AND m.user2_telegram_id=p.telegram_id) OR (m.user1_telegram_id=p.telegram_id AND m.user2_telegram_id=own.telegram_id))) ORDER BY (SELECT count(*) FROM unnest(own.tags) tag WHERE tag=ANY(p.tags)) DESC,p.updated_at DESC LIMIT 1"
-    ).bind(actor).fetch_optional(db).await.ok().flatten().map(|(id,name,bio,tags,photo_file_id)|Candidate{id,name,bio,tags,photo_file_id})
+    // One random draw per request: 99% unseen pool, 1% previously viewed pool
+    // when the user explicitly enables repeats.
+    let candidate = sqlx::query_as::<_,(i64,String,String,Vec<String>,Option<String>,Option<String>)>(
+        "WITH draw AS (SELECT random() < 0.01 AS repeat_draw)          SELECT p.telegram_id,p.display_name,p.bio,p.tags,p.gender,p.photo_file_id          FROM bot_dating_profiles own CROSS JOIN bot_dating_profiles p CROSS JOIN draw          WHERE own.telegram_id=$1 AND own.is_active=TRUE AND own.is_paused=FALSE AND own.age_confirmed_at IS NOT NULL          AND p.telegram_id<>own.telegram_id AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL          AND (own.preferred_gender='any' OR p.gender=own.preferred_gender)          AND ((NOT EXISTS(SELECT 1 FROM bot_dating_seen_profiles seen WHERE seen.viewer_telegram_id=own.telegram_id AND seen.viewed_telegram_id=p.telegram_id) AND NOT draw.repeat_draw)               OR (own.repeat_profiles_enabled=TRUE AND EXISTS(SELECT 1 FROM bot_dating_seen_profiles seen WHERE seen.viewer_telegram_id=own.telegram_id AND seen.viewed_telegram_id=p.telegram_id) AND draw.repeat_draw))          AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=own.telegram_id AND b.blocked_telegram_id=p.telegram_id) OR (b.blocker_telegram_id=p.telegram_id AND b.blocked_telegram_id=own.telegram_id))          AND NOT EXISTS(SELECT 1 FROM bot_dating_matches m WHERE m.status='active' AND ((m.user1_telegram_id=own.telegram_id AND m.user2_telegram_id=p.telegram_id) OR (m.user1_telegram_id=p.telegram_id AND m.user2_telegram_id=own.telegram_id)))          ORDER BY random() LIMIT 1"
+    ).bind(actor).fetch_optional(db).await.ok().flatten()
+      .map(|(id,name,bio,tags,gender,photo_file_id)| Candidate{id,name,bio,tags,gender,photo_file_id})?;
+    if remember_candidate(db, actor, candidate.id).await.is_err() {
+        tracing::error!("Could not persist dating browse history for user {}", actor);
+        return None;
+    }
+    Some(candidate)
+}
+
+async fn remember_candidate(db: &PgPool, actor: i64, candidate_id: i64) -> Result<(), sqlx::Error> {
+    let mut tx = db.begin().await?;
+    sqlx::query("INSERT INTO bot_dating_seen_profiles(viewer_telegram_id,viewed_telegram_id,last_seen_at) VALUES($1,$2,now()) ON CONFLICT(viewer_telegram_id,viewed_telegram_id) DO UPDATE SET last_seen_at=now()")
+        .bind(actor).bind(candidate_id).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO bot_dating_browse_state(viewer_telegram_id,current_profile_id) VALUES($1,$2) ON CONFLICT(viewer_telegram_id) DO UPDATE SET previous_profile_id=bot_dating_browse_state.current_profile_id,current_profile_id=EXCLUDED.current_profile_id,updated_at=now()")
+        .bind(actor).bind(candidate_id).execute(&mut *tx).await?;
+    tx.commit().await
+}
+
+async fn previous_candidate(db: &PgPool, actor: i64) -> Option<Candidate> {
+    let candidate = sqlx::query_as::<_,(i64,String,String,Vec<String>,Option<String>,Option<String>)>(
+        "SELECT p.telegram_id,p.display_name,p.bio,p.tags,p.gender,p.photo_file_id          FROM bot_dating_browse_state state JOIN bot_dating_profiles p ON p.telegram_id=state.previous_profile_id          JOIN bot_dating_profiles own ON own.telegram_id=state.viewer_telegram_id          WHERE state.viewer_telegram_id=$1 AND own.is_active=TRUE AND own.is_paused=FALSE AND own.age_confirmed_at IS NOT NULL          AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL          AND (own.preferred_gender='any' OR p.gender=own.preferred_gender)          AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=own.telegram_id AND b.blocked_telegram_id=p.telegram_id) OR (b.blocker_telegram_id=p.telegram_id AND b.blocked_telegram_id=own.telegram_id))"
+    ).bind(actor).fetch_optional(db).await.ok().flatten()
+      .map(|(id,name,bio,tags,gender,photo_file_id)| Candidate{id,name,bio,tags,gender,photo_file_id})?;
+    sqlx::query("UPDATE bot_dating_browse_state SET previous_profile_id=current_profile_id,current_profile_id=$2,updated_at=now() WHERE viewer_telegram_id=$1")
+        .bind(actor).bind(candidate.id).execute(db).await.ok()?;
+    Some(candidate)
 }
 
 async fn profile_short(db: &PgPool, id: i64) -> Option<(String, String)> {
