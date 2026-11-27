@@ -585,18 +585,28 @@ async fn handle_ui_callback(
                     .await?;
                 return Ok(());
             }
-            if action == "ui:digest:off" {
-                let _ = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{daily_digest_enabled}','false'::jsonb,true),updated_at=now() WHERE telegram_id=$1").bind(actor).execute(&state.db).await;
-            } else if action == "ui:digest:toggle" && settings["daily_digest_enabled"] == true {
-                let _ = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{daily_digest_enabled}','false'::jsonb,true),updated_at=now() WHERE telegram_id=$1").bind(actor).execute(&state.db).await;
+            let save_result = if action == "ui:digest:off"
+                || (action == "ui:digest:toggle" && settings["daily_digest_enabled"] == true)
+            {
+                sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{daily_digest_enabled}','false'::jsonb,true),updated_at=now() WHERE telegram_id=$1")
+                    .bind(actor).execute(&state.db).await
             } else {
                 let time = match action.as_str() {
+                    "ui:digest:07" => "07:00",
                     "ui:digest:08" => "08:00",
                     "ui:digest:19" => "19:00",
                     _ => settings["daily_digest_time"].as_str().unwrap_or("07:00"),
                 };
-                let _ = sqlx::query("UPDATE users SET settings=jsonb_set(jsonb_set(settings,'{daily_digest_enabled}','true'::jsonb,true),'{daily_digest_time}',to_jsonb($2::text),true),updated_at=now() WHERE telegram_id=$1")
-                    .bind(actor).bind(time).execute(&state.db).await;
+                sqlx::query("UPDATE users SET settings=jsonb_set(jsonb_set(settings,'{daily_digest_enabled}','true'::jsonb,true),'{daily_digest_time}',to_jsonb($2::text),true),updated_at=now() WHERE telegram_id=$1")
+                    .bind(actor).bind(time).execute(&state.db).await
+            };
+            if let Err(error) = save_result {
+                tracing::warn!("Could not save daily digest settings: {}", error);
+                bot.answer_callback_query(query.id.clone())
+                    .text("Не удалось сохранить настройки дайджеста. Попробуй ещё раз.")
+                    .show_alert(true)
+                    .await?;
+                return Ok(());
             }
             screen = "settings";
             let settings = sqlx::query_scalar::<_, serde_json::Value>(
