@@ -119,7 +119,7 @@ test('REGRESSION: a ring that mixes numbers and points (the old frame bug) is re
 
 test('windows and frames are simple rectangles, one frame per glass pane', () => {
   const out = G.buildScene(sampleScene(), campus);
-  assert.strictEqual(out.windows.length, out.windowFrames.length);
+  assert.ok(out.windowFrames.length > out.windows.length, 'separate frame members surround each glass pane');
   for (const f of out.windows.concat(out.windowFrames)) {
     assert.strictEqual(f.geometry.coordinates.length, 1, 'no holes in window geometry');
     assert.strictEqual(f.geometry.coordinates[0].length, 5);
@@ -280,7 +280,7 @@ test('window frames are built from separate narrow members rather than a solid b
 test('window budget is respected', () => {
   const out = G.buildScene(sampleScene(), campus, { maxWindows: 50 });
   assert.ok(out.windows.length <= 50);
-  assert.ok(out.windowFrames.length <= 50);
+  assert.ok(out.windowFrames.length <= 150);
   assert.ok(out.windowFrames.length > 0);
 });
 
@@ -294,7 +294,7 @@ test('degenerate and random input does not throw, and the output always validate
     features.push({ id: 'way/r' + i, properties: { kind: 'building', osmId: 'r' + i, heightKnown: rand() > 0.5, heightMeters: 3 + rand() * 40, heightSource: 'OSM height' }, geometry: { type: 'Polygon', coordinates: [ring(pts)] } });
   }
   features.push({ id: 'way/line', properties: { kind: 'building', osmId: 'line' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [10, 0], [20, 0]])] } });
-  features.push({ id: 'way/tiny', properties: { kind: 'building', osmId: 'tiny' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]])] } });
+  features.push({ id: 'way/tiny', properties: { kind: 'building', osmId: 'tiny' }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0.3, 0], [0.3, 0.3], [0, 0.3]])] } });
   features.push({ id: 'way/pt', properties: { kind: 'building', osmId: 'pt' }, geometry: { type: 'Point', coordinates: ll(0, 0) } });
   features.push({ id: 'way/dup', properties: { kind: 'building', osmId: 'dup', heightKnown: true, heightMeters: 12 }, geometry: { type: 'Polygon', coordinates: [ring([[0, 0], [0, 0], [30, 0], [30, 0], [30, 20], [0, 20]])] } });
   const out = G.buildScene({ features }, null);
