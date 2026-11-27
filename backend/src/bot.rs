@@ -1668,7 +1668,7 @@ async fn load_schedule_rows(
     query.fetch_all(db).await.unwrap_or_default()
 }
 
-async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> String {
+pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> String {
     let now = Utc::now();
     let local_now = now.with_timezone(&moscow_offset());
     let is_today = command == "/today" || command == "📅 Сегодня";
