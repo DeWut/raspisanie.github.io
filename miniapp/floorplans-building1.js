@@ -4,12 +4,19 @@
   'use strict';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); }
   function room(x, y, w, h, label, kind) {
-    var t = label == null ? '' : String(label);
-    var fs = t.length > 7 ? 10 : t.length > 4 ? 12 : 15;
-    return '<g class="fp-room-shape' + (kind ? ' '+kind : '') + '">' +
-      '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>' +
-      (t ? '<text x="' + (x+w/2) + '" y="' + (y+h/2+fs*.34) + '" style="font-size:'+fs+'px">' + esc(t) + '</text>' : '') +
-      '</g>';
+    var t = label == null ? '' : String(label).trim();
+    var match = t.match(/^(\\d+[А-Яа-яA-Za-z]?)\\s*(?:[·:]\\s*(.*))?$/);
+    var cx=x+w/2, cy=y+h/2, out='<g class="fp-room-shape' + (kind ? ' '+kind : '') + '">';
+    out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
+    if (match) {
+      var radius=Math.max(9,Math.min(15,Math.min(w,h)*.24));
+      out += '<circle class="fp-room-number" cx="'+cx+'" cy="'+cy+'" r="'+radius+'"/>';
+      out += '<text class="fp-room-number-text" x="'+cx+'" y="'+(cy+4)+'">'+esc(match[1])+'</text>';
+      if (match[2]) out += '<text class="fp-room-caption" x="'+cx+'" y="'+(cy+radius+13)+'">'+esc(match[2])+'</text>';
+    } else if (t) {
+      out += '<text class="fp-room-name" x="'+cx+'" y="'+(cy+4)+'">'+esc(t)+'</text>';
+    }
+    return out + '</g>';
   }
   function hRow(x,y,w,h,labels,weights) {
     var out=[], sum=(weights||labels.map(function(){return 1;})).reduce(function(a,b){return a+b;},0), cursor=x;
@@ -49,17 +56,16 @@
   }
   function buildSvg(floor,cfg) {
     var out='<svg class="floorplan-svg" viewBox="0 0 1320 940" role="img" aria-label="Векторный план корпуса 1, этаж '+floor+'">';
-    out+='<defs><pattern id="b1-grid-'+floor+'" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#e9ece6" stroke-width="1"/></pattern></defs>';
-    out+='<rect width="1320" height="940" rx="18" fill="#fafbf7"/><rect width="1320" height="940" rx="18" fill="url(#b1-grid-'+floor+')"/>';
-    out+='<text class="fp-heading" x="42" y="48">КОРПУС № 1 · '+floor+'-Й ЭТАЖ</text>';
-    out+='<text class="fp-subheading" x="42" y="73">Векторная перерисовка предоставленного поэтажного плана</text>';
+    out+='<rect width="1320" height="940" fill="#fff"/>';
+    out+='<text class="fp-heading" x="48" y="48">ПЛАН '+floor+'-ГО ЭТАЖА</text>';
+    out+='<text class="fp-subheading" x="48" y="73">КОРПУС № 1 · ИНСТИТУТСКИЙ ПЕРЕУЛОК, 5</text>';
     (cfg.corridors||[]).forEach(function(c){out+=corridor(c[0],c[1],c[2],c[3],!!c[4]);});
     (cfg.rooms||[]).forEach(function(r){out+=room(r[0],r[1],r[2],r[3],r[4],r[5]);});
     (cfg.stairs||[]).forEach(function(s){out+=stairs(s[0],s[1],s[2],s[3],!!s[4]);});
     // Named areas are drawn as individual rooms above; avoid covering their room labels.
     (cfg.labels||[]).forEach(function(t){out+='<text class="fp-plan-label" x="'+t[0]+'" y="'+t[1]+'">'+esc(t[2])+'</text>';});
     out+='<g class="fp-north" transform="translate(1240 96)"><path d="M0 36V0 M-9 12L0 0 9 12"/><text x="0" y="-9">С</text></g>';
-    out+='<g class="fp-legend"><rect x="35" y="884" width="1250" height="38" rx="9"/><rect class="fp-legend-room" x="54" y="895" width="28" height="16"/><text x="92" y="908">помещение</text><rect class="fp-legend-corridor" x="220" y="895" width="42" height="16"/><text x="272" y="908">коридор</text><rect class="fp-stairs-swatch" x="420" y="894" width="30" height="18"/><text x="460" y="908">лестница</text><text x="760" y="908">Схематическая перерисовка, не технический план</text></g>';
+    out+='<g class="fp-title-block"><path d="M35 866H1285 M35 866V930H1285V866 M890 866V930 M1085 866V930" /><text x="52" y="890">СПРАВОЧНЫЙ ПЛАН ЭТАЖА</text><text x="52" y="914">Кабинеты и навигация · схема по предоставленному плану</text><text x="910" y="890">КОРПУС № 1</text><text x="910" y="914">ЭТАЖ '+floor+'</text><text x="1102" y="890">МАСШТАБ</text><text x="1102" y="914">НЕ ЗАДАН</text></g>';
     return out+'</svg>';
   }
 
