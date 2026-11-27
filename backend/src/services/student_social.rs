@@ -119,16 +119,105 @@ pub async fn handle_callback(
     }
     let actor = i64::try_from(query.from.id.0).unwrap_or_default();
 
-    // CallbackQuery::regular_message() returns None not only when the callback
-    // has no message, but also when Telegram marks the attached message as
-    // inaccessible. In that case Telegram still supplies chat and message IDs,
-    // which are sufficient for editMessageText. Do not silently drop the click.
+    // Telegram sends inline_message_id (instead of message) for messages
+    // posted through inline mode. Such callbacks are valid and editable through
+    // editMessageTextInline; treating them as missing messages breaks pagination.
     let Some(source_message) = query.message.as_ref() else {
+        if let Some(inline_message_id) = query.inline_message_id.as_deref() {
+            tracing::info!(
+                action = action,
+                actor = actor,
+                inline_message_id = inline_message_id,
+                "Student social callback: handling inline message"
+            );
+            bot.answer_callback_query(query.id.clone()).await?;
+
+            let screen = if action == "pc:open" {
+                Some(Ok(cabinet_screen(db, actor).await))
+            } else if action == "pc:groups" || action.starts_with("pc:groups:") {
+                let page = action
+                    .strip_prefix("pc:groups:")
+                    .and_then(|value| value.parse::<i64>().ok())
+                    .unwrap_or(0)
+                    .max(0);
+                Some(groups_screen(db, page).await)
+            } else if let Some(group_id) = action
+                .strip_prefix("pc:group:")
+                .and_then(|value| uuid::Uuid::parse_str(value).ok())
+            {
+                let changed = sqlx::query(
+                    "UPDATE users SET group_id=$2,updated_at=now() WHERE telegram_id=$1 AND EXISTS(SELECT 1 FROM groups WHERE id=$2 AND is_active=TRUE)"
+                )
+                .bind(actor)
+                .bind(group_id)
+                .execute(db)
+                .await;
+                match changed {
+                    Ok(result) if result.rows_affected() > 0 => Some(Ok(cabinet_screen(db, actor).await)),
+                    Ok(_) => Some(Ok((
+                        "Группа не найдена или больше недоступна.".into(),
+                        cabinet_keyboard(),
+                    ))),
+                    Err(error) => Some(Err(Box::new(error) as Box<dyn std::error::Error + Send + Sync>)),
+                }
+            } else {
+                None
+            };
+
+            if let Some(screen) = screen {
+                let (text, keyboard) = match screen {
+                    Ok(screen) => screen,
+                    Err(error) => {
+                        tracing::error!(
+                            action = action,
+                            "Could not build inline student social screen: {}",
+                            error
+                        );
+                        bot.answer_callback_query(query.id.clone())
+                            .text("Не удалось загрузить экран. Попробуй ещё раз.")
+                            .show_alert(true)
+                            .await?;
+                        return Ok(true);
+                    }
+                };
+                if let Err(error) = bot
+                    .edit_message_text_inline(inline_message_id, text)
+                    .reply_markup(keyboard)
+                    .await
+                {
+                    if !error.to_string().contains("message is not modified") {
+                        tracing::error!(
+                            action = action,
+                            "Could not edit inline student social message: {}",
+                            error
+                        );
+                        bot.answer_callback_query(query.id.clone())
+                            .text("Не удалось обновить экран. Попробуй ещё раз.")
+                            .show_alert(true)
+                            .await?;
+                        return Ok(true);
+                    }
+                }
+                tracing::info!(action = action, "Student social inline callback completed");
+                return Ok(true);
+            }
+
+            tracing::warn!(
+                action = action,
+                "This student social action requires a regular private-chat message"
+            );
+            bot.answer_callback_query(query.id.clone())
+                .text("Для этого действия открой личный кабинет командой /profile в личном чате с ботом.")
+                .show_alert(true)
+                .await?;
+            return Ok(true);
+        }
+
         tracing::error!(
             action = action,
             actor = actor,
             inline_message_id = ?query.inline_message_id,
-            "Student social callback has no attached chat message"
+            "Student social callback has neither a chat message nor inline message ID"
         );
         bot.answer_callback_query(query.id.clone())
             .text("Не удалось определить сообщение. Открой /profile заново.")
