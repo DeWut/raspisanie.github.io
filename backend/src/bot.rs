@@ -3926,15 +3926,15 @@ pub async fn run(state: Arc<AppState>) {
 async fn group_chat_schedule_loop_tick(bot: &Bot, state: &Arc<AppState>) {
     let daily_chats = sqlx::query_as::<_, (i64, uuid::Uuid, NaiveDate, Option<i64>)>(
         r#"
-        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE c.timezone)::date, c.message_thread_id
+        SELECT c.chat_id, c.group_id, (now() AT TIME ZONE 'Europe/Moscow')::date, c.message_thread_id
         FROM bot_chat_settings c
         WHERE c.is_active = TRUE
           AND c.daily_schedule_enabled = TRUE
-          AND c.daily_schedule_time <= (now() AT TIME ZONE c.timezone)::time
+          AND c.daily_schedule_time <= (now() AT TIME ZONE 'Europe/Moscow')::time
           AND NOT EXISTS (
               SELECT 1 FROM bot_chat_daily_posts p
               WHERE p.chat_id = c.chat_id
-                 AND p.local_date = (now() AT TIME ZONE c.timezone)::date
+                 AND p.local_date = (now() AT TIME ZONE 'Europe/Moscow')::date
                 AND p.delivered_at IS NOT NULL
           )
         "#,
