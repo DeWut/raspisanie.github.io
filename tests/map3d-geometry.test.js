@@ -109,6 +109,21 @@ test('ground polygons are normalized even when OSM rings have mixed winding', ()
   assert.ok(area(polygon[1]) < 0);
 });
 
+test('building floors do not create full-footprint horizontal slabs', () => {
+  const scene = { features: [{
+    id: 'way/slabs',
+    properties: { kind: 'building', osmId: 'slabs', heightKnown: true, heightMeters: 15, levels: '5' },
+    geometry: { type: 'Polygon', coordinates: [rect(0, 0, 40, 20)] }
+  }] };
+  const out = G.buildScene(scene, null);
+  const bands = out.solid.filter(f => f.properties.pid === 'slabs' &&
+    f.properties.z1 - f.properties.z0 < 0.3 &&
+    f.properties.z0 > 0 && f.properties.z1 < 15);
+  assert.strictEqual(bands.length, 0, 'floor bands must not be extruded as full-footprint slabs');
+  assert.ok(out.solid.some(f => f.properties.pid === 'slabs' && f.properties.z0 === 0 && f.properties.z1 === 15),
+    'main wall volume must remain');
+});
+
 test('GeoJSON polygon winding preserves courtyard holes for 3D extrusions', () => {
   const outer = ring([[0,0],[0,50],[50,50],[50,0]]); // deliberately clockwise
   const hole = ring([[15,15],[35,15],[35,35],[15,35]]); // deliberately counter-clockwise
