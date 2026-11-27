@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Единая 3D-карта кампуса СПбГЛТУ</title>
+  <link rel="stylesheet" href="./vendor/maplibre-gl.css">
+  <style>
+    :root {
+      --glass: rgba(255, 255, 255, .88);
+      --ink: #1d2733;
+      --muted: #5c6773;
+      --accent: #2f6fb3;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --glass: rgba(28, 34, 42, .88); --ink: #eef2f6; --muted: #aab4bf; --accent: #7fb2ea; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #cfd8c8; }
+    #app { position: fixed; inset: 0; }
+    #map { position: absolute; inset: 0; background: linear-gradient(#8fb6de 0%, #dfeaf2 46%, #cfd8c8 100%); }
+    .hud { position: absolute; z-index: 5; }
+    .title {
+      top: calc(var(--safe-top) + 10px); left: 10px; max-width: calc(100% - 80px);
+      padding: 8px 12px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(8px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, .18);
+    }
+    .title b { display: block; font-size: 15px; }
+    .title span { color: var(--muted); font-size: 12px; }
+    .tools {
+      top: calc(var(--safe-top) + 108px); right: 10px;
+      display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+    }
+    .tools button, .chip, #infoBtn {
+      font: inherit; color: var(--ink); background: var(--glass); backdrop-filter: blur(8px);
+      border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+      min-height: 38px;
+    }
+    .tools button[aria-pressed="true"] { outline: 2px solid var(--accent); }
+    .tools button:active, .chip:active { transform: scale(.97); }
+    .chips {
+      left: 10px; right: 10px; bottom: calc(var(--safe-bottom) + 34px);
+      display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; scrollbar-width: none;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { white-space: nowrap; flex: 0 0 auto; }
+    #infoBtn {
+      left: 10px; bottom: calc(var(--safe-bottom) + 84px); width: 38px; padding: 0; font-weight: 700; display: grid; place-items: center;
+    }
+    #info {
+      left: 10px; right: 10px; bottom: calc(var(--safe-bottom) + 130px); max-height: 46vh; overflow: auto;
+      padding: 12px 14px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(8px);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, .22); font-size: 13px;
+    }
+    #info p { margin: 0 0 8px; }
+    #info .muted, .muted { color: var(--muted); }
+    .status {
+      position: absolute; z-index: 9; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      max-width: 86%; padding: 12px 16px; border-radius: 12px; background: var(--glass); text-align: center;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, .25);
+    }
+    .status.error { color: #b3261e; }
+    .stats { position: absolute; z-index: 5; left: 58px; bottom: calc(var(--safe-bottom) + 88px); right: 10px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); pointer-events: none; }
+    .bpop .maplibregl-popup-content { background: var(--glass); color: var(--ink); border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(8px); }
+    .bpop .maplibregl-popup-tip { display: none; }
+    .pop { max-height: 34vh; overflow: auto; font-size: 13px; }
+    .pop h3 { margin: 0 20px 6px 0; font-size: 15px; }
+    .pop p { margin: 0 0 6px; }
+    .pop ul { margin: 6px 0 0; padding-left: 18px; }
+    .pop a { color: var(--accent); }
+    .campus-photo { margin: 0 0 9px; }
+    .campus-photo img { display: block; width: 100%; max-height: 170px; object-fit: cover; border-radius: 8px; }
+    .campus-photo figcaption { margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .maplibregl-ctrl-attrib { font-size: 10px; }
+    @media (min-width: 720px) {
+      .chips { right: auto; max-width: 70%; }
+      #info { right: auto; width: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="map"></div>
+
+    <div class="hud title">
+      <b>3D-карта кампуса</b>
+      <span>СПбГЛТУ · OpenStreetMap · без API-ключей · два пальца — наклон</span>
+    </div>
+
+    <div class="hud tools" id="tools">
+      <button id="btn-mode" type="button">Схема</button>
+      <button id="btn-shadow" type="button" aria-pressed="true">Тени</button>
+      <button id="btn-tree" type="button" aria-pressed="true">Деревья</button>
+      <button id="btn-win" type="button" aria-pressed="true">Окна</button>
+      <button id="btn-orbit" type="button" aria-pressed="false">Облёт</button>
+      <button id="btn-home" type="button">Сброс</button>
+    </div>
+
+    <button class="hud" id="infoBtn" type="button" aria-label="О карте">i</button>
+    <div class="hud" id="info" hidden>
+      <p><b>Что это.</b> 3D-сцена кампуса, собранная в браузере из данных OpenStreetMap (контуры зданий, деревья, дорожки, вода). Работает без Google, Яндекса, 2GIS и без ключей.</p>
+      <p><b>Что реальное, а что нет.</b> Контуры и высоты (где они есть в OSM) — реальные данные. Окна, карнизы, цоколи, цвета стен, ступенчатые крыши и кроны деревьев — стилизация, это не фотограмметрия. Если высота в OSM не указана, здание показано условной высотой, и карточка здания это отмечает.</p>
+      <p><b>Подложка.</b> «Спутник» — тайлы Esri World Imagery (без ключа, нужна ссылка на источник). Режим «Схема» полностью автономный.</p>
+      <p class="muted">Окна появляются при приближении. Данные: © OpenStreetMap contributors (ODbL).</p>
+    </div>
+    <div class="stats" id="stats"></div>
+
+    <div class="hud chips" id="chips"></div>
+    <div class="status" id="status">Строим сцену…</div>
+  </div>
+
+  <script>
+    // Показывает причину, если скрипты не подгрузились (например, страница открыта как файл).
+    (function () {
+      function show(t) { var s = document.getElementById('status'); if (s) { s.hidden = false; s.className = 'status error'; s.textContent = t; } }
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (t && t.tagName === 'SCRIPT') { show('Не загрузился скрипт ' + (t.getAttribute('src') || '') + '. Откройте страницу с сайта или через локальный сервер (python3 -m http.server), а не как отдельный файл.'); }
+      }, true);
+      setTimeout(function () {
+        if (!window.maplibregl || !window.Map3D) { show('Скрипты карты не загрузились. Откройте страницу с сайта или через локальный сервер, а не как отдельный файл.'); }
+      }, 4000);
+    })();
+  </script>
+  <script src="./vendor/maplibre-gl.js"></script>
+  <script src="./map3d-geometry.js"></script>
+  <script src="./map3d.js"></script>
+</body>
+</html>
