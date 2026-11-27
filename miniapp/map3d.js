@@ -105,6 +105,7 @@
       { id: 'shadow', type: 'fill', source: 'shadow',
         paint: { 'fill-color': '#16231a', 'fill-opacity': ['match', ['get', 'k'], 't', 0.24, 0.42] } },
       extrusion('bld', 'solid', 0, 1),
+      extrusion('winframe', 'winframe', 16.4, 1),
       extrusion('win', 'win', 16.4, 1),
       extrusion('tree', 'tree', 0, 0.96),
       extrusion('hl', 'hl', 0, 0.55)
@@ -119,6 +120,7 @@
         ground: { type: 'geojson', data: EMPTY },
         shadow: { type: 'geojson', data: EMPTY },
         solid: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
+        winframe: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         win: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         tree: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         hl: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 }
@@ -391,6 +393,7 @@
     map.getSource('ground').setData({ type: 'FeatureCollection', features: scene.ground });
     map.getSource('shadow').setData({ type: 'FeatureCollection', features: scene.shadows });
     map.getSource('solid').setData({ type: 'FeatureCollection', features: scene.solid });
+    map.getSource('winframe').setData({ type: 'FeatureCollection', features: scene.windowFrames });
     map.getSource('win').setData({ type: 'FeatureCollection', features: scene.windows });
     map.getSource('tree').setData({ type: 'FeatureCollection', features: scene.trees });
     setMode(mode);
