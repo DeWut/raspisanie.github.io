@@ -175,16 +175,7 @@ fn ui_keyboard(
                 },
                 "ui:reminder:1440",
             )],
-            vec![
-                ui_button("📨 Дайджест: вкл/выкл", "ui:digest:toggle"),
-                ui_button("🕒 Время", "ui:digest:07"),
-            ],
-            vec![
-                ui_button("07:00", "ui:digest:07"),
-                ui_button("08:00", "ui:digest:08"),
-                ui_button("19:00", "ui:digest:19"),
-                ui_button("Выкл.", "ui:digest:off"),
-            ],
+            vec![ui_button("📨 Ежедневный дайджест · 07:00 МСК", "ui:digest:toggle")],
             vec![ui_button("🔔 Изменения расписания", "ui:changes:toggle")],
             vec![ui_button("🏠 В меню", "ui:main")],
         ],
@@ -718,10 +709,9 @@ async fn handle_ui_callback(
                 };
             } else {
                 screen = "settings";
-                let digest_time = settings["daily_digest_time"].as_str().unwrap_or("07:00");
-                text = format!("Настройки уведомлений\n\nНапоминания о паре: {} · за {} мин\nЕжедневный дайджест: {} · {}\nИзменения расписания: {}",
+                text = format!("Настройки уведомлений\n\nНапоминания о паре: {} · за {} мин\nЕжедневный дайджест (07:00 МСК): {}\nИзменения расписания: {}",
                 if reminders_enabled { "вкл" } else { "выкл" }, reminder_minutes,
-                if settings["daily_digest_enabled"] == true { "вкл" } else { "выкл" }, digest_time,
+                if settings["daily_digest_enabled"] == true { "вкл" } else { "выкл" },
                 if settings["schedule_changes_enabled"] == true { "вкл" } else { "выкл" });
             }
         }
@@ -789,7 +779,7 @@ async fn handle_ui_callback(
                 reminder_minutes
             );
         }
-        "ui:digest:toggle" | "ui:digest:07" | "ui:digest:08" | "ui:digest:19" | "ui:digest:off" => {
+        "ui:digest:toggle" => {
             if chat_id != actor {
                 bot.answer_callback_query(query.id.clone())
                     .text("Личные уведомления настраиваются в личном чате.")
@@ -797,21 +787,10 @@ async fn handle_ui_callback(
                     .await?;
                 return Ok(());
             }
-            let save_result = if action == "ui:digest:off"
-                || (action == "ui:digest:toggle" && settings["daily_digest_enabled"] == true)
-            {
-                sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{daily_digest_enabled}','false'::jsonb,true),updated_at=now() WHERE telegram_id=$1")
-                    .bind(actor).execute(&state.db).await
-            } else {
-                let time = match action.as_str() {
-                    "ui:digest:07" => "07:00",
-                    "ui:digest:08" => "08:00",
-                    "ui:digest:19" => "19:00",
-                    _ => settings["daily_digest_time"].as_str().unwrap_or("07:00"),
-                };
-                sqlx::query("UPDATE users SET settings=jsonb_set(jsonb_set(settings,'{daily_digest_enabled}','true'::jsonb,true),'{daily_digest_time}',to_jsonb($2::text),true),updated_at=now() WHERE telegram_id=$1")
-                    .bind(actor).bind(time).execute(&state.db).await
-            };
+            let enabled = settings["daily_digest_enabled"] != true;
+            let save_result = sqlx::query(
+                "UPDATE users SET settings=jsonb_set(jsonb_set(settings,'{daily_digest_enabled}',to_jsonb($2::boolean),true),'{daily_digest_time}','\"07:00\"'::jsonb,true),updated_at=now() WHERE telegram_id=$1"
+            ).bind(actor).bind(enabled).execute(&state.db).await;
             if let Err(error) = save_result {
                 tracing::warn!("Could not save daily digest settings: {}", error);
                 bot.answer_callback_query(query.id.clone())
