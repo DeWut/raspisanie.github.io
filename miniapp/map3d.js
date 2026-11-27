@@ -199,7 +199,7 @@
       if (photoUrl && /^https?:/.test(photoUrl)) {
         html += '<figure class="campus-photo"><img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async">';
         html += '<figcaption>' + esc(photo.credit || 'Фото Wikimedia Commons');
-        if (photo.sourceUrl && /^https:\/\/www\.wikimedia\.org\//.test(photo.sourceUrl)) html += ' · <a href="' + esc(photo.sourceUrl) + '" target="_blank" rel="noopener noreferrer">источник</a>';
+        if (photo.sourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(photo.sourceUrl)) html += ' · <a href="' + esc(photo.sourceUrl) + '" target="_blank" rel="noopener noreferrer">источник</a>';
         if (photo.licenseUrl && /^https:\/\/creativecommons\.org\//.test(photo.licenseUrl)) html += ' · <a href="' + esc(photo.licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(photo.license || 'лицензия') + '</a>';
         html += '</figcaption></figure>';
       }
@@ -211,7 +211,7 @@
       if (heritage.built) html += '<p><b>Построен:</b> ' + esc(heritage.built) + '</p>';
       if (heritage.style) html += '<p><b>Стиль:</b> ' + esc(heritage.style) + '</p>';
       if (heritage.architects) html += '<p><b>Архитекторы:</b> ' + esc(heritage.architects) + '</p>';
-      if (heritage.heritageSourceUrl && /^https:\/\/www\.wikimedia\.org\//.test(heritage.heritageSourceUrl)) html += '<p><a href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Материалы Wikimedia Commons</a></p>';
+      if (heritage.heritageSourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(heritage.heritageSourceUrl)) html += '<p><a href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Материалы Wikimedia Commons</a></p>';
       if (heritage.historySourceUrl && /^https?:\/\//.test(heritage.historySourceUrl)) html += '<p><a href="' + esc(heritage.historySourceUrl) + '" target="_blank" rel="noopener noreferrer">Историческая справка</a></p>';
     }
     html += '<p class="muted">' + heightText(p) + '</p>';
