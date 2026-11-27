@@ -217,6 +217,42 @@ fn ui_keyboard(
     InlineKeyboardMarkup::new(rows)
 }
 
+fn chat_settings_keyboard(
+    chat_id: ChatId,
+    group_name: &str,
+    daily_enabled: bool,
+    lesson_enabled: bool,
+    digest_enabled: bool,
+    assistant_enabled: bool,
+    context_enabled: bool,
+) -> InlineKeyboardMarkup {
+    let _ = (chat_id, group_name);
+    InlineKeyboardMarkup::new(vec![
+        vec![ui_button("🏫 Изменить учебную группу", "chatgroup:open")],
+        vec![ui_button(
+            if daily_enabled { "✅ Ежедневное расписание: ВКЛ" } else { "Ежедневное расписание: ВЫКЛ" },
+            "chatsettings:daily",
+        )],
+        vec![ui_button(
+            if lesson_enabled { "✅ Уведомления о парах: ВКЛ" } else { "Уведомления о парах: ВЫКЛ" },
+            "chatsettings:lessons",
+        )],
+        vec![ui_button(
+            if digest_enabled { "✅ Дайджест группы: ВКЛ · 07:00 МСК" } else { "Дайджест группы: ВЫКЛ · 07:00 МСК" },
+            "chatsettings:digest",
+        )],
+        vec![ui_button(
+            if assistant_enabled { "✅ Помощник: ВКЛ" } else { "Помощник: ВЫКЛ" },
+            "chatsettings:assistant",
+        )],
+        vec![ui_button(
+            if context_enabled { "✅ Контекст ответов: ВКЛ" } else { "Контекст ответов: ВЫКЛ" },
+            "chatsettings:context",
+        )],
+        vec![ui_button("🏠 Меню", "ui:main")],
+    ])
+}
+
 fn commands_text(in_group: bool) -> String {
     let mut text = String::from(
         "📋 КОМАНДЫ БОТА\n\nОбычные разделы удобнее открывать кнопками. Аргументы нужны только для поиска и управления данными.\n\n🎓 Основное\n/start — начать или вернуться\n/menu — открыть меню\n/help — подсказки\n/commands — этот список\n/settings — настройки\n/today, /tomorrow, /week, /next — расписание\n/homework, /deadlines, /home — задания и что дальше\n/teacher Фамилия — поиск преподавателя\n/free_rooms [ЧЧ:ММ] — свободные аудитории\n/group название — выбрать личную группу\n",
@@ -368,6 +404,77 @@ async fn handle_group_setup_callback(
     Ok(true)
 }
 
+async fn handle_chat_settings_callback(
+    bot: &Bot,
+    state: &AppState,
+    query: &CallbackQuery,
+) -> ResponseResult<bool> {
+    let Some(action) = query.data.as_deref() else { return Ok(false); };
+    if action != "chatsettings:open" && !action.starts_with("chatsettings:") {
+        return Ok(false);
+    }
+    let Some(message) = query.regular_message() else {
+        bot.answer_callback_query(query.id.clone())
+            .text("Открой настройки в сообщении группового чата.")
+            .show_alert(true).await?;
+        return Ok(true);
+    };
+    let chat_id=message.chat.id;
+    let actor=i64::try_from(query.from.id.0).unwrap_or_default();
+    if chat_id.0 >= 0 {
+        bot.answer_callback_query(query.id.clone()).text("Настройки доступны только в групповом чате.").show_alert(true).await?;
+        return Ok(true);
+    }
+    let role=crate::services::chat_roles::sync_member(bot,&state.db,chat_id,actor,None).await.ok().flatten();
+    if !matches!(role.as_deref(),Some("owner"|"admin")) {
+        bot.answer_callback_query(query.id.clone()).text("Настраивать учебный чат могут только администраторы Telegram.").show_alert(true).await?;
+        return Ok(true);
+    }
+    if action != "chatsettings:open" {
+        let column = match action {
+            "chatsettings:daily" => "daily_schedule_enabled",
+            "chatsettings:lessons" => "lesson_notifications_enabled",
+            "chatsettings:digest" => "daily_digest_enabled",
+            "chatsettings:assistant" => "assistant_enabled",
+            "chatsettings:context" => "context_enabled",
+            _ => "",
+        };
+        if column.is_empty() {
+            bot.answer_callback_query(query.id.clone()).text("Кнопка устарела.").await?;
+            return Ok(true);
+        }
+        let sql=format!("UPDATE bot_chat_settings SET {column}=NOT {column},updated_at=now() WHERE chat_id=$1");
+        let updated=sqlx::query(&sql).bind(chat_id.0).execute(&state.db).await;
+        if !matches!(updated,Ok(ref result) if result.rows_affected()==1) {
+            bot.answer_callback_query(query.id.clone()).text("Не удалось сохранить настройку.").show_alert(true).await?;
+            return Ok(true);
+        }
+        let _=sqlx::query(
+            "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,$3,to_jsonb((SELECT CASE WHEN $3='daily_schedule_enabled' THEN daily_schedule_enabled WHEN $3='lesson_notifications_enabled' THEN lesson_notifications_enabled WHEN $3='daily_digest_enabled' THEN daily_digest_enabled WHEN $3='assistant_enabled' THEN assistant_enabled ELSE context_enabled END FROM bot_chat_settings WHERE chat_id=$1)))"
+        ).bind(chat_id.0).bind(actor).bind(column).execute(&state.db).await;
+    }
+    let row=sqlx::query_as::<_,(String,bool,bool,bool,bool,bool)>(
+        "SELECT g.name,c.daily_schedule_enabled,c.lesson_notifications_enabled,c.daily_digest_enabled,c.assistant_enabled,c.context_enabled FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1 AND c.is_active=TRUE"
+    ).bind(chat_id.0).fetch_optional(&state.db).await;
+    let Ok(Some((group,daily,lessons,digest,assistant,context)))=row else {
+        bot.answer_callback_query(query.id.clone()).text("Сначала выбери группу командой /setgroup.").show_alert(true).await?;
+        return Ok(true);
+    };
+    bot.answer_callback_query(query.id.clone()).await?;
+    let text=format!(
+        "⚙️ НАСТРОЙКИ УЧЕБНОГО ЧАТА\n\nГруппа: {group}\nЧасовой пояс: Москва (UTC+3)\n\nЕжедневная публикация: {}\nУведомления о парах: {}\nДайджест: {} · 07:00 МСК\nПомощник в ответах: {}\nКонтекст ответов: {}\n\nКонтекст сохраняется отдельно для этого чата в Neon. Сообщения не собираются, пока помощник и контекст не включены администратором.",
+        if daily{"включена"}else{"выключена"},
+        if lessons{"включены"}else{"выключены"},
+        if digest{"включён"}else{"выключен"},
+        if assistant{"включён"}else{"выключен"},
+        if context{"включён"}else{"выключен"},
+    );
+    bot.edit_message_text(chat_id,message.id,text)
+        .reply_markup(chat_settings_keyboard(chat_id,&group,daily,lessons,digest,assistant,context))
+        .await?;
+    Ok(true)
+}
+
 async fn handle_ui_callback(
     bot: Bot,
     state: Arc<AppState>,
@@ -378,6 +485,9 @@ async fn handle_ui_callback(
         return Ok(());
     };
     if handle_group_setup_callback(&bot, &state, &query).await? {
+        return Ok(());
+    }
+    if handle_chat_settings_callback(&bot, &state, &query).await? {
         return Ok(());
     }
     if data.starts_with("pc:") || data.starts_with("dating:") {
@@ -3379,35 +3489,27 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "/chat_settings" => {
             if !is_group_chat {
                 "Команда работает только в групповом чате.".into()
+            } else if !matches!(
+                crate::services::chat_roles::sync_member(&bot, db, message.chat.id, telegram_id, None).await.ok().flatten().as_deref(),
+                Some("owner" | "admin")
+            ) {
+                "⛔ Открывать настройки учебного чата могут только администраторы Telegram.".into()
             } else {
-                match sqlx::query_as::<_, (String, bool, String, bool, bool, Option<i64>, String)>(
-                    r#"
-                    SELECT g.name, c.daily_schedule_enabled,
-                           to_char(c.daily_schedule_time, 'HH24:MI'),
-                            c.lesson_notifications_enabled, c.is_active, c.message_thread_id, c.timezone
-                    FROM bot_chat_settings c
-                    JOIN groups g ON g.id = c.group_id
-                    WHERE c.chat_id = $1
-                    "#
-                )
-                .bind(message.chat.id.0)
-                .fetch_optional(db)
-                .await
-                {
-                    Ok(Some((group, daily, time, notifications, active, thread_id, timezone))) => format!(
-                        "⚙️ Настройки учебного чата\nГруппа: {}\nЧасовой пояс: {}\nАвтопубликация: {} (ежедневно в {})\nУведомления о парах: {}\nТема публикаций: {}\nИнтеграция: {}\n\nКоманды администратора:\n/chat_timezone Europe/Helsinki — часовой пояс\n/chat_topic — выбрать текущую тему\n/chat_topic_off — публиковать в общий чат\n/daily_on — включить расписание каждый день\n/daily_off — выключить\n/daily_time ЧЧ:ММ — время публикации\n/chat_notify_on — уведомлять за 10 минут до пары\n/chat_notify_off — выключить уведомления",
-                        group,
-                        timezone,
-                        if daily { "включена" } else { "выключена" },
-                        time,
-                        if notifications { "включены" } else { "выключены" },
-                        thread_id.map(|id| format!("тема #{}", id)).unwrap_or_else(|| "общий чат".into()),
-                        if active { "активна" } else { "приостановлена" }
-                    ),
-                    Ok(None) => "Сначала привяжи учебную группу командой /setgroup название.".into(),
+                let row=sqlx::query_as::<_,(String,bool,bool,bool,bool,bool)>(
+                    "SELECT g.name,c.daily_schedule_enabled,c.lesson_notifications_enabled,c.daily_digest_enabled,c.assistant_enabled,c.context_enabled FROM bot_chat_settings c JOIN groups g ON g.id=c.group_id WHERE c.chat_id=$1 AND c.is_active=TRUE"
+                ).bind(message.chat.id.0).fetch_optional(db).await;
+                match row {
+                    Ok(Some((group,daily,lessons,digest,assistant,context))) => {
+                        let keyboard=chat_settings_keyboard(message.chat.id,&group,daily,lessons,digest,assistant,context);
+                        let text=format!("⚙️ НАСТРОЙКИ УЧЕБНОГО ЧАТА\\n\\nГруппа: {group}\\nЧасовой пояс: Москва (UTC+3)\\nЕжедневная публикация: {}\\nУведомления о парах: {}\\nДайджест: {} · 07:00 МСК\\nПомощник в ответах: {}\\nКонтекст ответов: {}",
+                            if daily{"вкл"}else{"выкл"},if lessons{"вкл"}else{"выкл"},if digest{"вкл"}else{"выкл"},if assistant{"вкл"}else{"выкл"},if context{"вкл"}else{"выкл"});
+                        bot.send_message(message.chat.id,text).reply_markup(keyboard).await?;
+                        return Ok(());
+                    }
+                    Ok(None) => "Сначала привяжи учебную группу командой /setgroup или кнопкой ниже.".into(),
                     Err(error) => {
-                        tracing::error!("Could not read group schedule settings: {}", error);
-                        "Не удалось прочитать настройки учебного чата.".into()
+                        tracing::error!("Could not read group settings: {}",error);
+                        "Не удалось загрузить настройки учебного чата.".into()
                     }
                 }
             }
