@@ -424,8 +424,77 @@
 
   function floorForRoom(room) {
     var value = String(room || '').trim();
-    var match = value.match(/^([1-9])[- ]?\\d{2,3}$/);
-    return match ? Number(match[1]) : null;
+    var explicit = value.match(/(?:^|\\b)([1-9])\\s*[- ]?й\\s*этаж/i);
+    if (explicit) return Number(explicit[1]);
+    var roomNumber = value.match(/\\b([1-9])\\d{2,3}\\b/);
+    return roomNumber ? Number(roomNumber[1]) : null;
+  }
+
+  var activeFloorBuilding = null;
+  var activeFloorNumber = 1;
+  var floorPlanZoom = 1;
+
+  function renderFloorPlan(building, floor) {
+    var content = $('floorplan-content');
+    if (!content) return;
+    activeFloorBuilding = building;
+    activeFloorNumber = floor;
+    floorPlanZoom = 1;
+    var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
+    if (custom && custom.floors && custom.floors[floor]) {
+      var plan = custom.floors[floor];
+      var tabs = '';
+      Object.keys(custom.floors).sort(function (a,b) { return Number(a)-Number(b); }).forEach(function (key) {
+        tabs += '<button type="button" class="floor-tab' + (Number(key) === Number(floor) ? ' active' : '') + '" data-floor-select="' + key + '" aria-pressed="' + (Number(key) === Number(floor) ? 'true' : 'false') + '">' + key + ' этаж</button>';
+      });
+      var assigned = [];
+      (building.units || []).forEach(function (unit) {
+        if (floorForRoom(unit.room) === Number(floor)) assigned.push(unit);
+      });
+      var html = '<nav class="floor-tabs" aria-label="Выбор этажа">' + tabs + '</nav>';
+      html += '<div class="floor-toolbar"><span>' + esc(plan.title) + '</span><div><button type="button" data-floor-zoom="-1" aria-label="Уменьшить схему">−</button><button type="button" data-floor-zoom="1" aria-label="Увеличить схему">+</button><button type="button" data-floor-zoom="reset">Сброс</button></div></div>';
+      html += '<div class="floorplan-viewport"><div class="floorplan-drawing" style="width:100%">' + plan.svg + '</div></div>';
+      html += '<section class="floor-units"><h4>Подразделения и кабинеты этого этажа</h4>';
+      if (assigned.length) {
+        html += '<div class="room-grid">';
+        assigned.forEach(function (unit) {
+          html += '<article class="room-card"><b>' + esc(unit.room || 'Этаж ' + floor) + '</b><span>' + esc(unit.name) + '</span></article>';
+        });
+        html += '</div>';
+      } else {
+        html += '<p class="muted">Подтверждённые номера кабинетов для этого этажа пока не внесены.</p>';
+      }
+      html += '</section><p class="floor-note">' + esc(custom.note) + ' Расположение отдельных кабинетов не привязано к конкретным комнатам, пока нет проверенных поэтажных данных с номерами помещений.</p>';
+      content.innerHTML = html;
+      var drawing = content.querySelector('.floorplan-drawing');
+      if (drawing) drawing.style.width = (floorPlanZoom * 100) + '%';
+      return;
+    }
+
+    var units = building.units || [];
+    var floors = {};
+    var unassigned = [];
+    units.forEach(function (unit) {
+      var f = floorForRoom(unit.room);
+      if (f == null) unassigned.push(unit);
+      else (floors[f] || (floors[f] = [])).push(unit);
+    });
+    var keys = Object.keys(floors).sort(function (a, b) { return Number(a) - Number(b); });
+    var htmlFallback = '';
+    keys.forEach(function (f) {
+      htmlFallback += '<section class="floor-section"><h4>' + f + '-й этаж</h4><div class="room-grid">';
+      floors[f].forEach(function (unit) {
+        htmlFallback += '<article class="room-card"><b>' + esc(unit.room) + '</b><span>' + esc(unit.name) + '</span></article>';
+      });
+      htmlFallback += '</div></section>';
+    });
+    if (unassigned.length) {
+      htmlFallback += '<section class="floor-section"><h4>Этаж не указан в данных</h4><div class="room-grid">';
+      unassigned.forEach(function (unit) { htmlFallback += '<article class="room-card"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></article>'; });
+      htmlFallback += '</div></section>';
+    }
+    htmlFallback += '<p class="floor-note">Это справочная схема размещения подразделений по номерам аудиторий; точная геометрия помещений пока не подтверждена.</p>';
+    content.innerHTML = htmlFallback || '<p>Для этого корпуса пока нет опубликованных данных о кабинетах.</p>';
   }
 
   function openFloorPlan(number) {
@@ -433,36 +502,14 @@
     if (!building) return;
     var panel = $('floorplan');
     var title = $('floorplan-title');
-    var content = $('floorplan-content');
-    if (!panel || !content) return;
+    if (!panel) return;
     title.textContent = building.name + ' · ' + (building.address || '');
-    var floors = {};
-    var unassigned = [];
-    (building.units || []).forEach(function (unit) {
-      var floor = floorForRoom(unit.room);
-      if (floor == null) unassigned.push(unit);
-      else (floors[floor] || (floors[floor] = [])).push(unit);
-    });
-    var keys = Object.keys(floors).sort(function (a, b) { return Number(a) - Number(b); });
-    var html = '';
-    if (keys.length) {
-      keys.forEach(function (floor) {
-        html += '<section class="floor-section"><h4>' + floor + '-й этаж</h4><div class="room-grid">';
-        floors[floor].forEach(function (unit) {
-          html += '<article class="room-card"><b>' + esc(unit.room) + '</b><span>' + esc(unit.name) + '</span></article>';
-        });
-        html += '</div></section>';
-      });
-    }
-    if (unassigned.length) {
-      html += '<section class="floor-section"><h4>Этаж не указан в данных</h4><div class="room-grid">';
-      unassigned.forEach(function (unit) {
-        html += '<article class="room-card"><b>' + esc(unit.room || '—') + '</b><span>' + esc(unit.name) + '</span></article>';
-      });
-      html += '</div></section>';
-    }
-    html += '<p class="floor-note">Это справочная схема размещения подразделений по номерам аудиторий, а не точный архитектурный план: координаты кабинетов и расположение лестниц пока не подтверждены.</p>';
-    content.innerHTML = html || '<p>Для этого корпуса пока нет опубликованных данных о кабинетах.</p>';
+    var custom = window.CAMPUS_FLOORPLANS && window.CAMPUS_FLOORPLANS[String(building.number)];
+    var firstFloor = custom ? 1 : (function () {
+      var found = (building.units || []).map(function (u) { return floorForRoom(u.room); }).filter(Boolean).sort(function(a,b){return a-b;});
+      return found.length ? found[0] : 1;
+    })();
+    renderFloorPlan(building, firstFloor);
     panel.hidden = false;
     panel.setAttribute('aria-hidden', 'false');
   }
@@ -573,6 +620,21 @@
     }
     var floorClose = $('floorplan-close');
     if (floorClose) floorClose.addEventListener('click', closeFloorPlan);
+    var floorContent = $('floorplan-content');
+    if (floorContent) floorContent.addEventListener('click', function (event) {
+      var tab = event.target.closest('[data-floor-select]');
+      if (tab && activeFloorBuilding) {
+        renderFloorPlan(activeFloorBuilding, Number(tab.getAttribute('data-floor-select')));
+        return;
+      }
+      var zoom = event.target.closest('[data-floor-zoom]');
+      if (zoom) {
+        var action = zoom.getAttribute('data-floor-zoom');
+        floorPlanZoom = action === 'reset' ? 1 : Math.max(1, Math.min(2.5, floorPlanZoom + Number(action) * 0.25));
+        var drawing = floorContent.querySelector('.floorplan-drawing');
+        if (drawing) drawing.style.width = (floorPlanZoom * 100) + '%';
+      }
+    });
     var floorPanel = $('floorplan');
     if (floorPanel) floorPanel.addEventListener('click', function (event) { if (event.target === floorPanel) closeFloorPlan(); });
     var infoButton = $('infoBtn');
