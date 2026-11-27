@@ -1,5 +1,6 @@
 pub mod calendar_export;
 pub mod chat_roles;
+pub mod conversation;
 pub mod eios_sync;
 pub mod group_content;
 pub mod homework_candidates;
