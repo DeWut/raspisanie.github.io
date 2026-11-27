@@ -1387,7 +1387,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     let normalized_text = text.trim();
 
     let command = match normalized_text {
-        "📚 ДЗ" => "/homework",
+        "📚 ДЗ" => if message.chat.id.0 < 0 { "/dz" } else { "/homework" },
         "🗓 Расписание" => "/today",
         "⏰ Дедлайны" => "/deadlines",
         "🏫 Аудитории" => "/free_rooms",
@@ -1402,7 +1402,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "⚙️ Настройки" => "/settings",
         "👤 Кабинет" => "/profile",
         "💚 Знакомства" => "/dating",
-        "🏠 Меню" => "/home",
+        "🏠 Меню" => "/menu",
         other => other
             .splitn(2, char::is_whitespace)
             .next()
