@@ -191,7 +191,7 @@ pub async fn handle_homework(
         return None;
     }
     let configured: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE)",
+        "SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE AND group_id IS NOT NULL)",
     )
     .bind(chat_id)
     .fetch_one(db)
@@ -324,7 +324,7 @@ pub async fn handle_homework(
             };
             let deadline = due.or_else(|| next_lesson.as_ref().map(|(_, at)| *at));
             let id: Option<i64> = sqlx::query_scalar(
-                "WITH n AS (UPDATE bot_chat_settings SET homework_next_id=homework_next_id+1,updated_at=now() WHERE chat_id=$1 RETURNING homework_next_id-1) INSERT INTO bot_homework(chat_id,id,subject,description,due_at,due_lesson_id,due_lesson_at,created_by) SELECT $1,n.homework_next_id-1,$2,$3,$4,$5,$6,$7 FROM n RETURNING id"
+                "WITH n AS (UPDATE bot_chat_settings SET homework_next_id=COALESCE(homework_next_id,1)+1,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE AND group_id IS NOT NULL RETURNING homework_next_id-1) INSERT INTO bot_homework(chat_id,id,subject,description,due_at,due_lesson_id,due_lesson_at,created_by) SELECT $1,n.homework_next_id-1,$2,$3,$4,$5,$6,$7 FROM n RETURNING id"
             ).bind(chat_id).bind(parts[0]).bind(parts[1]).bind(deadline)
              .bind(next_lesson.as_ref().map(|(id,_)| *id))
              .bind(next_lesson.as_ref().map(|(_,at)| *at))
