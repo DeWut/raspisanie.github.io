@@ -1,15 +1,152 @@
 <!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#173d2e">
-  <meta http-equiv="refresh" content="0; url=./miniapp/index.html">
-  <title>SPBFTUIT — расписание</title>
-  <link rel="canonical" href="./miniapp/index.html">
-</head>
-<body>
-  <p>Открываем обновлённое приложение SPBFTUIT… <a href="./miniapp/index.html">Продолжить</a></p>
-  <script>location.replace("./miniapp/index.html" + location.search + location.hash);</script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#173d2e" />
+    <meta name="description" content="Полное расписание университета SPBFTUIT." />
+    <title>SPBFTUIT — расписание</title>
+    <link rel="icon" href="./favicon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./miniapp/styles.css?v=20261127-17" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="./miniapp/campus-map-config.js?v=20261127-17"></script>
+    <script defer src="./miniapp/app.js?v=20261127-17"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#today" aria-label="SPBFTUIT — на сегодня">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none">
+              <path d="M20 4 8 19h7L7 29h10v7h6v-7h10l-8-10h7L20 4Z" fill="currentColor" />
+              <path d="M20 4v32" stroke="#D8F27A" stroke-width="1.4" opacity=".85" />
+            </svg>
+          </span>
+          <span class="brand-copy"><strong>SPBFTUIT</strong><small>расписание университета</small><small class="online-indicator" id="online-indicator" hidden><span id="online-count">0</span> онлайн</small></span>
+        </a>
+        <button class="icon-button" id="refresh-button" aria-label="Обновить расписание" title="Обновить">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.2 9a6.5 6.5 0 0 1 10.7-2L20 12M4 12l3.1 5a6.5 6.5 0 0 0 10.7-2" /></svg>
+        </button>
+      </header>
+      <div class="connectivity-note" id="connectivity-note" role="status" hidden>Нет подключения · показываем сохранённые данные</div>
+
+      <main>
+        <section class="welcome-row">
+          <div>
+            <p class="eyebrow" id="welcome-date">ТВОЙ УЧЕБНЫЙ ДЕНЬ</p>
+            <h1 id="greeting">Привет!</h1>
+          </div>
+          <button class="group-pill" id="group-button" aria-haspopup="dialog" aria-controls="group-dialog">
+            <span class="group-dot"></span><span id="group-name">Выбрать группу</span><svg class="chevron-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </button>
+        </section>
+
+        <section class="hero-card" aria-live="polite">
+          <div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
+          <div class="hero-content">
+            <span class="hero-label" id="hero-label">СЕГОДНЯ</span>
+            <h2 id="hero-title">Загрузка расписания…</h2>
+            <p id="hero-subtitle">Собираем твой учебный день</p>
+          <p class="hero-next" id="hero-next">Следующее занятие появится здесь</p>
+          </div>
+          <div class="hero-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64" fill="none"><rect x="9" y="13" width="46" height="42" rx="12" stroke="currentColor" stroke-width="2.5"/><path d="M20 8v11M44 8v11M9 25h46M20 35h8M36 35h8M20 44h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="48" cy="47" r="10" fill="#D8F27A" stroke="#173d2e" stroke-width="2"/><path d="m44 47 3 3 5-6" stroke="#173d2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="hero-footer"><span class="live-dot"></span><span id="hero-footer-text">Загрузка данных</span><span class="hero-week" id="week-label"></span></div>
+        </section>
+
+        <section class="schedule-section" id="today-view">
+          <div class="section-heading">
+            <div><p class="eyebrow">РАСПИСАНИЕ</p><h2 id="schedule-heading">Пары на сегодня</h2><p class="schedule-count" id="schedule-count" aria-live="polite"></p></div>
+            <button class="text-button" id="today-button">Сегодня</button>
+          </div>
+          <div class="day-strip" id="day-strip" role="tablist" aria-label="Дни недели"></div>
+          <div class="schedule-list" id="schedule-list" aria-live="polite"></div>
+          <p class="updated-note" id="updated-note"></p>
+        </section>
+
+<section class="schedule-section week-section hidden" id="week-view">
+          <div class="week-page-top">
+            <a class="week-back" id="week-back" href="./index.html">← К расписанию</a>
+            <span class="week-current-label" id="week-current-label">Учебная неделя</span>
+          </div>
+          <div class="section-heading"><div><p class="eyebrow">ПЛАНИРОВАНИЕ</p><h2>Расписание на неделю</h2></div></div>
+          <div class="week-navigation">
+            <button class="icon-button small" id="week-prev" type="button" aria-label="Предыдущая неделя">‹</button>
+            <p class="week-range" id="week-range"></p>
+            <button class="icon-button small" id="week-next" type="button" aria-label="Следующая неделя">›</button>
+          </div>
+          <div class="week-list" id="week-list"></div>
+        </section>
+
+
+        <section class="source-note"><span class="source-icon">i</span><p>Источник расписания — <a href="https://eios.spbftu.ru/Rasp/" target="_blank" rel="noopener">ЕИОС</a>. Если нашёл расхождение, проверь информацию на <a href="https://spbftu.ru/" target="_blank" rel="noopener">сайте университета</a>.</p></section>
+      </main>
+
+      <div class="quick-actions" id="quick-actions"><div class="quick-menu" id="quick-menu"><a class="quick-action quick-bot" href="https://t.me/spbftuITbot" target="_blank" rel="noopener noreferrer" aria-label="Открыть Telegram-бота SPbftuITbot" title="Telegram-бот"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 3.5 18.2 20c-.25 1.15-.9 1.45-1.82.9l-5.05-3.72-2.44 2.35c-.27.27-.5.5-1.02.5l.36-5.15 9.38-8.48c.41-.36-.09-.56-.64-.2L5.37 13.5.4 11.95c-1.08-.34-1.1-1.08.23-1.6L19.8 2.8c.9-.33 1.7.2 1.7.7Z"/></svg></a><button class="quick-action" id="open-calendar" type="button" aria-label="Календарь"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M14 14h2"/></svg></button><button class="quick-action" id="open-map" type="button" aria-label="Карта университета"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></button><button class="quick-action" id="open-weather" type="button" aria-label="Погода"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></button><button class="quick-action theme-toggle" id="toggle-theme" type="button" aria-label="Переключить тему" aria-pressed="false" title="Тёмная тема"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/></svg></button></div><button class="quick-main" id="quick-main" type="button" aria-label="Дополнительные функции" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    </div>
+
+    <dialog class="group-dialog" id="group-dialog">
+      <form method="dialog" class="dialog-head"><div><p class="eyebrow">НАСТРОЙКА</p><h2>Выбери группу</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form>
+      <label class="search-box"><span>⌕</span><input id="group-search" type="search" placeholder="Например, Б-101" autocomplete="off" /></label>
+      <div class="group-results" id="group-results"></div>
+      <div class="dialog-foot">
+        <p>Выбор сохранится на этом устройстве.</p>
+        <button class="text-button" id="sync-bot-group" type="button" hidden>Сохранить группу в боте</button>
+      </div>
+    </dialog>
+
+    <dialog class="group-dialog lesson-dialog" id="lesson-dialog">
+      <form method="dialog" class="dialog-head"><div><p class="eyebrow" id="detail-date">ЗАНЯТИЕ</p><h2 id="detail-name">Информация о паре</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form>
+      <div class="lesson-details">
+        <p><span>Время</span><strong id="detail-time">—</strong></p>
+        <p><span>Преподаватель</span><strong id="detail-teacher">Не указан</strong></p>
+        <p><span>Аудитория</span><strong id="detail-room">Не указана</strong></p>
+        <p><span>Неделя</span><strong id="detail-week">—</strong></p>
+      </div>
+    </dialog>
+    <dialog class="group-dialog utility-dialog" id="calendar-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">УЧЕБНЫЙ ГОД</p><h2>Календарь</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div class="calendar-controls"><button class="icon-button small" id="calendar-prev" type="button" aria-label="Предыдущий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><strong id="calendar-month-name">—</strong><button class="icon-button small" id="calendar-next" type="button" aria-label="Следующий месяц"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-details" id="calendar-details">Выбери день, чтобы увидеть расписание.</div></dialog>
+    <dialog class="group-dialog utility-dialog map-dialog" id="map-dialog">
+      <form method="dialog" class="dialog-head"><div><p class="eyebrow">НАВИГАЦИЯ</p><h2>Карта и корпуса</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form>
+      <section class="campus-explorer" aria-label="Карта кампуса">
+        <div class="campus-offline-panel" id="campus-offline-panel">
+          <span class="campus-offline-kicker">СПРАВОЧНИК КАМПУСА</span>
+          <h3>Корпуса и аудитории</h3>
+          <p id="campus-offline-status">3D-схема парка, дорожки, водоёмы и корпуса хранятся на устройстве. Спутник Яндекса требует интернет.</p>
+          <button type="button" id="campus-open-online">Открыть автономную 3D-карту</button>
+          <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта университета ↗</a>
+        </div>
+        <div id="campus-online-panel" class="campus-online-panel" hidden>
+          <div class="campus-online-head"><span id="campus-map-source-label">ТЕРРИТОРИЯ ПАРКА · ЛОКАЛЬНЫЕ ДАННЫЕ OSM</span><button type="button" id="campus-cesium-expand" hidden aria-pressed="false">На весь экран</button></div>
+          <div class="campus-map-switch" role="group" aria-label="Источник карты">
+            <button type="button" id="campus-mode-osm" aria-pressed="true">3D-парк</button>
+            <button type="button" id="campus-mode-yandex" aria-pressed="false">Спутник Яндекса</button>
+            <button type="button" id="campus-mode-photorealistic" aria-pressed="false">3D-парк + кроны</button>
+            <button type="button" id="campus-mode-2gis" aria-pressed="false">3D 2ГИС</button>
+          </div>
+          <div class="campus-map-switch campus-basemap-switch" role="group" aria-label="Подложка 3D-карты">
+            <button type="button" id="campus-basemap-osm" aria-pressed="true">Схема</button>
+            <button type="button" id="campus-basemap-satellite" aria-pressed="false">Спутник</button>
+          </div>
+          <div id="campus-online-map" class="campus-online-map"></div>
+          <div id="campus-yandex-map" class="campus-online-map campus-yandex-map" hidden></div>
+          <div id="campus-cesium-map" class="campus-online-map campus-cesium-map" hidden aria-label="Автономная трёхмерная карта кампуса"></div>
+          <div id="campus-2gis-map" class="campus-online-map campus-2gis-map" hidden aria-label="Трёхмерная карта 2ГИС"></div>
+          <div id="campus-cesium-credits" class="campus-cesium-credits" aria-live="polite"></div>
+          <div class="campus-cesium-attribution">Геометрия кампуса: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · ODbL 1.0</div>
+          <div class="campus-map-footer">
+            <p id="campus-online-status" class="campus-online-status" role="status" aria-live="polite">Загрузка карты и зданий…</p>
+            <a class="campus-official-link" href="https://spbftu.ru/public/map" target="_blank" rel="noopener">Официальная карта ↗</a>
+            <button type="button" id="campus-fit-buildings" disabled>Показать все корпуса</button>
+          </div>
+        </div>
+      </section>
+      <p class="campus-plan-note">Карта ограничена контуром парка Лесотехнической академии и построена на сохранённых данных <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap · ODbL</a>: граница, лесные массивы, дорожки, водоёмы и здания. Лесная текстура иллюстративная, не спутниковый снимок; кроны и высоты зданий без данных в OSM показаны условно.</p>
+      <label class="search-box campus-search-box"><span>⌕</span><input id="campus-search" type="search" placeholder="Найти корпус, кафедру или кабинет…" autocomplete="off" /></label>
+      <div class="campus-buildings" id="campus-buildings"><p class="campus-empty">Справочник корпусов будет загружен…</p></div>
+    </dialog>
+    <dialog class="group-dialog utility-dialog" id="weather-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">САНКТ-ПЕТЕРБУРГ</p><h2>Погода</h2></div><button class="icon-button" aria-label="Закрыть">×</button></form><div id="weather-content" class="weather-content">Загружаем погоду…</div></dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
 </html>
