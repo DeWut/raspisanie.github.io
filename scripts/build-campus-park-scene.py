@@ -231,8 +231,6 @@ def main() -> None:
             if kind == "tree":
                 crown_diameter = re.search(r"\d+(?:[.,]\d+)?", tags.get("diameter_crown", ""))
                 crown_radius = max(2.2, min(5.0, float(crown_diameter.group().replace(",", ".")) / 2)) if crown_diameter else 3.2
-                foliage_palette = ["#3f7744", "#54884b", "#628f50", "#417354"]
-                foliage_color = foliage_palette[sum(ord(char) for char in osm_id) % len(foliage_palette)]
                 properties.update({"kind": "tree-canopy", "canopyBaseMeters": 2.2, "heightMeters": 6.5,
                                    "treeShapeNote": "illustrative crown size; OSM maps only the tree point"})
                 geometry = {"type": "Polygon", "coordinates": [tree_crown(coordinate[0], coordinate[1], crown_radius)]}
