@@ -225,6 +225,8 @@ fn chat_settings_keyboard(
     digest_enabled: bool,
     assistant_enabled: bool,
     context_enabled: bool,
+    homework_autocollect_enabled: bool,
+    homework_approver_role: &str,
 ) -> InlineKeyboardMarkup {
     let _ = (chat_id, group_name);
     InlineKeyboardMarkup::new(vec![
@@ -248,6 +250,18 @@ fn chat_settings_keyboard(
         vec![ui_button(
             if context_enabled { "✅ Контекст ответов: ВКЛ" } else { "Контекст ответов: ВЫКЛ" },
             "chatsettings:context",
+        )],
+        vec![ui_button(
+            if homework_autocollect_enabled { "✅ Автосбор ДЗ: ВКЛ" } else { "Автосбор ДЗ: ВЫКЛ" },
+            "chatsettings:autodz",
+        )],
+        vec![ui_button(
+            &format!("Подтверждают ДЗ: {}", match homework_approver_role {
+                "class_leader" => "староста",
+                "moderator" => "модераторы",
+                _ => "администраторы",
+            }),
+            "chatsettings:approver",
         )],
         vec![ui_button("🏠 Меню", "ui:main")],
     ])
@@ -514,6 +528,32 @@ async fn handle_chat_settings_callback(
             let _ = sqlx::query(
                 "INSERT INTO bot_chat_assistant_settings_audit(chat_id,changed_by,setting,value) VALUES($1,$2,'assistant_enabled',to_jsonb($3::boolean))"
             ).bind(chat_id.0).bind(actor).bind(enabled).execute(&state.db).await;
+        }
+        "chatsettings:autodz" => {
+            let result = sqlx::query(
+                "UPDATE bot_chat_settings SET homework_autocollect_enabled=NOT homework_autocollect_enabled,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(chat_id.0).execute(&state.db).await;
+            if !matches!(result, Ok(ref r) if r.rows_affected()==1) {
+                bot.answer_callback_query(query.id.clone()).text("Не удалось изменить настройку автосбора ДЗ.").show_alert(true).await?;
+                return Ok(true);
+            }
+        }
+        "chatsettings:approver" => {
+            let current: Option<String> = sqlx::query_scalar(
+                "SELECT homework_approver_role FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(chat_id.0).fetch_optional(&state.db).await.ok().flatten();
+            let next = match current.as_deref() {
+                Some("class_leader") => "moderator",
+                Some("moderator") => "admin",
+                _ => "class_leader",
+            };
+            let result = sqlx::query(
+                "UPDATE bot_chat_settings SET homework_approver_role=$2,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE"
+            ).bind(chat_id.0).bind(next).execute(&state.db).await;
+            if !matches!(result, Ok(ref r) if r.rows_affected()==1) {
+                bot.answer_callback_query(query.id.clone()).text("Не удалось изменить роль подтверждающего.").show_alert(true).await?;
+                return Ok(true);
+            }
         }
         _ => {
             let column = match action {
