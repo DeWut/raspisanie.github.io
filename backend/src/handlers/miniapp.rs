@@ -201,6 +201,8 @@ pub async fn get_chat_settings(
                to_char(c.daily_digest_time,'HH24:MI') AS daily_digest_time,
                c.assistant_enabled, c.context_enabled, c.context_retention_days,
                c.homework_autocollect_enabled, c.homework_approver_role,
+               c.homework_reminders_enabled, c.exam_reminders_enabled,
+               c.event_reminders_enabled,
                c.schedule_changes_enabled, c.memes_enabled, c.timezone,
                c.content_permissions, c.settings
         FROM bot_chat_settings c
