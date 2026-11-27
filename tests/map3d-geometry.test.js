@@ -109,6 +109,26 @@ test('ground polygons are normalized even when OSM rings have mixed winding', ()
   assert.ok(area(polygon[1]) < 0);
 });
 
+test('building facades are narrow wall strips, not a solid full-footprint cap', () => {
+  const scene = { features: [{
+    id: 'way/facade',
+    properties: { kind: 'building', osmId: 'facade', heightKnown: true, heightMeters: 12, levels: '4' },
+    geometry: { type: 'Polygon', coordinates: [rect(0, 0, 40, 20)] }
+  }] };
+  const out = G.buildScene(scene, null);
+  const wallFeatures = out.solid.filter(f => f.properties.pid === 'facade' &&
+    f.properties.z0 === 0 && f.properties.z1 === 12);
+  assert.strictEqual(wallFeatures.length, 4, 'rectangle should produce four separate facade strips');
+  for (const f of wallFeatures) {
+    const r = f.geometry.coordinates[0];
+    const area = Math.abs(r.slice(0, -1).reduce((sum, p, i, pts) => {
+      const q = pts[(i + 1) % pts.length];
+      return sum + p[0] * q[1] - q[0] * p[1];
+    }, 0) / 2);
+    assert.ok(area < 0.00001, 'wall strip must remain narrow in geographic footprint');
+  }
+});
+
 test('building floors do not create full-footprint horizontal slabs', () => {
   const scene = { features: [{
     id: 'way/slabs',
