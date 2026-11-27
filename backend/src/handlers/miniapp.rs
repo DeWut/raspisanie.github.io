@@ -254,6 +254,7 @@ pub struct ChatSettingsPatch {
     pub schedule_changes_enabled: Option<bool>,
     pub memes_enabled: Option<bool>,
     pub spam_filter_enabled: Option<bool>,
+    pub content_permissions: Option<Value>,
 }
 
 pub async fn update_chat_settings(
@@ -277,6 +278,17 @@ pub async fn update_chat_settings(
     }) {
         return Err(AppError::BadRequest);
     }
+    if let Some(permissions) = body.content_permissions.as_ref() {
+        let Some(object) = permissions.as_object() else {
+            return Err(AppError::BadRequest);
+        };
+        if object.iter().any(|(section, value)| {
+            !["homework", "exams", "events"].contains(&section.as_str())
+                || !value.as_str().is_some_and(|mode| matches!(mode, "everyone" | "admins" | "selected"))
+        }) {
+            return Err(AppError::BadRequest);
+        }
+    }
 
     let daily_schedule_time = body.daily_schedule_time.as_deref().map(parse_clock).transpose()?;
     let daily_digest_time = body.daily_digest_time.as_deref().map(parse_clock).transpose()?;
@@ -299,6 +311,7 @@ pub async fn update_chat_settings(
           memes_enabled=COALESCE($13,memes_enabled),
           settings=CASE WHEN $14::boolean IS NULL THEN settings
                         ELSE jsonb_set(COALESCE(settings,'{}'::jsonb),'{spam_filter_enabled}',to_jsonb($14::boolean),true) END,
+          content_permissions=COALESCE(content_permissions,'{}'::jsonb) || COALESCE($15::jsonb,'{}'::jsonb),
           timezone='Europe/Moscow',
           updated_at=now()
         WHERE chat_id=$1 AND is_active=TRUE
@@ -318,6 +331,7 @@ pub async fn update_chat_settings(
     .bind(body.schedule_changes_enabled)
     .bind(body.memes_enabled)
     .bind(body.spam_filter_enabled)
+    .bind(body.content_permissions)
     .execute(&mut *tx)
     .await?;
 
