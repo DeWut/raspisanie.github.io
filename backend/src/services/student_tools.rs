@@ -150,7 +150,7 @@ async fn free_rooms(db: &PgPool, query: &str) -> String {
     out
 }
 
-async fn what_next(db: &PgPool, group_id: Uuid) -> String {
+async fn what_next(db: &PgPool, group_id: Uuid, actor: i64) -> String {
     let lesson = sqlx::query_as::<_, (String, DateTime<Utc>, Option<String>, Option<String>)>(
         r#"SELECT l.subject,l.starts_at,r.name,t.full_name FROM lessons l
            LEFT JOIN rooms r ON r.id=l.room_id LEFT JOIN teachers t ON t.id=l.teacher_id
@@ -164,10 +164,15 @@ async fn what_next(db: &PgPool, group_id: Uuid) -> String {
     let homework = sqlx::query_as::<_, (String, Option<DateTime<Utc>>)>(
         r#"SELECT h.subject,h.due_at FROM bot_homework h
            JOIN bot_chat_settings c ON c.chat_id=h.chat_id
-           WHERE c.group_id=$1 AND h.status='active' AND (h.due_at IS NULL OR h.due_at>now())
+           LEFT JOIN bot_homework_progress p
+             ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2
+           WHERE c.group_id=$1 AND c.is_active=TRUE AND h.status='active'
+             AND p.completed_at IS NULL
+             AND (h.due_at IS NULL OR h.due_at>now())
            ORDER BY h.due_at NULLS LAST LIMIT 3"#,
     )
     .bind(group_id)
+    .bind(actor)
     .fetch_all(db)
     .await
     .unwrap_or_default();
@@ -585,7 +590,7 @@ pub async fn handle(
 ) -> Option<String> {
     match command {
         "/home" | "/menu" => match user_group(db, chat_id, actor).await {
-            Some(group) => Some(what_next(db, group).await),
+            Some(group) => Some(what_next(db, group, actor).await),
             None => Some("Сначала выбери учебную группу: /group ИВТ-21. После этого покажу ближайшую пару и задания.".into()),
         },
         "/teacher" | "/teachers" => Some(teacher_schedule(db, argument).await),
