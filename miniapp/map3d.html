@@ -114,31 +114,36 @@
     .floor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 13px; font-weight: 700; }
     .floor-toolbar > div { display: flex; gap: 5px; }
     .floor-toolbar button { min-width: 38px; padding: 6px 10px; }
-    .floorplan-viewport { width: 100%; max-height: 54vh; min-height: 260px; overflow: auto; border: 1px solid rgba(65,85,70,.2); border-radius: 12px; background: #f7f8f3; overscroll-behavior: contain; }
+    .floorplan-viewport { width: 100%; max-height: 62vh; min-height: 280px; overflow: auto; border: 1px solid #aeb5ba; border-radius: 4px; background: #fff; overscroll-behavior: contain; }
     .floorplan-drawing { min-width: 100%; transition: width .15s ease; }
-    .floorplan-svg { display: block; width: 100%; height: auto; }
-    .fp-shell { fill: #fff; stroke: #293a36; stroke-width: 7; }
-    .fp-room { fill: #fff; stroke: #65736b; stroke-width: 2.5; }
-    .fp-corridor { fill: #dceee0; stroke: #388064; stroke-width: 2.5; }
-    .fp-connector { fill: #dceee0; stroke: #388064; stroke-width: 2.5; }
-    .fp-stair { fill: #f3e8d2; stroke: #34443d; stroke-width: 3; }
-    .fp-step { stroke: #8c7961; stroke-width: 2; }
-    .fp-stair-label { fill: #5e5140; font-size: 10px; font-weight: 800; text-anchor: middle; }
-    .fp-room-label { fill: #87918a; font-size: 10px; text-anchor: middle; }
-    .fp-wing-label { fill: #52645a; font-size: 13px; font-weight: 700; text-anchor: middle; }
-    .fp-heading { fill: #203a30; font-size: 25px; font-weight: 850; }
-    .fp-subheading { fill: #6b7b70; font-size: 14px; }
-    .fp-room-shape rect { fill: #fff; stroke: #263b31; stroke-width: 3.2; vector-effect: non-scaling-stroke; }
-    .fp-room-shape text { fill: #25382e; font: 750 15px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
-    .fp-corridor { fill: #87a94f; opacity: .95; }
-    .fp-corridor-center { fill: none; stroke: rgba(255,255,255,.45); stroke-width: 2; stroke-dasharray: 5 8; }
-    .fp-stairs rect { fill: #e8e4d8; stroke: #263b31; stroke-width: 3; }
-    .fp-stairs path { stroke: #59665c; stroke-width: 2; }
-    .fp-stairs text { fill: #4a574c; font: 750 9px system-ui, sans-serif; text-anchor: middle; }
-    .fp-hall rect { fill: #f1f0e9; stroke: #263b31; stroke-width: 4; }
-    .fp-hall text { fill: #32483a; font: 850 18px system-ui, sans-serif; text-anchor: middle; }
+    .floorplan-svg { display: block; width: 100%; height: auto; background: #fff; }
+    /* SPDS/GOST-inspired monochrome drafting hierarchy for a readable campus directory. */
+    .fp-shell { fill: none; stroke: #111; stroke-width: 5; vector-effect: non-scaling-stroke; }
+    .fp-room { fill: #fff; stroke: #222; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .fp-corridor, .fp-connector { fill: #f1f3f4; stroke: #222; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .fp-stair { fill: #f7f7f7; stroke: #111; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .fp-step { stroke: #333; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .fp-stair-label { fill: #111; font-size: 10px; font-weight: 750; text-anchor: middle; }
+    .fp-wing-label { fill: #333; font-size: 13px; font-weight: 700; text-anchor: middle; }
+    .fp-heading { fill: #111; font-size: 25px; font-weight: 800; letter-spacing: .5px; }
+    .fp-subheading { fill: #444; font-size: 14px; }
+    .fp-room-shape rect { fill: #fff; stroke: #111; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .fp-room-number { fill: #fff; stroke: #111; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+    .fp-room-number-text { fill: #111; font: 750 12px system-ui, sans-serif; text-anchor: middle; }
+    .fp-room-caption { fill: #333; font: 600 8px system-ui, sans-serif; text-anchor: middle; }
+    .fp-room-name { fill: #111; font: 700 12px system-ui, sans-serif; text-anchor: middle; }
+    .fp-room-shape text { pointer-events: none; }
+    .fp-corridor-center { fill: none; stroke: #777; stroke-width: 1; stroke-dasharray: 5 8; }
+    .fp-stairs rect { fill: #f7f7f7; stroke: #111; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .fp-stairs path { stroke: #333; stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+    .fp-stairs text { fill: #111; font: 750 9px system-ui, sans-serif; text-anchor: middle; }
+    .fp-hall rect { fill: #fff; stroke: #111; stroke-width: 2.5; }
+    .fp-hall text { fill: #111; font: 800 18px system-ui, sans-serif; text-anchor: middle; }
     .fp-hall .fp-hall-sub { font-size: 12px; font-weight: 600; }
-    .fp-plan-label { fill: #728273; font: 750 12px system-ui, sans-serif; text-anchor: middle; letter-spacing: 1.5px; }
+    .fp-plan-label { fill: #333; font: 700 12px system-ui, sans-serif; text-anchor: middle; letter-spacing: .5px; }
+    .fp-title-block path { fill: none; stroke: #111; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .fp-title-block text { fill: #111; font: 650 12px system-ui, sans-serif; }
+    .fp-title-block text:first-of-type { font-weight: 800; }
     .fp-user-room { cursor: pointer; }
     .fp-user-room rect { fill: rgba(255,226,124,.72); stroke: #b34a32; stroke-width: 4; stroke-dasharray: 8 4; vector-effect: non-scaling-stroke; }
     .fp-user-room text { fill: #843321; font: 850 20px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
@@ -146,12 +151,12 @@
     .fp-user-room:focus rect { stroke: #145b93; stroke-width: 6; }
     .fp-room-preview-rect { fill: rgba(83,145,206,.24); stroke: #1f76b6; stroke-width: 4; stroke-dasharray: 9 5; vector-effect: non-scaling-stroke; }
     .floorplan-svg.is-placing-room { cursor: crosshair; touch-action: none; user-select: none; }
-    .fp-north { fill: #3c6650; font-size: 12px; font-weight: 800; text-anchor: middle; stroke: #3c6650; stroke-width: 2; }
+    .fp-north { fill: #111; font-size: 12px; font-weight: 800; text-anchor: middle; stroke: #111; stroke-width: 1.5; }
     .fp-north text { stroke: none; }
-    .fp-legend rect:first-child { fill: #fff; stroke: #d2d9d1; stroke-width: 1.5; }
-    .fp-legend text { fill: #425349; font-size: 12px; font-weight: 650; }
-    .fp-legend-room { fill: #fff; stroke: #65736b; stroke-width: 2; }
-    .fp-legend-corridor { fill: #dceee0; stroke: #388064; stroke-width: 1.5; }
+    .fp-legend rect:first-child { fill: #fff; stroke: #111; stroke-width: 1.2; }
+    .fp-legend text { fill: #111; font-size: 12px; font-weight: 650; }
+    .fp-legend-room { fill: #fff; stroke: #111; stroke-width: 1.5; }
+    .fp-legend-corridor { fill: #f1f3f4; stroke: #111; stroke-width: 1.2; }
     .floor-units { margin-top: 14px; }
     .floor-units h4 { margin: 0 0 8px; font-size: 14px; }
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 7px; }
@@ -184,7 +189,8 @@
       #info { left: 8px; right: 8px; bottom: calc(var(--safe-bottom) + 56px); max-height: 42dvh; }
       .stats { left: 54px; right: 8px; bottom: calc(var(--safe-bottom) + 20px); font-size: 10px; }
       .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); padding: 12px; }
-      .floorplan-viewport { max-height: 46dvh; min-height: 220px; }
+      .floorplan-viewport { max-height: 58dvh; min-height: 240px; }
+      .floorplan-drawing { min-width: 760px; }
       .floor-toolbar { align-items: flex-start; flex-direction: column; }
       .room-editor-fields { grid-template-columns: minmax(0,1fr); }
       .room-editor-actions button, .room-editor-tools button { flex: 1 1 auto; }
