@@ -64,9 +64,9 @@
   var params = new URLSearchParams(location.search);
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
   var mode = 'sat';
-  var buildings3D = false;
+  var buildings3D = true;
   var DEFAULT_MAP_MODE = 'scheme';
-  var DEFAULT_BUILDINGS_3D = false;
+  var DEFAULT_BUILDINGS_3D = true;
   var satelliteCamera = null;
   var styleRequest = 0;
   var SCHEME_STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
@@ -150,36 +150,18 @@
     if (map) map.resize();
   });
 
-  function setBuildingMode(on) {
-    buildings3D = !!on;
+  // 3D is permanent. Use mapped height geometry where available; retain flat
+  // footprints only for buildings without reliable height data.
+  function setBuildingMode() {
+    buildings3D = true;
     var hasExtrusions = !!(scene && scene.solid && scene.solid.length);
-    var showExtrusions = buildings3D && hasExtrusions;
-    var btn = $('btn-3d');
-    if (btn) {
-      btn.textContent = buildings3D ? '3D: включено' : '3D: выключено';
-      btn.setAttribute('aria-pressed', buildings3D ? 'true' : 'false');
-      btn.title = hasExtrusions ? 'Объёмное отображение зданий' : 'Для объёмов ещё не загружена геометрия зданий';
-    }
-    if (map && map.getLayer('bld')) {
-      map.setLayoutProperty('bld', 'visibility', showExtrusions ? 'visible' : 'none');
-    }
-    if (map && map.getLayer('campus-bld-2d')) {
-      map.setLayoutProperty('campus-bld-2d', 'visibility', showExtrusions ? 'none' : 'visible');
-    }
-    // Keep footprints for buildings whose height is not mapped; never invent their height.
-    if (map && map.getLayer('bld-footprint')) {
-      map.setLayoutProperty('bld-footprint', 'visibility', showExtrusions ? 'visible' : 'none');
-    }
-    if (map && map.getLayer('hl')) {
-      map.setLayoutProperty('hl', 'visibility', showExtrusions ? 'visible' : 'none');
-    }
-    if (map && map.getLayer('hl-flat')) {
-      map.setLayoutProperty('hl-flat', 'visibility', showExtrusions ? 'none' : 'visible');
-    }
-    // 3D mode always tilts the camera, in both satellite and vector map styles.
-    if (map) {
-      map.easeTo({ pitch: showExtrusions ? 58 : 0, bearing: showExtrusions ? -18 : 0, duration: 650 });
-    }
+    var showExtrusions = hasExtrusions;
+    if (map && map.getLayer('bld')) map.setLayoutProperty('bld', 'visibility', showExtrusions ? 'visible' : 'none');
+    if (map && map.getLayer('campus-bld-2d')) map.setLayoutProperty('campus-bld-2d', 'visibility', showExtrusions ? 'none' : 'visible');
+    if (map && map.getLayer('bld-footprint')) map.setLayoutProperty('bld-footprint', 'visibility', 'visible');
+    if (map && map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
+    if (map && map.getLayer('hl-flat')) map.setLayoutProperty('hl-flat', 'visibility', 'none');
+    if (map) map.easeTo({ pitch: 58, bearing: -18, duration: 650 });
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
   map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
@@ -312,7 +294,7 @@
         event.stopPropagation();
         setOrbit(false);
         var coordinate = [Number(building.longitude), Number(building.latitude)];
-        map.flyTo({ center: coordinate, zoom: 18.4, pitch: buildings3D ? 58 : 0, bearing: buildings3D ? map.getBearing() : 0, duration: 900 });
+        map.flyTo({ center: coordinate, zoom: 18.4, pitch: 58, bearing: map.getBearing(), duration: 900 });
         window.setTimeout(function () { selectCampusBuilding(building, coordinate); }, 650);
       });
       var marker = new maplibregl.Marker({ element: markerButton, anchor: 'bottom' })
@@ -761,7 +743,7 @@
     if (!building) return;
     var coordinate = [Number(building.longitude), Number(building.latitude)];
     if (isFinite(coordinate[0]) && isFinite(coordinate[1])) {
-      map.flyTo({ center: coordinate, zoom: 18.2, pitch: buildings3D ? 48 : 0, duration: 700 });
+      map.flyTo({ center: coordinate, zoom: 18.2, pitch: 58, duration: 700 });
     }
     openFloorPlan(building.number, Number(params.get('floor')) || undefined, room, true);
   }
@@ -860,11 +842,10 @@
         event.stopPropagation();
         switch (btn.id) {
           case 'btn-mode': setMode(mode === 'sat' ? 'scheme' : 'sat'); break;
-          case 'btn-3d': setBuildingMode(!buildings3D); break;
           case 'btn-orbit': setOrbit(!orbiting); break;
           case 'btn-home':
             setOrbit(false);
-            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: mode === 'scheme' ? (buildings3D ? 48 : 0) : HOME.pitch, bearing: mode === 'scheme' ? 0 : HOME.bearing, duration: 1800 });
+            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: mode === 'scheme' ? 58 : HOME.pitch, bearing: mode === 'scheme' ? 0 : HOME.bearing, duration: 1800 });
             break;
         }
       });
@@ -972,7 +953,7 @@
     if (campusData && campusData.map && campusData.map.center) { HOME.center = campusData.map.center; }
     setTimeout(function () {
       var drawn = 0;
-      try { drawn = map.queryRenderedFeatures({ layers: buildings3D ? ['bld', 'bld-footprint'] : ['campus-bld-2d'] }).length; } catch (e) { drawn = -1; }
+      try { drawn = map.queryRenderedFeatures({ layers: ['bld', 'bld-footprint', 'campus-bld-2d'] }).length; } catch (e) { drawn = -1; }
       if (drawn === 0 && scene.stats.buildings) {
         setStatus('Здания не отрисовались. Если страница открыта как файл (content:// или file://), браузер может блокировать Web Worker. Откройте её с сайта проекта.');
         setTimeout(function () { setStatus(''); }, 15000);
