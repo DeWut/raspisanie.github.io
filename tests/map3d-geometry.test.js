@@ -86,6 +86,17 @@ test('sub-square-metre mapped footprints are not silently omitted from the build
   assert.ok(out.ground.some(f => f.properties.kind === 'building-footprint' && f.properties.pid === 'tiny'));
 });
 
+test('flat building footprints preserve known heights and courtyard holes', () => {
+  const out = G.buildScene(courtyardScene(), empireCampus, {
+    renderTrees: false, renderWindows: false, renderShadows: false
+  });
+  assert.strictEqual(out.footprints.length, 1);
+  assert.strictEqual(out.footprints[0].properties.pid, '2045600');
+  assert.strictEqual(out.footprints[0].geometry.coordinates.length, 2, 'the courtyard remains a hole in 2D mode');
+  assert.strictEqual(out.footprints[0].properties.heightQuality, 'known');
+  assert.deepStrictEqual(G.validateScene(out), []);
+});
+
 test('campus directory link is resolved by OSM id', () => {
   const out = G.buildScene(sampleScene(), campus);
   assert.strictEqual(out.index['2'].campus, '3');
