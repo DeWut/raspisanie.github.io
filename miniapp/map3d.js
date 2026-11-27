@@ -279,33 +279,6 @@
   var campusData = null;
   var popup = null;
   var campusMarkers = [];
-  var wikipediaSummaryPromise = null;
-  var WIKIPEDIA_PAGE = 'https://ru.wikipedia.org/wiki/Санкт-Петербургский_государственный_лесотехнический_университет';
-  var WIKIPEDIA_API = 'https://ru.wikipedia.org/api/rest_v1/page/summary/Санкт-Петербургский_государственный_лесотехнический_университет';
-
-  function loadWikipediaSummary() {
-    if (!wikipediaSummaryPromise) {
-      wikipediaSummaryPromise = fetch(WIKIPEDIA_API, { headers: { Accept: 'application/json' } })
-        .then(function (r) { if (!r.ok) throw new Error('Wikipedia HTTP ' + r.status); return r.json(); })
-        .then(function (data) {
-          return { extract: String(data.extract || ''), url: data.content_urls && data.content_urls.desktop && data.content_urls.desktop.page || WIKIPEDIA_PAGE };
-        })
-        .catch(function () { return { extract: '', url: WIKIPEDIA_PAGE }; });
-    }
-    return wikipediaSummaryPromise;
-  }
-
-  function updateWikipediaBlock(container) {
-    if (!container) return;
-    loadWikipediaSummary().then(function (wiki) {
-      if (!container.isConnected) return;
-      var summary = container.querySelector('[data-wikipedia-summary]');
-      var link = container.querySelector('[data-wikipedia-link]');
-      if (summary) summary.textContent = wiki.extract || 'Справка недоступна.';
-      if (link) link.href = wiki.url || WIKIPEDIA_PAGE;
-    });
-  }
-
   function resolveBuildingPid(building) {
     if (!building || !building.osm || !scene) return null;
     var candidates = [building.osm.id, building.osm.outerWayId].filter(function (id) { return id != null; });
@@ -451,13 +424,6 @@
         if (strip.children.length) {
           gallery.innerHTML = '';
           gallery.appendChild(strip);
-          var note = document.createElement('a');
-          note.className = 'commons-more';
-          note.href = heritage.heritageSourceUrl;
-          note.target = '_blank';
-          note.rel = 'noopener noreferrer';
-          note.textContent = 'Все фотографии на Wikimedia Commons';
-          gallery.appendChild(note);
         }
       })
       .catch(function () {
