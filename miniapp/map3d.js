@@ -451,7 +451,7 @@
         if (floorForRoom(unit.room) === Number(floor)) assigned.push(unit);
       });
       var html = '<nav class="floor-tabs" aria-label="Выбор этажа">' + tabs + '</nav>';
-      html += '<div class="floor-toolbar"><span>' + esc(plan.title) + '</span><div><button type="button" data-floor-zoom="-1" aria-label="Уменьшить схему">−</button><button type="button" data-floor-zoom="1" aria-label="Увеличить схему">+</button><button type="button" data-floor-zoom="reset">Сброс</button></div></div>';
+      html += '<div class="floor-toolbar"><span>' + esc(plan.title) + '</span><div><button type="button" data-floor-zoom="-1" aria-label="Уменьшить схему">−</button><output data-floor-zoom-value aria-live="polite">100%</output><button type="button" data-floor-zoom="1" aria-label="Увеличить схему">+</button><button type="button" data-floor-zoom="reset">Вписать</button></div></div>';
       html += '<div class="floorplan-viewport" aria-label="План этажа. Можно увеличивать и перемещать схему"><div class="floorplan-drawing" style="width:100%">' + plan.svg + '</div></div>';
       html += '<section class="floor-units"><h4>Подразделения и кабинеты этого этажа</h4>';
       if (assigned.length) {
@@ -632,6 +632,8 @@
         floorPlanZoom = action === 'reset' ? 1 : Math.max(1, Math.min(3, floorPlanZoom + Number(action) * 0.25));
         var drawing = floorContent.querySelector('.floorplan-drawing');
         if (drawing) drawing.style.width = (floorPlanZoom * 100) + '%';
+        var zoomValue = floorContent.querySelector('[data-floor-zoom-value]');
+        if (zoomValue) zoomValue.textContent = Math.round(floorPlanZoom * 100) + '%';
       }
     });
     var floorPanel = $('floorplan');
