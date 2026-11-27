@@ -146,7 +146,7 @@ switch ($Action) {
         & git diff --cached --quiet
         if ($LASTEXITCODE -ne 0) {
             $stamp = [DateTimeOffset]::Now.ToString('yyyy-MM-dd HH:mm:ss zzz')
-            & git commit -m "Обновление расписания $stamp"
+            & git -c user.name="SPBFTUIT Schedule Sync" -c user.email="schedule-bot@users.noreply.github.com" commit -m "Обновление расписания $stamp"
             if ($LASTEXITCODE -ne 0) { Write-Host '  [ERR] Git commit failed; schedule files remain staged locally.' -ForegroundColor Red; exit 1 }
         } else { Write-Host '  [-- ] Schedule data unchanged; no commit needed.' -ForegroundColor Yellow }
 
