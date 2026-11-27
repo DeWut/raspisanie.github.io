@@ -106,6 +106,7 @@
 
     <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
     <div class="hud tools" id="tools" hidden>
+      <button id="btn-mode" type="button">Схема</button>
       <button id="btn-orbit" type="button" aria-pressed="false">Облёт</button>
       <button id="btn-home" type="button">Сброс</button>
     </div>
@@ -116,8 +117,8 @@
       <p><b>Здания.</b> Контуры взяты из картографических данных. Высота строится только по тегу height или оценивается по числу этажей. Если высоты и этажности нет, остаётся плоский контур — без выдуманного объёма. Крыша и материал учитываются только при наличии соответствующих тегов.</p>
       <p><b>Детализация.</b> На карте оставлены контуры и объёмы корпусов, крыши, дорожки и зелёные зоны. Декоративные деревья, окна, текстурная спутниковая подложка и тени отключены.</p>
       
-      <p><b>Подложка.</b> Используется чистая векторная схема без спутниковых текстур.</p>
-      <p class="muted">Данные: © OpenStreetMap contributors (ODbL); © Overture Maps Foundation (ODbL).</p>
+      <p><b>Подложка.</b> Спутниковые снимки Esri World Imagery. Кнопка в меню слоёв переключает спутник и векторную схему.</p>
+      <p class="muted">Данные: © OpenStreetMap contributors (ODbL); © Overture Maps Foundation (ODbL). Спутниковая подложка: Esri/Maxar.</p>
     </div>
     <div class="stats" id="stats"></div>
 
