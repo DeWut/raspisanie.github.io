@@ -705,7 +705,7 @@
       setStatus('Не найдено окно планов этажей. Обновите страницу карты.', true);
       return;
     }
-    // Keep the modal outside MapLibre's canvas/stacking context. This is
+    // Keep the modal at the document root so map gestures and popup stacking cannot intercept it. This is
     // important in Android WebView, where map popups can otherwise cover it.
     if (panel.parentNode !== document.body) document.body.appendChild(panel);
     title.textContent = building.name + ' · ' + (building.address || '');
