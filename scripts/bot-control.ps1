@@ -185,8 +185,24 @@ switch ($Action) {
                 elseif ($line -match '^SYNC_DATABASE_LESSONS_IMPORTED=(\d+)$') { $databaseLessonsImported = [int]$Matches[1] }
             }
 
+            # Treat the structured PostgreSQL report as the source of truth when
+            # Start-Process fails to expose a numeric ExitCode in the current shell.
+            # The report is emitted only after sync_metadata has been read successfully.
+            $hasVerifiedDatabaseReport = (
+                $databaseStatus -in @('success', 'partial') -and
+                -not [string]::IsNullOrWhiteSpace([string]$databaseSyncAt) -and
+                $databaseGroupsTotal -gt 0 -and
+                $databaseGroupsUpdated -gt 0 -and
+                $databaseGroupsFailed -ge 0 -and
+                ($databaseGroupsUpdated + $databaseGroupsFailed) -eq $databaseGroupsTotal
+            )
+
+            if ([string]::IsNullOrWhiteSpace([string]$syncExit) -and $hasVerifiedDatabaseReport) {
+                $syncExit = 0
+            }
+
             if ($syncExit -eq 0) {
-                if (-not $databaseStatus -or -not $databaseSyncAt -or $databaseGroupsUpdated -lt 1) {
+                if (-not $hasVerifiedDatabaseReport) {
                     $syncExit = 1
                     Write-Host '  [ERR] PostgreSQL sync finished without a verifiable success report. Website files were not changed.' -ForegroundColor Red
                 }
