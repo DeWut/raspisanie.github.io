@@ -140,19 +140,21 @@
 
     @media (max-width: 600px) { .campus-number-marker { width: 34px; height: 34px; font-size: 14px; } }
     .floor-open { border: 0; border-radius: 8px; padding: 8px 11px; background: #2f6fb3; color: white; font: inherit; cursor: pointer; }
-    #floorplan { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(10,18,25,.58); backdrop-filter: blur(5px); }
+    #floorplan { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 12px; background: rgba(13,24,19,.48); backdrop-filter: blur(7px); }
     #floorplan[hidden] { display: none !important; }
-    .floorplan-card { width: min(960px, 100%); max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); overflow: auto; border-radius: 16px; padding: 16px; background: var(--glass); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.32); }
-    .floorplan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-    .floorplan-head h3 { margin: 0 0 4px; font-size: 18px; }
-    #floorplan-close { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 7px 11px; background: rgba(100,110,120,.16); color: inherit; font: inherit; min-height: 38px; }
-    .floor-tabs { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 9px; scrollbar-width: thin; }
-    .floor-tab, .floor-toolbar button { border: 1px solid rgba(70,100,85,.24); border-radius: 9px; padding: 8px 13px; background: rgba(100,130,110,.10); color: inherit; font: inherit; font-weight: 650; white-space: nowrap; }
-    .floor-tab.active { background: #216c50; color: white; border-color: #216c50; }
-    .floor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 13px; font-weight: 700; }
-    .floor-toolbar > div { display: flex; gap: 5px; }
-    .floor-toolbar button { min-width: 38px; padding: 6px 10px; }
-    .floorplan-viewport { width: 100%; height: min(64dvh, 680px); min-height: 180px; overflow: auto; border: 1px solid #aeb5ba; border-radius: 8px; background: #fff; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+    .floorplan-card { width: min(1040px, 100%); max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); overflow: auto; border: 1px solid #dce5dc; border-radius: 20px; padding: 18px; background: #f7f9f5; color: #1e3328; box-shadow: 0 18px 56px rgba(0,0,0,.28); }
+    .floorplan-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+    .floorplan-head h3 { margin: 0 0 3px; color: #183d2d; font-size: 19px; line-height: 1.25; }
+    .floorplan-head .muted { color: #65756b; font-size: 12px; }
+    #floorplan-close { flex: 0 0 auto; border: 1px solid #d9e2da; border-radius: 11px; padding: 8px 13px; background: #fff; color: #234b37; font: inherit; font-weight: 650; min-height: 40px; }
+    .floor-tabs { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: thin; }
+    .floor-tab, .floor-toolbar button { border: 1px solid #d7e0d8; border-radius: 11px; padding: 9px 14px; background: #fff; color: #294536; font: inherit; font-weight: 650; white-space: nowrap; }
+    .floor-tab.active { background: #216c50; color: #fff; border-color: #216c50; }
+    .floor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 9px; color: #496052; font-size: 13px; font-weight: 700; }
+    .floor-toolbar > div { display: flex; align-items: center; gap: 6px; }
+    .floor-toolbar output { min-width: 42px; color: #617267; text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .floor-toolbar button { min-width: 40px; min-height: 38px; padding: 6px 11px; }
+    .floorplan-viewport { display: grid; place-items: center; width: 100%; height: min(54dvh, 560px); min-height: 190px; overflow: auto; padding: 5px; border: 1px solid #d9e1d9; border-radius: 13px; background: #fff; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
     .floorplan-drawing { width: 100%; min-width: 0; transition: width .15s ease; }
     .floorplan-svg { display: block; width: 100%; height: auto; background: #fff; }
     /* SPDS/GOST-inspired monochrome drafting hierarchy for a readable campus directory. */
@@ -189,8 +191,8 @@
     .fp-legend-room { fill: #fff; stroke: #111; stroke-width: 1.5; }
     .fp-legend-corridor { fill: #f1f3f4; stroke: #111; stroke-width: 1.2; }
     .floor-units { margin-top: 14px; }
-    .floor-units h4 { margin: 0 0 8px; font-size: 14px; }
-    .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 7px; }
+    .floor-units h4 { margin: 0 0 8px; color: #294536; font-size: 14px; }
+    .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); gap: 8px; }
     .room-search-label { display: block; margin: 0 0 5px; font-size: 12px; font-weight: 700; }
     .floor-room-search { display: block; width: 100%; min-height: 42px; margin: 0 0 7px; padding: 9px 11px; border: 1px solid rgba(80,100,90,.28); border-radius: 9px; background: var(--glass); color: var(--ink); font: inherit; font-size: 14px; }
     .room-search-results { display: grid; gap: 5px; max-height: 190px; overflow: auto; margin: 0 0 9px; padding: 6px; border: 1px solid rgba(80,100,90,.2); border-radius: 9px; background: rgba(100,120,110,.07); }
@@ -222,14 +224,20 @@
       #infoBtn { left: 8px; bottom: calc(var(--safe-bottom) + 10px); }
       #info { left: 8px; right: 8px; bottom: calc(var(--safe-bottom) + 56px); max-height: 42dvh; }
       .stats { left: 54px; right: 8px; bottom: calc(var(--safe-bottom) + 20px); font-size: 10px; }
-      .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 16px); padding: 10px; }
-      .floorplan-viewport { height: 56dvh; min-height: 160px; }
+      #floorplan { padding: max(6px, var(--safe-top)) 6px max(6px, var(--safe-bottom)); place-items: center; }
+      .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 12px); padding: 12px; border-radius: 17px; }
+      .floorplan-head { gap: 8px; margin-bottom: 11px; }
+      .floorplan-head h3 { font-size: 17px; }
+      #floorplan-close { min-height: 38px; padding: 7px 10px; font-size: 12px; }
+      .floorplan-viewport { height: min(48dvh, 430px); min-height: 180px; padding: 3px; }
       .floorplan-drawing { min-width: 0; }
       .floor-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; gap: 5px; }
-      .floor-tab { min-width: 0; padding: 8px 3px; font-size: 12px; text-align: center; }
-      .floor-toolbar { align-items: center; flex-direction: row; }
-      .floor-toolbar button { min-width: 42px; min-height: 40px; }
-      .room-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+      .floor-tab { min-width: 0; min-height: 39px; padding: 7px 2px; font-size: 12px; text-align: center; }
+      .floor-toolbar { align-items: center; flex-direction: row; margin-bottom: 7px; }
+      .floor-toolbar button { min-width: 39px; min-height: 38px; padding: 5px 9px; }
+      .room-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); }
+      .room-card { min-height: 56px; padding: 8px; }
+      .floor-note { margin-top: 10px; font-size: 10px; }
       .maplibregl-ctrl-top-right { top: calc(var(--safe-top) + 58px); right: 8px; }
       .maplibregl-ctrl-group button { width: 36px; height: 36px; }
     }
@@ -254,14 +262,14 @@
     </div>
 
     <div class="hud campus-search">
-      <input id="campus-search-input" type="search" autocomplete="off" placeholder="Найти корпус или аудиторию" aria-label="Поиск по кампусу">
+      <input id="campus-search-input" type="search" autocomplete="off" placeholder="Найти корпус" aria-label="Поиск корпуса">
       <div id="campus-search-results" class="campus-search-results" hidden></div>
     </div>
     <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
     <div class="hud tools" id="tools" hidden>
-      <button id="btn-mode" type="button">Схема</button>
-      <button id="btn-3d" type="button" aria-pressed="false">Объёмы: Выкл</button>
-      <button id="btn-orbit" type="button" aria-pressed="false">Облёт</button>
+      <button id="btn-mode" type="button">Спутник</button>
+      <button id="btn-3d" type="button" aria-pressed="false">3D-здания: выкл.</button>
+      <button id="btn-orbit" type="button" aria-pressed="false">Автооблёт</button>
       <button id="btn-home" type="button">Сброс</button>
     </div>
 
@@ -275,10 +283,9 @@
     <button class="hud" id="infoBtn" type="button" aria-label="О карте">i</button>
     <div class="hud" id="info" hidden>
       <p><b>Карта.</b> Корпуса, дорожки, парки и водоёмы.</p>
-      <p><b>Здания.</b> Выберите корпус, чтобы открыть его сведения и планы этажей.</p>
-      <p><b>Объёмы.</b> Переключают объёмное отображение корпусов.</p>
-      
-      <p><b>Планы этажей.</b> Номера кабинетов перенесены с предоставленных планов. Размеры на схемах условные.</p>
+      <p><b>Корпуса.</b> Нажмите на маркер, чтобы открыть сведения о здании.</p>
+      <p><b>3D.</b> Включает объёмное отображение зданий.</p>
+      <p><b>Этажи.</b> Схемы доступны для корпусов, по которым есть планы.</p>
       <p><b>Спутник.</b> Снимки Esri World Imagery.</p><p class="muted">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri/Maxar.</p>
     </div>
     <div class="stats" id="stats"></div>
