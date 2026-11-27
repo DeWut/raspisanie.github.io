@@ -13,7 +13,7 @@ echo  ^|   [1] Start bot                                  ^|
 echo  ^|   [2] Stop bot                                   ^|
 echo  ^|   [3] Show status                                ^|
 echo  ^|   [4] Help                                       ^|
-echo  ^|   [5] Update local database from EIOS            ^|
+echo  ^|   [5] Sync database + publish schedule to GitHub            ^|
 echo  ^|   [0] Exit                                       ^|
 echo  ^|                                                  ^|
 echo  +--------------------------------------------------+
@@ -61,7 +61,7 @@ echo  [5] Downloads schedule data from EIOS and updates the local PostgreSQL dat
 echo      This runs the same synchronization as /sync in Telegram.
 echo.
 echo  Requirements: Rust/Cargo, backend\.env with valid settings,
-echo  and a reachable PostgreSQL database.
+echo  and a reachable PostgreSQL/Neon database, Python 3, and Git origin access.
 echo  The log is saved to backend\bot.log.
 echo.
 pause
