@@ -2,6 +2,7 @@ use std::{env, io::Write, process::ExitCode, time::Duration};
 
 use smart_campus_backend::services::{eios_sync::EiosSync, schedule_sync};
 use sqlx::postgres::PgPoolOptions;
+use url::Url;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -14,17 +15,42 @@ async fn main() -> ExitCode {
     }
 }
 
+
+fn direct_neon_url(database_url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let mut parsed = Url::parse(database_url)?;
+    if let Some(host) = parsed.host_str() {
+        if host.contains("-pooler.") {
+            parsed.set_host(Some(&host.replace("-pooler.", ".")))?;
+        }
+    }
+    Ok(parsed.to_string())
+}
+
 async fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let database_url = env::var("DATABASE_URL")?;
+    let migration_url = env::var("DATABASE_URL_UNPOOLED")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(Ok)
+        .unwrap_or_else(|| direct_neon_url(&database_url))?;
+
+    // Neon migrations must use the direct endpoint: SQLx migration locking
+    // relies on session state and is not compatible with PgBouncer transaction pooling.
+    let migration_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_secs(30))
+        .connect(&migration_url)
+        .await?;
+    sqlx::migrate!("./migrations").run(&migration_pool).await?;
+    migration_pool.close().await;
+
+    // Normal schedule queries can use Neon's pooled endpoint.
     let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .acquire_timeout(Duration::from_secs(10))
+        .max_connections(4)
+        .acquire_timeout(Duration::from_secs(30))
         .connect(&database_url)
         .await?;
-
-    // Keep the CLI in sync with the backend schema before importing schedule data.
-    sqlx::migrate!("./migrations").run(&pool).await?;
     let eios = EiosSync::new("data/eios_cache", "1")?;
 
     println!("Загружаю актуальное расписание ЕИОС в локальную PostgreSQL БД…");
