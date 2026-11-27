@@ -74,6 +74,23 @@ test('courtyard buildings are not capped over the hole', () => {
   assert.ok(parts.every(f => f.geometry.coordinates.length === 2), 'every part keeps the courtyard ring');
 });
 
+test('named arboretum polygons generate clustered trees while respecting paths', () => {
+  const garden = {
+    features: [{
+      id: 'relation/garden',
+      properties: { kind: 'green-area', areaType: 'wood', name: 'Верхний дендрологический сад', osmId: 'garden' },
+      geometry: { type: 'Polygon', coordinates: [rect(-50, -50, 100, 100)] }
+    }, {
+      id: 'way/path',
+      properties: { kind: 'path' },
+      geometry: { type: 'LineString', coordinates: [ll(-50, 0), ll(50, 0)] }
+    }]
+  };
+  const out = G.buildScene(garden, null);
+  assert.ok(out.stats.trees >= 20, 'garden should have a visible cluster of illustrative trees');
+  assert.ok(out.trees.length >= out.stats.trees * 3, 'each generated tree should have layered canopy geometry');
+});
+
 test('window budget is respected', () => {
   const out = G.buildScene(sampleScene(), campus, { maxWindows: 50 });
   assert.ok(out.windows.length <= 50);
