@@ -1,5 +1,5 @@
 use chrono::{
-    DateTime, Duration as ChronoDuration, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc,
+    DateTime, Datelike, Duration as ChronoDuration, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc,
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{sync::Arc, time::Duration};
@@ -1545,118 +1545,151 @@ async fn selected_group(db: &PgPool, telegram_id: i64, chat_id: i64) -> Option<u
 fn period(command: &str) -> (DateTime<Utc>, DateTime<Utc>) {
     let now = Utc::now();
     let local_now = now.with_timezone(&moscow_offset());
-    let today: NaiveDate = local_now.date_naive();
-
+    let today = local_now.date_naive();
     match command {
         "/today" | "📅 Сегодня" => {
             let tomorrow = today + ChronoDuration::days(1);
-            let from = moscow_offset()
-                .from_local_datetime(&today.and_hms_opt(0, 0, 0).unwrap())
-                .single()
-                .unwrap()
-                .with_timezone(&Utc);
-            let to = moscow_offset()
-                .from_local_datetime(&tomorrow.and_hms_opt(0, 0, 0).unwrap())
-                .single()
-                .unwrap()
-                .with_timezone(&Utc);
+            let from = moscow_offset().from_local_datetime(&today.and_hms_opt(0,0,0).unwrap()).single().unwrap().with_timezone(&Utc);
+            let to = moscow_offset().from_local_datetime(&tomorrow.and_hms_opt(0,0,0).unwrap()).single().unwrap().with_timezone(&Utc);
             (from, to)
         }
         "/tomorrow" | "📅 Завтра" => {
             let tomorrow = today + ChronoDuration::days(1);
             let day_after = today + ChronoDuration::days(2);
-            let from = moscow_offset()
-                .from_local_datetime(&tomorrow.and_hms_opt(0, 0, 0).unwrap())
-                .single()
-                .unwrap()
-                .with_timezone(&Utc);
-            let to = moscow_offset()
-                .from_local_datetime(&day_after.and_hms_opt(0, 0, 0).unwrap())
-                .single()
-                .unwrap()
-                .with_timezone(&Utc);
+            let from = moscow_offset().from_local_datetime(&tomorrow.and_hms_opt(0,0,0).unwrap()).single().unwrap().with_timezone(&Utc);
+            let to = moscow_offset().from_local_datetime(&day_after.and_hms_opt(0,0,0).unwrap()).single().unwrap().with_timezone(&Utc);
             (from, to)
         }
         "/week" | "🗓 Неделя" => (now, now + ChronoDuration::days(7)),
-        _ => (now, now + ChronoDuration::days(14)),
+        _ => (now, now + ChronoDuration::days(30)),
     }
 }
 
-async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> String {
-    let (from, to) = period(command);
+type ScheduleRow = (String, DateTime<Utc>, DateTime<Utc>, Option<String>, Option<String>);
 
-    let rows = sqlx::query_as::<
-        _,
-        (
-            String,
-            DateTime<Utc>,
-            DateTime<Utc>,
-            Option<String>,
-            Option<String>,
-        ),
-    >(
-        r#"
-        SELECT
-            l.subject,
-            l.starts_at,
-            l.ends_at,
-            r.name,
-            t.full_name
-        FROM lessons l
-        LEFT JOIN rooms r ON r.id = l.room_id
-        LEFT JOIN teachers t ON t.id = l.teacher_id
-        WHERE l.group_id = $1
-          AND l.starts_at >= $2
-          AND l.starts_at < $3
-        ORDER BY l.starts_at
-        LIMIT 30
-        "#,
-    )
-    .bind(group_id)
-    .bind(from)
-    .bind(to)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
+fn moscow_midnight_utc(date: NaiveDate) -> DateTime<Utc> {
+    moscow_offset()
+        .from_local_datetime(&date.and_hms_opt(0, 0, 0).expect("valid midnight"))
+        .single()
+        .expect("UTC+3 has no daylight-saving gap")
+        .with_timezone(&Utc)
+}
+
+fn weekday_ru(date: NaiveDate) -> &'static str {
+    match date.weekday().num_days_from_monday() {
+        0 => "понедельник",
+        1 => "вторник",
+        2 => "среда",
+        3 => "четверг",
+        4 => "пятница",
+        5 => "суббота",
+        _ => "воскресенье",
+    }
+}
+
+async fn load_schedule_rows(
+    db: &PgPool,
+    group_id: uuid::Uuid,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+    include_ongoing: bool,
+) -> Vec<ScheduleRow> {
+    let query = if include_ongoing {
+        sqlx::query_as::<_, ScheduleRow>(
+            r#"
+            SELECT l.subject,l.starts_at,l.ends_at,r.name,t.full_name
+            FROM lessons l
+            LEFT JOIN rooms r ON r.id=l.room_id
+            LEFT JOIN teachers t ON t.id=l.teacher_id
+            WHERE l.group_id=$1 AND l.ends_at>$2 AND l.starts_at<$3
+            ORDER BY l.starts_at
+            LIMIT 30
+            "#,
+        )
+        .bind(group_id)
+        .bind(from)
+        .bind(to)
+    } else {
+        sqlx::query_as::<_, ScheduleRow>(
+            r#"
+            SELECT l.subject,l.starts_at,l.ends_at,r.name,t.full_name
+            FROM lessons l
+            LEFT JOIN rooms r ON r.id=l.room_id
+            LEFT JOIN teachers t ON t.id=l.teacher_id
+            WHERE l.group_id=$1 AND l.starts_at>=$2 AND l.starts_at<$3
+            ORDER BY l.starts_at
+            LIMIT 30
+            "#,
+        )
+        .bind(group_id)
+        .bind(from)
+        .bind(to)
+    };
+    query.fetch_all(db).await.unwrap_or_default()
+}
+
+async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> String {
+    let now = Utc::now();
+    let local_now = now.with_timezone(&moscow_offset());
+    let is_today = command == "/today" || command == "📅 Сегодня";
+    let is_tomorrow = command == "/tomorrow" || command == "📅 Завтра";
+    let (from, to) = period(command);
+    let mut rows = load_schedule_rows(db, group_id, if is_today { now } else { from }, to, is_today).await;
+    let mut nearest_day_label: Option<String> = None;
+
+    // If today's remaining lessons are over, or tomorrow is a non-study day,
+    // find the next actual date with lessons instead of showing an empty weekend.
+    if rows.is_empty() && (is_today || is_tomorrow) {
+        let start_day = local_now.date_naive() + ChronoDuration::days(1);
+        let search_from = moscow_midnight_utc(start_day);
+        let nearest: Option<NaiveDate> = sqlx::query_scalar(
+            "SELECT min((starts_at AT TIME ZONE 'Europe/Moscow')::date) FROM lessons WHERE group_id=$1 AND starts_at >= $2 AND starts_at < $2 + interval '30 days'"
+        ).bind(group_id).bind(search_from).fetch_one(db).await.unwrap_or(None);
+        if let Some(date) = nearest {
+            let day_from = moscow_midnight_utc(date);
+            let day_to = moscow_midnight_utc(date + ChronoDuration::days(1));
+            rows = load_schedule_rows(db, group_id, day_from, day_to, false).await;
+            if !rows.is_empty() {
+                nearest_day_label = Some(format!("{} · {}", weekday_ru(date), date.format("%d.%m.%Y")));
+            }
+        }
+    }
 
     if rows.is_empty() {
-        let message = match command {
-            "/today" | "📅 Сегодня" => {
-                "📭 *РАСПИСАНИЕ НА СЕГОДНЯ*\n\nНа сегодня занятий не найдено."
-            }
-            "/tomorrow" | "📅 Завтра" => {
-                "📭 *РАСПИСАНИЕ НА ЗАВТРА*\n\nНа завтра занятий не найдено."
-            }
-            "/next" | "⏭ Следующая пара" => {
-                "⏭ *СЛЕДУЮЩАЯ ПАРА*\n\nНа ближайшие 14 дней занятий не найдено."
-            }
-            "/week" | "🗓 Неделя" => {
-                "📭 *РАСПИСАНИЕ НА 7 ДНЕЙ*\n\nНа ближайшие семь дней занятий не найдено."
-            }
-            _ => "📭 *РАСПИСАНИЕ*\n\nНа выбранный период занятий не найдено.",
+        let message = if is_today {
+            "📭 *РАСПИСАНИЕ НА СЕГОДНЯ*\\n\\nНа сегодня пары уже закончились или занятий нет. На ближайшие 30 дней новых занятий не найдено."
+        } else if is_tomorrow {
+            "📭 *РАСПИСАНИЕ НА ЗАВТРА*\\n\\nНа завтра занятий нет, и ближайший учебный день не найден в следующих 30 днях."
+        } else if command == "/next" || command == "⏭ Следующая пара" {
+            "⏭ *СЛЕДУЮЩАЯ ПАРА*\\n\\nНа ближайшие 30 дней занятий не найдено."
+        } else if command == "/week" || command == "🗓 Неделя" {
+            "📭 *РАСПИСАНИЕ НА 7 ДНЕЙ*\\n\\nНа ближайшие семь дней занятий не найдено."
+        } else {
+            "📭 *РАСПИСАНИЕ*\\n\\nНа выбранный период занятий не найдено."
         };
-        return format!("{}\nВозможно, расписание ещё не обновилось.", message);
+        return format!("{}\\nВозможно, расписание ещё не обновилось.", message);
     }
 
     let is_next = command == "/next" || command == "⏭ Следующая пара";
-    let selected = if is_next {
-        rows.into_iter().take(1).collect::<Vec<_>>()
+    let selected = if is_next { rows.into_iter().take(1).collect::<Vec<_>>() } else { rows };
+    let heading = if let Some(label) = nearest_day_label {
+        format!("📅 *РАСПИСАНИЕ НА БЛИЖАЙШИЙ УЧЕБНЫЙ ДЕНЬ*\\n{label}")
     } else {
-        rows
+        match command {
+            "/today" | "📅 Сегодня" => "📅 *РАСПИСАНИЕ НА СЕГОДНЯ*".to_owned(),
+            "/tomorrow" | "📅 Завтра" => "📅 *РАСПИСАНИЕ НА ЗАВТРА*".to_owned(),
+            "/next" | "⏭ Следующая пара" => "⏭ *СЛЕДУЮЩАЯ ПАРА*".to_owned(),
+            "/week" | "🗓 Неделя" => "🗓 *РАСПИСАНИЕ НА 7 ДНЕЙ*".to_owned(),
+            _ => "🎓 *РАСПИСАНИЕ*".to_owned(),
+        }
     };
-
-    let heading = match command {
-        "/today" | "📅 Сегодня" => "📅 *РАСПИСАНИЕ НА СЕГОДНЯ*",
-        "/tomorrow" | "📅 Завтра" => "📅 *РАСПИСАНИЕ НА ЗАВТРА*",
-        "/next" | "⏭ Следующая пара" => "⏭ *СЛЕДУЮЩАЯ ПАРА*",
-        "/week" | "🗓 Неделя" => "🗓 *РАСПИСАНИЕ НА 7 ДНЕЙ*",
-        _ => "🎓 *РАСПИСАНИЕ*",
-    };
-    let mut output = format!("{}\n\n", heading);
-
+    let mut output = format!("{}\\n\\n", heading);
+    if is_today && selected.iter().all(|(_, start, _, _, _)| *start < now) {
+        output.push_str("Сейчас идёт последняя оставшаяся пара или все занятия на сегодня завершились.\\n");
+    }
     for (subject, start, end, room, teacher) in selected {
         output.push_str(&format!(
-            "━━━━━━━━━━━━━━\n📚 *{}*\n🕒 {}–{}\n📍 {}\n👨‍🏫 {}\n",
+            "━━━━━━━━━━━━━━\\n📚 *{}*\\n🕒 {}–{}\\n📍 {}\\n👨‍🏫 {}\\n",
             subject,
             moscow_time(start, "%d.%m %H:%M"),
             moscow_time(end, "%H:%M"),
@@ -1664,7 +1697,6 @@ async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> Stri
             teacher.unwrap_or_else(|| "Преподаватель не указан".into()),
         ));
     }
-
     output
 }
 
