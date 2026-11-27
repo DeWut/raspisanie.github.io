@@ -63,11 +63,12 @@
   var params = new URLSearchParams(location.search);
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
   var mode = 'sat';
-  var buildings3D = true;
+  var buildings3D = false;
+  var DEFAULT_MAP_MODE = 'scheme';
+  var DEFAULT_BUILDINGS_3D = false;
   var satelliteCamera = null;
   var styleRequest = 0;
   var SCHEME_STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
-  var GROUND_LAYERS = ['bg', 'park', 'green', 'water', 'path-casing', 'path'];
   var ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   var EMPTY = { type: 'FeatureCollection', features: [] };
   function extrusion(id, source, minzoom, opacity) {
@@ -245,6 +246,7 @@
         if (requestId !== styleRequest || mode !== 'scheme') return;
         mode = 'sat';
         updateModeButton();
+        if (satelliteCamera) map.easeTo({ pitch: satelliteCamera.pitch, bearing: satelliteCamera.bearing, duration: 450 });
         setStatus('Не удалось загрузить векторную схему: ' + (error.message || error), true);
         setTimeout(function () { setStatus(''); }, 10000);
       });
@@ -472,8 +474,8 @@
       var box = $('info');
       box.hidden = !box.hidden;
     });
-    setMode(mode);
-    setBuildingMode(true);
+    setMode(DEFAULT_MAP_MODE);
+    setBuildingMode(DEFAULT_BUILDINGS_3D);
     setOrbit(false);
   }
 
