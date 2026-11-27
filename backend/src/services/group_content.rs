@@ -434,7 +434,17 @@ pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -
     .await
     .unwrap_or_default();
 
-    if rows.is_empty() {
+    // Keep assignments created by the legacy private /homework command visible
+    // while showing the newer, chat-persisted homework records in the same view.
+    let legacy_rows = sqlx::query_as::<_, (String, Option<DateTime<Utc>>)>(
+        "SELECT title,due_at FROM group_tasks WHERE group_id=$1 ORDER BY due_at NULLS LAST,created_at DESC LIMIT 15"
+    )
+    .bind(group_id)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    if rows.is_empty() && legacy_rows.is_empty() {
         return "📚 В привязанном учебном чате пока нет активных домашних заданий. Если староста уже добавлял ДЗ, проверь, что групповой чат привязан к этой же учебной группе.".into();
     }
 
@@ -446,6 +456,15 @@ pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -
             if priority == "urgent" { " 🔥" } else { "" },
             if attachments > 0 { format!("\n📎 Вложений: {attachments}") } else { String::new() }
         ));
+    }
+    if !legacy_rows.is_empty() {
+        out.push_str("📌 ДОПОЛНИТЕЛЬНЫЕ ЗАДАНИЯ\n");
+        for (title, due_at) in legacy_rows {
+            let due = due_at
+                .map(|value| value.with_timezone(&moscow()).format("%d.%m %H:%M").to_string())
+                .unwrap_or_else(|| "срок не указан".into());
+            out.push_str(&format!("• {title}\n  Срок: {due}\n"));
+        }
     }
     out
 }
