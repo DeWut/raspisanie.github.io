@@ -437,7 +437,18 @@ async fn handle_ui_callback(
                     .await?;
                 return Ok(());
             }
-            let _ = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{onboarding_completed}','true'::jsonb,true),updated_at=now() WHERE telegram_id=$1").bind(actor).execute(&state.db).await;
+            if let Err(error) = sqlx::query("UPDATE users SET settings=jsonb_set(settings,'{onboarding_completed}','true'::jsonb,true),updated_at=now() WHERE telegram_id=$1")
+                .bind(actor)
+                .execute(&state.db)
+                .await
+            {
+                tracing::warn!("Could not save onboarding completion: {}", error);
+                bot.answer_callback_query(query.id.clone())
+                    .text("Не удалось сохранить завершение знакомства. Попробуй ещё раз.")
+                    .show_alert(true)
+                    .await?;
+                return Ok(());
+            }
             text = "Главное меню · выбери, что нужно сейчас.".into();
         }
         "ui:main" => text = "Главное меню · выбери раздел.".into(),
