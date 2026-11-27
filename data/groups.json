@@ -1,5 +1,13 @@
 [
  {
+  "id": "campus",
+  "name": "campus"
+ },
+ {
+  "id": "campus-park-scene",
+  "name": "campus-park-scene"
+ },
+ {
   "id": "teachers",
   "name": "teachers"
  },
