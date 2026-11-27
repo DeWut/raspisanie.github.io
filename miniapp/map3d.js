@@ -394,7 +394,8 @@
             thumb: info.thumburl,
             page: info.descriptionurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(page.title || '').replace(/%20/g, '_')),
             author: author,
-            license: license
+            license: license,
+            licenseUrl: wikiPlainText(meta.LicenseUrl && meta.LicenseUrl.value)
           };
         }).filter(Boolean).slice(0, 6);
 
@@ -402,23 +403,40 @@
         var strip = document.createElement('div');
         strip.className = 'commons-strip';
         images.forEach(function (item) {
-          var card = document.createElement('a');
+          var card = document.createElement('div');
           card.className = 'commons-item';
-          card.href = item.page;
-          card.target = '_blank';
-          card.rel = 'noopener noreferrer';
-          card.setAttribute('aria-label', 'Открыть фотографию на Wikimedia Commons');
+          var link = document.createElement('a');
+          link.className = 'commons-image-link';
+          link.href = item.page;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.setAttribute('aria-label', 'Открыть фотографию на Wikimedia Commons');
           var image = document.createElement('img');
           image.src = item.thumb;
           image.alt = item.title.replace(/^File:/, '');
           image.loading = 'lazy';
           image.decoding = 'async';
           image.onerror = function () { card.remove(); };
-          card.appendChild(image);
+          link.appendChild(image);
+          card.appendChild(link);
           var caption = document.createElement('span');
           caption.className = 'commons-caption';
-          caption.textContent = [item.author, item.license].filter(Boolean).join(' · ') || 'Wikimedia Commons';
+          caption.textContent = item.author || 'Wikimedia Commons';
           card.appendChild(caption);
+          if (item.license && item.licenseUrl && /^https:\/\//.test(item.licenseUrl)) {
+            var licenseLink = document.createElement('a');
+            licenseLink.className = 'commons-license';
+            licenseLink.href = item.licenseUrl;
+            licenseLink.target = '_blank';
+            licenseLink.rel = 'noopener noreferrer';
+            licenseLink.textContent = item.license;
+            card.appendChild(licenseLink);
+          } else if (item.license) {
+            var licenseText = document.createElement('span');
+            licenseText.className = 'commons-caption';
+            licenseText.textContent = item.license;
+            card.appendChild(licenseText);
+          }
           strip.appendChild(card);
         });
         if (strip.children.length) {
