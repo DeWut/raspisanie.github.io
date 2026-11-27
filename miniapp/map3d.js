@@ -491,9 +491,9 @@
           var photoUrl = null;
           try { photoUrl = new URL(photo.src, location.href).href; } catch (e) { photoUrl = null; }
           if (photoUrl && /^https?:/.test(photoUrl)) {
-            html += '<figure class="campus-photo"><a class="campus-photo-link" href="' + esc(photo.sourceUrl || heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async" data-campus-fallback-photo><figcaption>' + esc(photo.credit || 'Wikimedia Commons');
-            if (photo.licenseUrl && /^https:\\/\\/creativecommons\\.org\\//.test(photo.licenseUrl)) html += ' · <a href="' + esc(photo.licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(photo.license || 'лицензия') + '</a>';
-            html += '</figcaption></a></figure>';
+            html += '<figure class="campus-photo"><a class="campus-photo-link" href="' + esc(photo.sourceUrl || heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async" data-campus-fallback-photo></a><figcaption>' + esc(photo.credit || 'Wikimedia Commons');
+            if (photo.licenseUrl && /^https:\/\/creativecommons\.org\//.test(photo.licenseUrl)) html += ' · <a href="' + esc(photo.licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(photo.license || 'лицензия') + '</a>';
+            html += '</figcaption></figure>';
           }
         }
         html += '</div><a class="commons-more" href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Открыть Wikimedia Commons</a></section>';
@@ -647,6 +647,9 @@
     popup = mine;
     var selectedCampus = ((campusData && campusData.buildings) || []).find(function (b) { return String(b.number) === String(info.campus); });
     loadCommonsGallery(mine.getElement(), selectedCampus);
+    mine.getElement().querySelectorAll('[data-campus-fallback-photo]').forEach(function (image) {
+      image.addEventListener('error', function () { var figure = image.closest('.campus-photo'); if (figure) figure.remove(); }, { once: true });
+    });
     var floorButton = mine.getElement().querySelector('[data-open-floorplan]');
     if (floorButton) floorButton.addEventListener('click', function () { openFloorPlan(floorButton.getAttribute('data-open-floorplan')); });
     mine.on('close', function () {
