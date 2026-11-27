@@ -13,6 +13,11 @@ dist/
 .env.*.local
 !.env.example
 
+# Local bot process files and logs
+/backend/smart-campus-backend.pid
+/backend/bot.log
+/backend/bot-error.log
+
 # SQLx offline metadata (generated deliberately when configured)
 .sqlx/
 

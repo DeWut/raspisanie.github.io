@@ -1,0 +1,685 @@
+
+
+<!DOCTYPE html>
+
+<html lang="ru">
+<head><link rel="stylesheet" type="text/css" href="/DXR.axd?r=1_251,0_1775,1_69,1_70,1_71,1_250,0_1780,0_1884,0_1889,0_1785,0_1790-oMx6h&p=647040" /><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta property="og:image" content="/img/isoip.jpg" /><title>
+	Расписание
+</title><script src="/js/modernizr.custom.js"></script>
+
+    
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+
+    <link href="../dgtu.ico" rel="shortcut icon" type="image/x-icon" /><link type="text/css" rel="stylesheet" href="../css/Bootstrap/bootstrap.css" /><link href="../css/Bootstrap/bootstrap.offcanvas.css" rel="stylesheet" /><link rel="stylesheet" href="/css/Mail/plugins/font-awesome/css/font-awesome.min.css?t=1" /><link rel="stylesheet" type="text/css" href="/css/Stud.css" /><link rel="stylesheet" type="text/css" href="/css/common.css?t=2" />
+    
+    <script src="../js/scrollup/scrollup.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+    <script>
+        function ShowpcLogin() {
+            pcLogin.Show();
+        }
+    </script>
+    <script src="../js/js1/menu.js"></script>
+    <!--MENU SCRIPT-->
+
+    <script>
+        //$(document).ready(function () {
+        //    if ($('#ctl00_smPortfolio').html().trim() === '')
+        //    {
+        //        $('#ctl00_smPortfolio').css("display", "none");
+        //        $('#ctl00_liPortfolio > a > i#ctl00_shdPortfolio').css("display", "none");
+        //    }
+        //    //e.stopPropagation();
+        // });
+        $(document).ready(function () {
+        $('li.icon').click(function (e) {
+        $(this).toggleClass('active');
+        $('div.collapsible-body').toggleClass('collapsible-body1');
+        e.stopPropagation();
+        });
+        });
+    </script>
+    <script type="text/javascript" src="/js/Cookie/cookie.js" ></script>
+    
+    <style>  
+ /*EYE*/
+ .p-3 {
+    padding: 1rem!important;
+}
+ .btn-eye {
+    background-color: #2d323e!important;
+    color: #fff!important;
+}
+ @media (max-width: 1199px){
+     #ctl00_Div1{
+         display:none;
+     }
+ }
+    </style>
+    <script src="../js/modernizr.custom.js"></script>
+    
+</head>
+<body>
+    <form name="aspnetForm" method="post" action="./Rasp.aspx?group=19244&amp;sem=1" id="aspnetForm">
+<div>
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="" />
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="" />
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUKMTUwMzI5ODk1MA9kFgJmD2QWAgIED2QWCAIFD2QWBGYPZBYCAgEPFgIeB1Zpc2libGVoZAICDxYCHwBoZAIVD2QWAgIBDxYCHgtfIUl0ZW1Db3VudGZkAhkPZBYGAgEPDxYCHgRUZXh0BTDQo9GH0LXQsdC90L7QtSDRgNCw0YHQv9C40YHQsNC90LjQtSDQs9GA0YPQv9C/0YtkZAIDD2QWBmYPZBYIZg9kFgICAg8PFgYeC05hdmlnYXRlVXJsBR0vVmVkL0RlZmF1bHQuYXNweD9ncm91cD0xOTI0NB8CBRTQm9Cf0LEt0JjQodCY0KItMjYtMR8AZ2RkAgEPZBYCAgIPPCsABgEADxYCHgVWYWx1ZQUBMWRkAgIPZBYCAgEPDxYCHwIFCTIwMjYtMjAyN2RkAgMPZBYCAgEPDxYCHwIFIjEzICjQvdC10YfRkdGC0L3QsNGPINC90LXQtNC10LvRjylkZAIBD2QWBGYPZBYCAgEPEGRkFgFmZAIBD2QWAgIBDxQrAAYPFgQeD0RhdGFTb3VyY2VCb3VuZGcfBAUBMGRkZDwrAAwBCxQrAAYWBB4SRW5hYmxlQ2FsbGJhY2tNb2RlaB4nRW5hYmxlU3luY2hyb25pemF0aW9uT25QZXJmb3JtQ2FsbGJhY2sgaGRkDxYCHgpJc1NhdmVkQWxsZw8UKwADFCsAARYIHwIFE9C+0LHQtSDQvdC10LTQtdC70LgfBAUBMB4ISW1hZ2VVcmxlHg5SdW50aW1lQ3JlYXRlZGcUKwABFggfAgUd0L3QtdGH0ZHRgtC90LDRjyDQvdC10LTQtdC70Y8fBAUBMR8JZR8KZxQrAAEWCB8CBRnRh9GR0YLQvdCw0Y8g0L3QtdC00LXQu9GPHwQFATIfCWUfCmdkZGRkZGQCAg9kFgJmD2QWAmYPPCsABgEADxYCHgtQb3N0QmFja1VybAUfUmFzcEZ1bGwuYXNweD9ncm91cD0xOTI0NCZzZW09MWRkAgUPPCsAJgQADxYEHgxLZXlGaWVsZE5hbWUFBtCa0L7QtB8FZ2QGD2QQFgdmAgECAgIDAgQCBQIGFgc8KwAMAgAWBB4PQ29sVmlzaWJsZUluZGV4AgMeC0dsb2JhbEluZGV4Zgs8KwAFAQAWBh4KR3JvdXBJbmRleGYeCVNvcnRJbmRleGYeCVNvcnRPcmRlcgspekRldkV4cHJlc3MuRGF0YS5Db2x1bW5Tb3J0T3JkZXIsIERldkV4cHJlc3MuRGF0YS52MTguMSwgVmVyc2lvbj0xOC4xLjQuMCwgQ3VsdHVyZT1uZXV0cmFsLCBQdWJsaWNLZXlUb2tlbj1iODhkMTc1NGQ3MDBlNDlhATwrAAwBABYCHw4CATwrAAwBABYCHw4CAjwrAAwBABYCHw4CAzwrAAwBABYCHw4CBDwrAAwBABYCHw4CBTwrAAwBABYCHw4CBg8WBwIBAgECAQIBAgICAgIBFgIFf0RldkV4cHJlc3MuV2ViLkdyaWRWaWV3RGF0YVRleHRDb2x1bW4sIERldkV4cHJlc3MuV2ViLnYxOC4xLCBWZXJzaW9uPTE4LjEuNC4wLCBDdWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWI4OGQxNzU0ZDcwMGU0OWEFf0RldkV4cHJlc3MuV2ViLkdyaWRWaWV3RGF0YU1lbW9Db2x1bW4sIERldkV4cHJlc3MuV2ViLnYxOC4xLCBWZXJzaW9uPTE4LjEuNC4wLCBDdWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWI4OGQxNzU0ZDcwMGU0OWETFCsAAxYCHghGaWxlTmFtZQVC0KDQsNGB0L/QuNGB0LDQvdC40LUg0LPRgNGD0L/Qv9GLICjQm9Cf0LEt0JjQodCY0KItMjYtMSwyMDI2LTIwMjcpZGQYPCsABwEFFCsAAmRkZAIpDxYCHwBoZBgBBR5fX0NvbnRyb2xzUmVxdWlyZVBvc3RCYWNrS2V5X18WBAUbY3RsMDAkTWFpbkNvbnRlbnQkY2JTZW0kREREBSFjdGwwMCRNYWluQ29udGVudCRjbWJUeXBlVmlldyREREQFH2N0bDAwJE1haW5Db250ZW50JEFTUHhHcmlkVmlldzEFKWN0bDAwJE1haW5Db250ZW50JEFTUHhHcmlkVmlldzEkRFhDVE1lbnUw0TXuLBez68gWN32NsZPdW1vkWLLf+4OHGREsv/me7/w=" />
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['aspnetForm'];
+if (!theForm) {
+    theForm = document.aspnetForm;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<script src="/WebResource.axd?d=4JahBlLaef9C75aoIXVTabFzHGy71RGhmXhI1VOz1kKunbnWWuNq18iWN3Qa97qa58A4oVXAM5YhNac44T8mC6OFYKXqs-A8uwqNf9p1jKE1&amp;t=638286173964787378" type="text/javascript"></script>
+
+<div>
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="BE51B940" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEdAAK8cckpANNoCf6X/lknrAFKbwysKL6p/id/u1FoeFMDsZCdt8DEKMMKzb1AYM7PfwqNhzJDNXxM6KBxHwbHiD6A" />
+</div>
+        <!-- Navigation -->
+        <nav class="navbar navbar-default navbar-fixed-top navbar-shrink">
+            <div class="container">
+
+                <!-- Brand and toggle get grouped for better mobile display -->
+                <div class="navbar-header page-scroll">
+
+
+                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                        <i class="fa fa-navicon icons" style="color: white;" aria-hidden="true"></i><span style="color: white;">&nbsp;Меню</span>
+                        
+                    </button>
+
+                    <a id="ctl00_HyperLinkBig" class="navbar-brand" href="../">Информационная система СПбГЛТУ</a>
+                    <a id="ctl00_HyperLinkSmall" class="navbar-ubr" href="../" style="display: none">Информационная система СПбГЛТУ</a>
+                    
+                </div>
+
+                <!-- Collect the nav links, forms, and other content for toggling -->
+                <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                    <div class='cssmenu navbar-right'>
+                        
+                        <nav class="nav menu menu1" id="menu">
+                            <!--nav класс добавил-->
+                            <ul class="nav navbar-nav navbar-right mcd-menu accordion menu1">
+
+                                <li id="ctl00_liPortfolio"><a href="../Portfolio/Default.aspx" id="ctl00_hpPortfolio"><i class="fa fa-user icons"></i>&nbsp;Мое портфолио&nbsp; </a>
+                                    
+
+                                </li>
+                                <li class="has-sub"><a><i class="fa fa-book icons"></i>&nbsp;Справочник <i class="fa fa-chevron-down"></i></a>
+                                    <ul class="submenu">
+
+                                        <li><a href="../Dek/Default.aspx"><i class="fa fa-university icons" aria-hidden="true"></i>Институты</a></li>
+                                        <li><a href="../Dek/Default.aspx?mode=spets"><i class="fa fa-cog icons" aria-hidden="true"></i>Направления</a></li>
+                                        <li><a href="../Dek/Default.aspx?mode=group"><i class="fa fa-users icons" aria-hidden="true"></i>Группы</a></li>
+                                        <li><a href="../Dek/Default.aspx?mode=kaf"><i class="fa fa-suitcase icons" aria-hidden="true"></i>Кафедры</a></li>
+                                        <li><a href="../Nagr/Default.aspx"><i class="fa fa-briefcase icons" aria-hidden="true"></i>Преподаватели</a></li>
+                                    </ul>
+                                </li>
+                                <li class="has-sub"><a><i class="fa fa-book icons"></i>&nbsp;Меню <i class="fa fa-chevron-down"></i></a>
+                                    <ul id="ctl00_masterMenu" class="submenu">
+                                        
+                                    </ul>
+                                </li>
+                                <li style="display: grid;">
+                                    
+                                    
+                                            <a href="/Account/Login.aspx" id="ctl00_LoginView1_loginLink" class="buttonLogin HeaderText" style="margin-right: 10px;"><i class="fa fa-user icons"></i>&nbsp;Вход</a>
+
+                                        
+
+                                    
+                                </li>
+
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                <!-- /.navbar-collapse -->
+            </div>
+            <!-- /.container-fluid -->
+        </nav>
+
+        <!-- container -->
+        <button type="button" class="navbar-toggle" data-toggle="offcanvas" data-target=".navmenu" data-canvas="body">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+        </button>
+        <div class="contenting">
+            <div class="container body-content" style="padding-top: 50px; width: 100%">
+
+                
+                
+    <style>
+        @media print {
+            .footer, .back, hr {
+                display: none;
+            }
+
+            .container {
+                padding-top: 0px !important;
+            }
+            /*#print-scalinq{ 
+width:80%; 
+}*/
+            .dxbButtonSys.dxbTSys > div {
+                display: none !important;
+            }
+            /* Стили для альбомной ориентации шаблона */
+            @page {
+                margin: 0;
+                padding: 0 !important;
+            }
+
+            html, body {
+                zoom: 85%;
+                color: black !important;
+            }
+
+            .dxgvDataRow_MaterialCompact td.dxgv {
+                color: black !important; /* Черный цвет текста */
+            }
+
+            a[href]:after {
+                content: "";
+            }
+
+            .HeaderDayStyle {
+                color: black !important;
+            }
+        }
+        /*Для печати*/
+        .HideCell {
+            display: none;
+        }
+
+        .HeaderDayStyle {
+            border-radius: 5px;
+            background-color: #2d323e !important;
+            color: #ffffff !important;
+        }
+        #ctl00_MainContent_ASPxGridView1_DXHeadersRow0
+        {
+            display:none;
+        }
+        #ctl00_MainContent_ASPxGridView1_DXHeadersRow1
+        {
+            display:none;
+        }
+        .dxgvGroupRow_MaterialCompact{
+               border-radius: 5px;
+            background-color: #2d323e !important;
+            color: #ffffff !important;
+        }
+        .dxgvIndentCell
+        {
+            display:none;
+        }
+      
+    </style>
+    <script>
+        _uacct = "UA-1322416-1";
+        urchinTracker();
+    </script>
+    <link rel="stylesheet" type="text/css" href="/css/Rasp/Rasp.css" />
+    <a href="/Rasp" class="print back" style="float: left;"><i class="fa fa-arrow-circle-left" aria-hidden="true"></i>&nbsp;Назад</a>
+    <a href="#" class="print back" style="float: right;" onclick="window.print()"><i class="fa fa-print" aria-hidden="true"></i>&nbsp;Печать</a>
+    <h3 style="text-align: center">
+        <span id="ctl00_MainContent_lblNameDoc" style="text-align: center !important;">Учебное расписание группы</span></h3>
+    <hr>
+    <div style="text-align: center;">
+
+        
+        <table id="ctl00_MainContent_Table1" Border="1" border="0" style="width:100%;border-color: #DFDFDF; max-width: 800px; margin: 0 auto">
+	<tr>
+		<td style="width:25%;"><span id="ctl00_MainContent_lbType">Группа:</span>
+                    <br>
+                    <a id="ctl00_MainContent_hpGroup" href="/Ved/Default.aspx?group=19244">ЛПб-ИСИТ-26-1</a></td><td style="width:25%;">
+                    Семестр:<br>
+                    <script id="dxis_1169390889" src="/DXR.axd?r=1_16,1_17,1_28,1_66,1_18,1_19,1_225,1_226,1_26,1_27,1_231,1_20,1_22,1_228,1_234,1_44,1_24,1_254,1_265,1_266,1_252,1_268,1_276,1_278,1_279,1_274,1_280,1_29,1_36,1_291-2Mx6h" type="text/javascript"></script><table class="dxeButtonEditSys dxeButtonEdit_MaterialCompact" id="ctl00_MainContent_cbSem" style="width:110px;margin: 5px auto;">
+			<tr>
+				<td style="display:none;"><input id="ctl00_MainContent_cbSem_VI" name="ctl00_MainContent_cbSem_VI" type="hidden" value="1" /></td><td class="dxic" onmousedown="return ASPx.DDDropDown(&#39;ctl00_MainContent_cbSem&#39;, event)" style="width:100%;"><input class="dxeEditArea_MaterialCompact dxeEditAreaSys" id="ctl00_MainContent_cbSem_I" name="ctl00$MainContent$cbSem" onfocus="ASPx.EGotFocus(&#39;ctl00_MainContent_cbSem&#39;)" onblur="ASPx.ELostFocus(&#39;ctl00_MainContent_cbSem&#39;)" onchange="ASPx.ETextChanged(&#39;ctl00_MainContent_cbSem&#39;)" value="Осенний" type="text" /></td><td id="ctl00_MainContent_cbSem_B-1" class="dxeButton dxeButtonEditButton_MaterialCompact" onmousedown="return ASPx.DDDropDown(&#39;ctl00_MainContent_cbSem&#39;, event)" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;"><img id="ctl00_MainContent_cbSem_B-1Img" class="dxEditors_edtDropDown_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="v" /></td>
+			</tr>
+		</table><div id="ctl00_MainContent_cbSem_DDD_PW-1" class="dxpcDropDown_MaterialCompact dxpclW dxpc-ddSys" style="z-index:10000;display:none;visibility:hidden;">
+			<div class="dxpc-mainDiv dxpc-shadow">
+				<div class="dxpc-contentWrapper">
+					<div class="dxpc-content">
+						<table class="dxeListBox_MaterialCompact" id="ctl00_MainContent_cbSem_DDD_L" style="border-collapse:separate;">
+							<tr>
+								<td style="vertical-align:Top;"><div id="ctl00_MainContent_cbSem_DDD_L_D" class="dxlbd" style="width:100%;overflow:auto;">
+									<input id="ctl00_MainContent_cbSem_DDD_L_VI" type="hidden" name="ctl00$MainContent$cbSem$DDD$L" /><table style="border-collapse:separate;visibility:hidden!important;display:none!important;">
+										<tr id="ctl00_MainContent_cbSem_DDD_L_LBI-1" class="dxeListBoxItemRow_MaterialCompact">
+											<td id="ctl00_MainContent_cbSem_DDD_L_LBII" class="dxeListBoxItem_MaterialCompact">&nbsp;</td>
+										</tr>
+									</table><table id="ctl00_MainContent_cbSem_DDD_L_LBT" style="width:100%;border-collapse:separate;">
+
+									</table>
+								</div></td>
+							</tr>
+						</table><script id="dxss_735938731" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientListBox,'ctl00_MainContent_cbSem_DDD_L','',{'uniqueID':'ctl00$MainContent$cbSem$DDD$L','scStates':6,'scPostfix':'MaterialCompact','savedSelectedIndex':0,'isSyncEnabled':false,'isComboBoxList':true,'hasSampleItem':true,'hoverClasses':['dxeListBoxItemHover_MaterialCompact'],'selectedClasses':['dxeListBoxItemSelected_MaterialCompact'],'disabledClasses':['dxeDisabled_MaterialCompact'],'itemsInfo':[{'value':'1','texts':['Осенний']},{'value':'2','texts':['Весенний']}]},{'SelectedIndexChanged':function (s, e) { ASPx.CBLBSelectedIndexChanged('ctl00_MainContent_cbSem', e); },'ItemClick':function (s, e) { ASPx.CBLBItemMouseUp('ctl00_MainContent_cbSem', e); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MaterialCompact','cssText':''}]});
+
+//-->
+</script>
+					</div>
+				</div>
+			</div>
+		</div><script id="dxss_1592853235" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ctl00_MainContent_cbSem_DDD',[[['dxpc-closeBtnHover'],[''],['HCB-1']]]);
+ASPx.createControl(ASPxClientPopupControl,'ctl00_MainContent_cbSem_DDD','',{'uniqueID':'ctl00$MainContent$cbSem$DDD','adjustInnerControlsSizeOnShow':false,'popupAnimationType':'slide','closeAction':'CloseButton','popupHorizontalAlign':'LeftSides','popupVerticalAlign':'Below','isPopupPositionCorrectionOn':false},{'Shown':function (s, e) { ASPx.DDBPCShown('ctl00_MainContent_cbSem', e); }});
+
+//-->
+</script><script id="dxss_131516708" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ctl00_MainContent_cbSem',[[['dxeButtonEditButtonHover_MaterialCompact'],[''],['B-1']]]);
+ASPx.RemoveHoverItems('ctl00_MainContent_cbSem',[[['B-100']]]);
+ASPx.AddPressedItems('ctl00_MainContent_cbSem',[[['dxeButtonEditButtonPressed_MaterialCompact'],[''],['B-1']]]);
+ASPx.RemovePressedItems('ctl00_MainContent_cbSem',[[['B-100']]]);
+ASPx.createControl(ASPxClientComboBox,'ctl00_MainContent_cbSem','',{'autoPostBack':true,'uniqueID':'ctl00$MainContent$cbSem','autoCompleteAttribute':{'name':'autocomplete','value':'off'},'lastSuccessValue':'1','islastSuccessValueInit':true},null,null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MaterialCompact','cssText':''}]});
+
+//-->
+</script></td><td style="width:25%;">
+                    Учебный год:<br>
+                    <span id="ctl00_MainContent_lbCurYear">2026-2027</span></td><td style="width:25%;">
+                    Текущая неделя:<br>
+                    <span id="ctl00_MainContent_lbCurWeek">13 (нечётная неделя)</span></td>
+	</tr><tr>
+		<td colspan="4" style="padding: 5px">
+                    Вид расписания:<br>
+                    
+                    <table class="dxeButtonEditSys dxeButtonEdit_MaterialCompact" id="ctl00_MainContent_cmbTypeView" style="width:90%;margin: 0 auto; max-width: 300px">
+			<tr>
+				<td style="display:none;"><input id="ctl00_MainContent_cmbTypeView_VI" name="ctl00_MainContent_cmbTypeView_VI" type="hidden" value="0" /></td><td class="dxic" onmousedown="return ASPx.DDDropDown(&#39;ctl00_MainContent_cmbTypeView&#39;, event)" style="width:100%;"><input class="dxeEditArea_MaterialCompact dxeEditAreaSys" id="ctl00_MainContent_cmbTypeView_I" name="ctl00$MainContent$cmbTypeView" onfocus="ASPx.EGotFocus(&#39;ctl00_MainContent_cmbTypeView&#39;)" onblur="ASPx.ELostFocus(&#39;ctl00_MainContent_cmbTypeView&#39;)" onchange="ASPx.ETextChanged(&#39;ctl00_MainContent_cmbTypeView&#39;)" value="обе недели" type="text" /></td><td id="ctl00_MainContent_cmbTypeView_B-1" class="dxeButton dxeButtonEditButton_MaterialCompact" onmousedown="return ASPx.DDDropDown(&#39;ctl00_MainContent_cmbTypeView&#39;, event)" style="user-select:none;-khtml-user-select:none;-ms-user-select:none;"><img id="ctl00_MainContent_cmbTypeView_B-1Img" class="dxEditors_edtDropDown_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="v" /></td>
+			</tr>
+		</table><div id="ctl00_MainContent_cmbTypeView_DDD_PW-1" class="dxpcDropDown_MaterialCompact dxpclW dxpc-ddSys" style="z-index:10000;display:none;visibility:hidden;">
+			<div class="dxpc-mainDiv dxpc-shadow">
+				<div class="dxpc-contentWrapper">
+					<div class="dxpc-content">
+						<table class="dxeListBox_MaterialCompact" id="ctl00_MainContent_cmbTypeView_DDD_L" style="border-collapse:separate;">
+							<tr>
+								<td style="vertical-align:Top;"><div id="ctl00_MainContent_cmbTypeView_DDD_L_D" class="dxlbd" style="width:100%;overflow:auto;">
+									<input id="ctl00_MainContent_cmbTypeView_DDD_L_VI" type="hidden" name="ctl00$MainContent$cmbTypeView$DDD$L" /><table style="border-collapse:separate;visibility:hidden!important;display:none!important;">
+										<tr id="ctl00_MainContent_cmbTypeView_DDD_L_LBI-1" class="dxeListBoxItemRow_MaterialCompact">
+											<td id="ctl00_MainContent_cmbTypeView_DDD_L_LBII" class="dxeListBoxItem_MaterialCompact">&nbsp;</td>
+										</tr>
+									</table><table id="ctl00_MainContent_cmbTypeView_DDD_L_LBT" style="width:100%;border-collapse:separate;">
+
+									</table>
+								</div></td>
+							</tr>
+						</table><script id="dxss_666117267" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientListBox,'ctl00_MainContent_cmbTypeView_DDD_L','',{'uniqueID':'ctl00$MainContent$cmbTypeView$DDD$L','scStates':6,'scPostfix':'MaterialCompact','savedSelectedIndex':0,'isSyncEnabled':false,'isComboBoxList':true,'hasSampleItem':true,'hoverClasses':['dxeListBoxItemHover_MaterialCompact'],'selectedClasses':['dxeListBoxItemSelected_MaterialCompact'],'disabledClasses':['dxeDisabled_MaterialCompact'],'itemsInfo':[{'value':'0','texts':['обе недели']},{'value':'1','texts':['нечётная неделя']},{'value':'2','texts':['чётная неделя']}]},{'SelectedIndexChanged':function (s, e) { ASPx.CBLBSelectedIndexChanged('ctl00_MainContent_cmbTypeView', e); },'ItemClick':function (s, e) { ASPx.CBLBItemMouseUp('ctl00_MainContent_cmbTypeView', e); }},null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MaterialCompact','cssText':''}]});
+
+//-->
+</script>
+					</div>
+				</div>
+			</div>
+		</div><script id="dxss_523669753" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ctl00_MainContent_cmbTypeView_DDD',[[['dxpc-closeBtnHover'],[''],['HCB-1']]]);
+ASPx.createControl(ASPxClientPopupControl,'ctl00_MainContent_cmbTypeView_DDD','',{'uniqueID':'ctl00$MainContent$cmbTypeView$DDD','adjustInnerControlsSizeOnShow':false,'popupAnimationType':'slide','closeAction':'CloseButton','popupHorizontalAlign':'LeftSides','popupVerticalAlign':'Below','isPopupPositionCorrectionOn':false},{'Shown':function (s, e) { ASPx.DDBPCShown('ctl00_MainContent_cmbTypeView', e); }});
+
+//-->
+</script><script id="dxss_894516955" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ctl00_MainContent_cmbTypeView',[[['dxeButtonEditButtonHover_MaterialCompact'],[''],['B-1']]]);
+ASPx.RemoveHoverItems('ctl00_MainContent_cmbTypeView',[[['B-100']]]);
+ASPx.AddPressedItems('ctl00_MainContent_cmbTypeView',[[['dxeButtonEditButtonPressed_MaterialCompact'],[''],['B-1']]]);
+ASPx.RemovePressedItems('ctl00_MainContent_cmbTypeView',[[['B-100']]]);
+ASPx.createControl(ASPxClientComboBox,'ctl00_MainContent_cmbTypeView','',{'autoPostBack':true,'uniqueID':'ctl00$MainContent$cmbTypeView','autoCompleteAttribute':{'name':'autocomplete','value':'off'},'lastSuccessValue':'0','islastSuccessValueInit':true},null,null,{'decorationStyles':[{'key':'F','className':'dxeFocused_MaterialCompact','cssText':''}]});
+
+//-->
+</script></td>
+	</tr><tr>
+		<td colspan="4"></td>
+	</tr>
+</table>
+    </div>
+    <div width="100%" class="Rasp" style="overflow: auto;">
+        <div class="blockDay">
+            <div width="100%" class="Rasp" style="overflow: auto;">
+                <table class="dxgvControl_MaterialCompact dxgv dxgvCMV" id="ctl00_MainContent_ASPxGridView1" style="width:100%;border-collapse:separate;">
+	<tr>
+		<td><div class="dxmLite_MaterialCompact dxm-ltr">
+			<div class="dxm-main dxm-horizontal dxm-noWrap dxctToolbar_MaterialCompact dxct-sys dxgvCTTop dxmtb" id="ctl00_MainContent_ASPxGridView1_DXCTMenu0" style="width:100%;text-align:Left;">
+				<ul class="dx dxm-image-l">
+					<li title="Скачать в XLS" class="dxm-item dxm-noSubMenu dxct-if dxct-il"><div class="dxm-content dxm-hasText">
+						<img title="Скачать в XLS" class="dxGridView_CTExportXls_MaterialCompact dxm-image dx-vam" src="/DXR.axd?r=1_112-2Mx6h" alt="" /><span title="Скачать в XLS" class="dx-vam">Скачать в XLS</span>
+					</div></li><li class="dxm-spacing dxm-amis"></li><li class="dxm-item dxm-dropDownMode dxm-noImage dxm-ami"><div class="dxm-content">
+						<span class="dx-vam">&nbsp;</span>
+					</div><div class="dxm-popOut">
+						<img class="dxWeb_mAdaptiveMenu_MaterialCompact dxm-pImage" src="/DXR.axd?r=1_112-2Mx6h" alt="..." />
+					</div></li>
+				</ul>
+			</div><b class="dx-clear"></b><div id="ctl00_MainContent_ASPxGridView1_DXCTMenu0_DXM1_" style="z-index:20000;display:none;">
+				<div class="dxm-shadow dxm-popup dxmtb dxm-am">
+					<ul class="dx dxm-gutter">
+
+					</ul>
+				</div>
+			</div>
+		</div><script id="dxss_575340917" type="text/javascript">
+<!--
+ASPx.AddHoverItems('ctl00_MainContent_ASPxGridView1_DXCTMenu0',[[['dxm-hovered','',''],['','',''],['DXI0_','DXI1_'],['','P','T'],[[{'spriteCssClass':'dxGridView_CTExportXlsHover_MaterialCompact'}],[null,null]],['Img','PImg']],[[''],[''],['DXME1_','DXMBC1_']]]);
+ASPx.AddDisabledItems('ctl00_MainContent_ASPxGridView1_DXCTMenu0',[[['dxm-disabled'],[''],['DXI0_','DXI1_'],['','P','T'],[[{'spriteCssClass':'dxGridView_CTExportXlsDisabled_MaterialCompact'}],[null,null]],['Img','PImg']]]);
+ASPx.createControl(ASPxClientGridToolbar,'ctl00_MainContent_ASPxGridView1_DXCTMenu0','',{'uniqueID':'ctl00$MainContent$ASPxGridView1$DXCTMenu0','cpItemsCommands':{'0':'ExportToXls'},'renderData':{'':[[0],[1]]}},{'ItemClick':function(s,e){ASPx.GCmdToolbarMenuItemClick('ctl00_MainContent_ASPxGridView1',s,e)}},null,{'items':[{'name':'ExportToXls'},{}],'adaptiveModeData':1});
+
+//-->
+</script><table id="ctl00_MainContent_ASPxGridView1_DXMainTable" class="dxgvTable_MaterialCompact" onclick="ASPx.GTableClick(&#39;ctl00_MainContent_ASPxGridView1&#39;, event);" ondblclick="ASPx.GVTableDblClick(&#39;ctl00_MainContent_ASPxGridView1&#39;, event);" oncontextmenu="return ASPx.GVContextMenu(&#39;ctl00_MainContent_ASPxGridView1&#39;,event);" style="width:100%;empty-cells:show;">
+			<tr id="ctl00_MainContent_ASPxGridView1_DXHeadersRow0">
+				<td class="dxgvHeader_MaterialCompact" style="width:0.1%;border-top-width:0px;border-left-width:0px;cursor:default;"><img class="dxGridView_gvExpandedButton_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="" style="visibility:hidden;" /></td><td id="ctl00_MainContent_ASPxGridView1_col5" class="dxgvHeader_MaterialCompact HeaderCellStyle" style="width:50%;border-top-width:0px;border-left-width:0px;"><table style="width:100%;">
+					<tr>
+						<td>Часы</td><td style="width:1px;text-align:right;"><span class="dx-vam">&nbsp;</span></td>
+					</tr>
+				</table></td><td id="ctl00_MainContent_ASPxGridView1_col3" class="dxgvHeader_MaterialCompact HeaderCellStyle" style="border-top-width:0px;border-left-width:0px;"><table style="width:100%;">
+					<tr>
+						<td>Дисциплина</td><td style="width:1px;text-align:right;"><span class="dx-vam">&nbsp;</span></td>
+					</tr>
+				</table></td><td id="ctl00_MainContent_ASPxGridView1_col4" class="dxgvHeader_MaterialCompact HeaderCellStyle" style="border-top-width:0px;border-left-width:0px;"><table style="width:100%;">
+					<tr>
+						<td>Преподаватель/аудитория</td><td style="width:1px;text-align:right;"><span class="dx-vam">&nbsp;</span></td>
+					</tr>
+				</table></td><td id="ctl00_MainContent_ASPxGridView1_col6" class="dxgvHeader_MaterialCompact HeaderCellStyle" style="border-top-width:0px;border-left-width:0px;border-right-width:0px;"><table style="width:100%;">
+					<tr>
+						<td>Тип Недели1</td><td style="width:1px;text-align:right;"><span class="dx-vam">&nbsp;</span></td>
+					</tr>
+				</table></td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXGroupRowExp0" class="dxgvGroupRow_MaterialCompact">
+				<td class="dxgv" style="width:0.1%;border-right-width:0px;border-bottom-width:0px;"><img class="dxGridView_gvExpandedButton_MaterialCompact" onclick="ASPx.GVCollapseRow(&#39;ctl00_MainContent_ASPxGridView1&#39;,0,event);event.cancelBubble = true" src="/DXR.axd?r=1_112-2Mx6h" alt="Свернуть" style="cursor:pointer;" /></td><td class="dxgv" colspan="4" style="border-right-width:0px;">Понедельник</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow1" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">1 пара 09:15<br />10:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Информатика Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Васильев Н.П.<br />ауд. 1.231</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">нечёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow2" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">2 пара 11:10<br />12:45</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">История России Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Мельников Н.Н.<br />ауд. 2.409</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow3" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">3 пара 13:30<br />15:05</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">История России Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Мельников Н.Н.<br />ауд. 2.415</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow4" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">4 пара 15:15<br />16:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Начертательная геометрия и инженерная графика Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Вохмянин Н.А., Вакансия 1 (53-МехГраф)<br />ауд. 2.210</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXGroupRowExp5" class="dxgvGroupRow_MaterialCompact">
+				<td class="dxgv" style="width:0.1%;border-right-width:0px;border-bottom-width:0px;"><img class="dxGridView_gvExpandedButton_MaterialCompact" onclick="ASPx.GVCollapseRow(&#39;ctl00_MainContent_ASPxGridView1&#39;,5,event);event.cancelBubble = true" src="/DXR.axd?r=1_112-2Mx6h" alt="Свернуть" style="cursor:pointer;" /></td><td class="dxgv" colspan="4" style="border-right-width:0px;">Вторник</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow6" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" rowspan="2" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">1 пара 09:15<br />10:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Управление личным временем Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Подолянец Л.А.<br />ауд. 1.242</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow7" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvMCLN dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Управление личным временем Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Подолянец Л.А.<br />ауд. 1.242</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">нечёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow8" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">2 пара 11:10<br />12:45</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Физическая культура и спорт Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Лешева Н.С.<br />ауд. Открытый стадион</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow9" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">3 пара 13:30<br />15:05</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Иностранный язык Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Ломакина И.С.<br />ауд. 1.412</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow10" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" rowspan="2" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">4 пара 15:15<br />16:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Межкультурное взаимодействие в современном мире Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Михайлова А.И.<br />ауд. 1.321</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow11" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvMCLN dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Начертательная геометрия и инженерная графика Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Вохмянин Н.А., Вакансия 1 (53-МехГраф)<br />ауд. 2.210</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">нечёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow12" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">5 пара 17:00<br />18:35</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Физика Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Былев А.Б.<br />ауд. 1.010</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXGroupRowExp13" class="dxgvGroupRow_MaterialCompact">
+				<td class="dxgv" style="width:0.1%;border-right-width:0px;border-bottom-width:0px;"><img class="dxGridView_gvExpandedButton_MaterialCompact" onclick="ASPx.GVCollapseRow(&#39;ctl00_MainContent_ASPxGridView1&#39;,13,event);event.cancelBubble = true" src="/DXR.axd?r=1_112-2Mx6h" alt="Свернуть" style="cursor:pointer;" /></td><td class="dxgv" colspan="4" style="border-right-width:0px;">Среда</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow14" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">1 пара 09:15<br />10:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Межкультурное взаимодействие в современном мире Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Михайлова А.И.<br />ауд. 1.318</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow15" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">2 пара 11:10<br />12:45</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Математика Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Одинцова Н.А.<br />ауд. 1.318</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow16" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">3 пара 13:30<br />15:05</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Математика Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Одинцова Н.А.<br />ауд. 1.337</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow17" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">4 пара 15:15<br />16:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">История России Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Мельников Н.Н.<br />ауд. 2.419</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow18" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">5 пара 17:00<br />18:35</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">История России Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Мельников Н.Н.<br />ауд. 2.419</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXGroupRowExp19" class="dxgvGroupRow_MaterialCompact">
+				<td class="dxgv" style="width:0.1%;border-right-width:0px;border-bottom-width:0px;"><img class="dxGridView_gvExpandedButton_MaterialCompact" onclick="ASPx.GVCollapseRow(&#39;ctl00_MainContent_ASPxGridView1&#39;,19,event);event.cancelBubble = true" src="/DXR.axd?r=1_112-2Mx6h" alt="Свернуть" style="cursor:pointer;" /></td><td class="dxgv" colspan="4" style="border-right-width:0px;">Четверг</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow20" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">1 пара 09:15<br />10:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Экспедиция обучения служением (Факультатив) 8ч Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Козаренко О.Н.<br />ауд. 1.026</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow21" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" rowspan="2" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">2 пара 11:10<br />12:45</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Ознакомительный практикум Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Басова Е.Н.<br />ауд. 1.213</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow22" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvMCLN dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Физика Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Гущина Е.В.<br />ауд. 1.026</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">нечёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow23" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">3 пара 13:30<br />15:05</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Информатика Лаб.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Мартын К.А.<br />ауд. 1.310</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow24" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" rowspan="3" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">4 пара 15:15<br />16:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Физическая культура и спорт Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Тарасеня Т.Ю.<br />ауд. 3.033</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow25" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvMCLN dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Физическая культура и спорт Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Тарасеня Т.Ю.<br />ауд. 3.038</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow26" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvMCLN dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;">&nbsp;</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Физическая культура и спорт Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Лешева Н.С.<br />ауд. Открытый стадион</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXGroupRowExp27" class="dxgvGroupRow_MaterialCompact">
+				<td class="dxgv" style="width:0.1%;border-right-width:0px;border-bottom-width:0px;"><img class="dxGridView_gvExpandedButton_MaterialCompact" onclick="ASPx.GVCollapseRow(&#39;ctl00_MainContent_ASPxGridView1&#39;,27,event);event.cancelBubble = true" src="/DXR.axd?r=1_112-2Mx6h" alt="Свернуть" style="cursor:pointer;" /></td><td class="dxgv" colspan="4" style="border-right-width:0px;">Пятница</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow28" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" rowspan="2" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">1 пара 09:15<br />10:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Начертательная геометрия и инженерная графика Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Вохмянин Н.А.<br />ауд. 2.409</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">чёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow29" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvMCLN dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Основы российской государственности Лек.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Нуруллина Р.В.<br />ауд. 2.409</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">нечёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow30" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">2 пара 11:10<br />12:45</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Основы российской государственности Пр.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Нуруллина Р.В.<br />ауд. 2.415</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">*</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow31" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;">3 пара 13:30<br />15:05</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Физика Лаб.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;">Совтус Н.В., Гаврилов С.П.<br />ауд. 1.025</td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;">нечёт</td>
+			</tr><tr id="ctl00_MainContent_ASPxGridView1_DXDataRow32" class="dxgvDataRow_MaterialCompact">
+				<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;border-bottom-width:0px;">&nbsp;</td><td class="dx-nowrap dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-left-width:0px;border-bottom-width:0px;">4 пара 15:15<br />16:50</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-bottom-width:0px;">23 Октября и 6 Ноября с 13:30 до 16:50, группа занимается социально-ознакомительным практикумом в структурном подразделении СПбГЛТУ Парк ЛТА.</td><td class="dxgv" style="padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-bottom-width:0px;"><br /></td><td class="dxgv" style="font-weight:bold;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;border-right-width:0px;border-bottom-width:0px;">*</td>
+			</tr>
+		</table><table id="ctl00_MainContent_ASPxGridView1_LP" class="dxgvLoadingPanel_MaterialCompact" style="left:0px;top:0px;z-index:30000;display:none;">
+			<tr>
+				<td class="dx" style="padding-right:0px;"><img class="dxlp-loadingImage dxlp-imgPosLeft" src="/DXR.axd?r=1_112-2Mx6h" alt="" style="vertical-align:middle;" /></td><td class="dx" style="padding-left:0px;"><span id="ctl00_MainContent_ASPxGridView1_TL">Загрузка&hellip;</span></td>
+			</tr>
+		</table><div id="ctl00_MainContent_ASPxGridView1_LD" class="dxgvLoadingDiv_MaterialCompact" style="display:none;z-index:29999;position:absolute;">
+
+		</div><img id="ctl00_MainContent_ASPxGridView1_IADD" class="dxGridView_gvDragAndDropArrowDown_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="Down Arrow" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ctl00_MainContent_ASPxGridView1_IADU" class="dxGridView_gvDragAndDropArrowUp_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="Up Arrow" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ctl00_MainContent_ASPxGridView1_IADL" class="dxGridView_gvDragAndDropArrowLeft_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="Left Arrow" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ctl00_MainContent_ASPxGridView1_IADR" class="dxGridView_gvDragAndDropArrowRight_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="Right Arrow" style="position:absolute;visibility:hidden;top:-100px;" /><img id="ctl00_MainContent_ASPxGridView1_IDHF" class="dxGridView_gvDragAndDropHideColumn_MaterialCompact" src="/DXR.axd?r=1_112-2Mx6h" alt="Скрыть" style="position:absolute;visibility:hidden;top:-100px;" /></td>
+	</tr>
+</table><script id="dxss_376213894" type="text/javascript">
+<!--
+ASPx.createControl(ASPxClientGridView,'ctl00_MainContent_ASPxGridView1','',{'callBack':function(arg) { WebForm_DoCallback('ctl00$MainContent$ASPxGridView1',arg,ASPx.Callback,'ctl00_MainContent_ASPxGridView1',ASPx.CallbackError,true); },'uniqueID':'ctl00$MainContent$ASPxGridView1','stateObject':{'keys':['/^DXN','215552','215553','215554','215555','/^DXN','215557','215558','215559','215560','215561','215562','215564','/^DXN','215565','215566','215567','215568','215569','/^DXN','215570','215571','215572','215573','215574','215575','215576','/^DXN','215577','215578','215579','215580','215582'],'groupLevelState':{'0':[[0,0],[5,5],[13,13],[19,19],[27,27]]},'callbackState':'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','mergedCellState':{'5':[[6,7],[10,11],[21,22],[24,26],[28,29]],'0':[[1,4],[6,12],[14,18],[20,26],[28,32]]},'selection':''},'callBacksEnabled':true,'pageRowCount':33,'pageRowSize':10,'pageIndex':-1,'pageCount':4,'selectedWithoutPageRowCount':0,'visibleStartIndex':0,'focusedRowIndex':-1,'allowFocusedRow':false,'allowSelectByItemClick':false,'allowSelectSingleRowOnly':false,'callbackOnFocusedRowChanged':false,'callbackOnSelectionChanged':false,'editState':0,'editItemVisibleIndex':-1,'searchPanelFilter':'','allowDelete':true,'allowEdit':true,'allowInsert':true,'toolbarsProp':[[0,]],'columnProp':[[0,,,'День_недели',,,0,1,3,0],[1,0,,'Код',0,,,,,,,,,,,,1],[2,0,,'ДеньНедели',0,,,,,,,,,,,,1],[3,,,'Дисциплина',0,,,,1],[4,,,'Custom1',0,,,,2],[5,,,'Часы',0,,,,0],[6,,'TypeNed','ТипНедели1',0,,,,7]],'editMode':2,'indentColumnCount':1,'allowChangeColumnHierarchy':false,'allowMultiColumnAutoFilter':false});
+ASPxClientGridBase.PostponeInitialize('ctl00_MainContent_ASPxGridView1',({'commandButtonIDs':[],'styleInfo':{'ei':'<tr class="dxgvEditingErrorRow_MaterialCompact">\r\n\t<td class="dxgvIndentCell dxgv" style="width:0px;border-left-width:0px;">&nbsp;</td><td class="dxgv" data-colSpan="4" style="border-right-width:0px;"></td>\r\n</tr>','fc':{'css':'dxgvFocusedCell_MaterialCompact'},'bec':{'css':'dxgvBatchEditCell_MaterialCompact dxgv','style':'padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;'},'bemc':{'css':'dxgvBatchEditModifiedCell_MaterialCompact dxgv','style':'padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;'},'bemergmc':{'css':'dxgvBatchEditModifiedCell_MaterialCompact dxgvBatchEditCell_MaterialCompact dxgv','style':'padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;'},'bedi':{'css':'dxgvBatchEditDeletedItem_MaterialCompact dxgv'},'sel':null,'fi':{'css':'dxgvFocusedRow_MaterialCompact'},'fgi':{'css':'dxgvFocusedGroupRow_MaterialCompact'}}}));
+
+//-->
+</script>
+                
+            </div>
+        </div>
+        <div style="height: 25px; width: 100%"></div>
+        
+        <div class="scrollup">
+            <!-- Иконка fa-chevron-up (Font Awesome) -->
+            <i class="fa fa-chevron-up"></i>
+        </div>
+
+                <hr />
+                <footer class="footer">
+                    <div class="footer-content" id="dd">
+                        
+                        
+                        <a id="ctl00_hpFooterPortfolio" class="cbutton cbutton--effect-boris" href="../Portfolio"><i class="fa fa-user icons cbutton__icon"></i></a>
+                        <a id="ctl00_hpFooterRasp" class="cbutton cbutton--effect-boris" href="../Rasp"><i class="fa fa-pencil-square-o icons cbutton__icon"></i></a>
+                        <a id="ctl00_hpFooterVed" class="cbutton cbutton--effect-boris" href="../Ved"><i class="fa fa-line-chart icons cbutton__icon"></i></a>
+                        <a id="ctl00_hpFooterGraph" class="cbutton cbutton--effect-boris" href="../Graph/"><i class="fa fa-calendar icons cbutton__icon"></i></a>
+                        <a id="ctl00_hpFooterFacul" class="cbutton cbutton--effect-boris" href="../Mail/Inbox/Inbox.aspx"><i class="fa fa-envelope icons cbutton__icon"></i></a>                     
+                    </div>
+                </footer>
+            </div>
+        </div>
+        <!-- Modal -->
+        <div class="modal left fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title" id="myModalLabel">Мое портфолио</h4>
+                    </div>
+
+                    <div class="modal-body">               
+                        <div class="col-4">
+                            <div id="list-example" class="list-group">
+                               
+                                <ul class="collapsible collapsible-accordion">
+                   
+                    <li class="icon"><a class="list-group-item list-group-item-action" href="#"><i class="fa fa-pencil-square-o indigo-text"></i>&nbsp;Программы<i class="fa fa-angle-down rotate-icon"></i></a>
+                        <div class="collapsible-body">
+                                <ul class="sub-menu">
+                                    <li><a href="#" class="collapsible-header waves-effect">Introduction</a>
+                                    </li>
+                                    <li><a href="#" class="collapsible-header waves-effect">Monthly meetings</a>
+                                    </li>
+                                </ul>
+                            </div>
+                    </li>
+                    
+                                    
+                                    </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- modal-content -->
+            </div>
+            <!-- modal-dialog -->
+        </div>
+        <!-- modal -->
+
+        <!-- Modal rigth-->
+        <div class="modal right fade" id="myModaleye" tabindex="-1" role="dialog" aria-labelledby="myModalLabeleye">
+            <div class="modal-dialog" role="document" style="max-height: 450px;">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title" id="myModalLabeleye">Версия для слабовидящих</h4>
+                    </div>
+
+                    <div class="modal-body">               
+ 
+                    <div class="p-3">
+                        <div style="background: rgb(255, 255, 255) !important;">
+            <div>
+                <div class="col-centered">
+                    <h6 style="color: black;font-size:16px;">Размер шрифта</h6>
+                    
+                    <div class="btn-group">
+                        <button type="button" id="a2" class="btn btn-default btn-sm" style="font-size:16px;"><span class="fa fa-minus"></span>
+                        </button>
+                        <button type="button" id="a1" class="btn btn-default btn-sm" style="font-size:16px;"><span class="fa fa-plus"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-centered">
+                    <h6 style="color:  black;font-size:16px;">Шрифт</h6>
+                    
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-default btn-sm nop"  id="font1" style="font-size:16px;padding: 5px 10px;"><span style="font-family:'Times New Roman';font-size:16px;">Times new roman</span>
+                        </button>
+                        <button type="button" class="btn btn-default btn-sm nop" id="font2" style="font-size:16px;padding: 5px 10px;"><span style="font-family:'Arial';font-size:16px;">Arial</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-centered">
+                    <h6 style="color:  black;font-size:16px;">Цвета сайта</h6>
+                    
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-default btn-sm color-button" id="c1"><span class="fa fa-font"></span>
+                        </button>
+                        <button type="button" class="btn btn-default btn-sm color-button" id="c2" style="background: black;color:white;"><span class="fa fa-font"></span>
+                        </button>
+                        <button type="button" class="btn btn-default btn-sm color-button" id="c3" style="background: #334d80;color:white;"><span class="fa fa-font"></span>
+                        </button>
+                        <button type="button" class="btn btn-default btn-sm color-button" id="c4" style="background: #7b796b;color:#4d4b43;"><span class="fa fa-font"></span>
+                        </button>
+                        <button type="button" class="btn btn-default btn-sm color-button" id="c5" style="background: #3b2716;color:#a8e34d;"><span class="fa fa-font"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-centered">
+                    <h6 style="color:black;font-size:16px;">Изображения</h6>
+                    
+                    <div class="btn-group" data-toggle="buttons">
+                        <button type="button" class="btn btn-default btn-sm color-button" id="show_img"><span class="fa fa-toggle-on"> Показать</span>
+                        </button>
+                        <button type="button" class="btn btn-default btn-sm color-button" id="hide_img"><span class="fa fa-toggle-off"> Скрыть</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-centered">
+                    <h6 style="color:black;font-size:16px !important;"><i class="fa fa-exchange"></i> Интервал горизонтальный</h6>
+                    
+                    <div class="btn-group">
+                        <button type="button" id="i2" class="btn btn-default btn-sm"><span class="fa fa-minus-square"></span>
+                        </button>
+                        <button type="button" id="i1" class="btn btn-default btn-sm"><span class="fa fa-plus-square"></span>
+                        </button>
+ 
+                    </div>
+                </div>
+                <div class="col-centered">
+                    <h6 style="color:black;font-size:16px;"><i class="fa fa-arrows-v"></i> Интервал вертикальный</h6>
+                    
+                    <div class="btn-group">
+                        <div class="btn-group">
+                        <button type="button" id="line_int1" class="btn btn-default btn-sm"><span class="fa fa-minus-square"></span>
+                        </button>
+                        <button type="button" id="line_int2" class="btn btn-default btn-sm"><span class="fa fa-plus-square"></span>
+                        </button>
+ 
+                    </div>
+                    </div>
+                </div>
+                <div class="col-centered"> 
+                    <br />
+                    <div class="btn-group">
+                        <button class="btn btn-default btn-sm color-button" id="reset"> <i class="fa fa-refresh"></i> Сброс</button>
+                    </div>
+                </div>
+            </div>  
+             </div>
+                   </div>
+
+                </div>
+                    <!--Версия для слабов.-->
+                    </div>
+                </div>
+                <!-- modal-content -->
+            </div>
+            <!-- modal-dialog -->
+   
+        <!-- modal -->
+        
+        <div id="ctl00_Div1" class="fixed-action-btn" style="right: 193px;top: 30px;height: 50px;">
+            <a class="btn btn-eye btn-md waves-effect waves-light" data-toggle="modal" data-target="#myModaleye">
+               <i class="fa fa-eye"></i> Версия для слабовидящих
+            </a>
+
+        </div>
+    
+
+<script type="text/javascript">
+//<![CDATA[
+
+var callBackFrameUrl='/WebResource.axd?d=V0KaX-ddtsUI5h4sHOY_RjKYd3S9Ki8zfOj11DQzfQwmht9D5T0WQJ2LNj9epxNal0BGWvBy7epIrT7Onsw6Gu1C-nyWcD4TfYnOLHMX5AU1&t=638286173964787378';
+WebForm_InitCallback();//]]>
+</script>
+</form>
+    <script src="../js/classie.js"></script>
+    <script src="../js/js1/stud.js"></script>
+    <script src="/js/eye/eye.js?t=4" charset="utf-8"></script>
+    <!--Уведомления-->
+    
+    <!--Уведомления-->
+    <!-- Scrollup Стрелка Вверх --> 
+    <div class="scrollup">
+        <!-- Иконка fa-chevron-up (Font Awesome) --> 
+        <i class="fa fa-chevron-up"></i>
+    </div>
+    <!-- End Scrollup Subscription Section -->
+</body>
+</html>

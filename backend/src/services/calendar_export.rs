@@ -66,10 +66,7 @@ fn optional_description(parts: Vec<(&str, Option<String>)>) -> Option<String> {
 /// Builds an RFC 5545 calendar for the academic group configured in a Telegram chat.
 /// Lesson end times come from the timetable. Exams and events intentionally have no
 /// DTEND because their tables do not store a duration.
-pub async fn build_group_calendar(
-    db: &PgPool,
-    chat_id: i64,
-) -> Result<Option<String>, String> {
+pub async fn build_group_calendar(db: &PgPool, chat_id: i64) -> Result<Option<String>, String> {
     let group_id: Option<Uuid> = sqlx::query_scalar(
         "SELECT group_id FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE",
     )
@@ -173,10 +170,7 @@ pub async fn build_group_calendar(
         });
     }
 
-    let events = sqlx::query_as::<
-        _,
-        (i64, String, DateTime<Utc>, Option<String>, Option<String>),
-    >(
+    let events = sqlx::query_as::<_, (i64, String, DateTime<Utc>, Option<String>, Option<String>)>(
         r#"
         SELECT id, title, starts_at, location, description
         FROM bot_events
@@ -230,27 +224,15 @@ pub async fn build_group_calendar(
         if let Some(ends_at) = item.ends_at {
             push_property(&mut output, "DTEND", &utc_timestamp(ends_at));
         }
-        push_property(
-            &mut output,
-            "SUMMARY",
-            &escape_ical_text(&item.summary),
-        );
+        push_property(&mut output, "SUMMARY", &escape_ical_text(&item.summary));
         if let Some(location) = item.location {
             if !location.trim().is_empty() {
-                push_property(
-                    &mut output,
-                    "LOCATION",
-                    &escape_ical_text(&location),
-                );
+                push_property(&mut output, "LOCATION", &escape_ical_text(&location));
             }
         }
         if let Some(description) = item.description {
             if !description.trim().is_empty() {
-                push_property(
-                    &mut output,
-                    "DESCRIPTION",
-                    &escape_ical_text(&description),
-                );
+                push_property(&mut output, "DESCRIPTION", &escape_ical_text(&description));
             }
         }
         fold_ical_line("STATUS:CONFIRMED", &mut output);
@@ -267,10 +249,7 @@ mod tests {
 
     #[test]
     fn escapes_ical_text_values() {
-        assert_eq!(
-            escape_ical_text("A\\B;C,D\r\nE"),
-            "A\\\\B\\;C\\,D\\nE"
-        );
+        assert_eq!(escape_ical_text("A\\B;C,D\r\nE"), "A\\\\B\\;C\\,D\\nE");
     }
 
     #[test]

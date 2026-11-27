@@ -257,16 +257,29 @@ pub async fn handle_ownership(
         return None;
     }
     let current_owner: Option<i64> = sqlx::query_scalar(
-        "SELECT owner_telegram_id FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
-    ).bind(chat_id.0).fetch_optional(db).await.ok().flatten();
+        "SELECT owner_telegram_id FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE",
+    )
+    .bind(chat_id.0)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten();
     let telegram_creator: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status='creator')"
     ).bind(chat_id.0).bind(actor).fetch_one(db).await.unwrap_or(false);
     if current_owner != Some(actor) && !telegram_creator {
-        return Some("⛔ Передать владение может только владелец SMART CAMPUS или создатель Telegram-чата.".into());
+        return Some(
+            "⛔ Передать владение может только владелец SMART CAMPUS или создатель Telegram-чата."
+                .into(),
+        );
     }
     if command == "/owner" || argument.trim().is_empty() {
-        return Some(format!("👑 Владелец SMART CAMPUS: {}\nПередача: /transfer_owner @username",current_owner.map(|v|v.to_string()).unwrap_or_else(||"не назначен".into())));
+        return Some(format!(
+            "👑 Владелец SMART CAMPUS: {}\nПередача: /transfer_owner @username",
+            current_owner
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "не назначен".into())
+        ));
     }
     let target = argument.trim().trim_start_matches('@');
     let Some(target_id) = (match find_member_by_username(db, chat_id, target).await {
@@ -306,6 +319,8 @@ pub async fn handle_ownership(
     if tx.commit().await.is_err() {
         return Some("Передача владения не была сохранена.".into());
     }
-    Some(format!("👑 Владение SMART CAMPUS передано участнику @{} (ID {}).",target,target_id))
+    Some(format!(
+        "👑 Владение SMART CAMPUS передано участнику @{} (ID {}).",
+        target, target_id
+    ))
 }
-

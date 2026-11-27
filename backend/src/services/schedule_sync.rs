@@ -15,6 +15,7 @@ use crate::models::{GroupSchedule, Lesson};
 use super::eios_sync::EiosSync;
 
 const SYNC_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+const DATABASE_SYNC_LOCK_KEY: i64 = 0x5350424655495453;
 const WEEKS_AHEAD: i64 = 16;
 static SYNC_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 // 23 ноября 2026 года — понедельник нечётной учебной недели.
@@ -100,14 +101,51 @@ async fn next_sync_delay(pool: &sqlx::PgPool) -> Result<Option<Duration>, String
 }
 
 pub async fn sync_all_groups(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<SyncReport, String> {
+    sync_all_groups_with_progress(pool, eios, |_, _| {}).await
+}
+
+pub async fn sync_all_groups_with_progress<F>(
+    pool: &sqlx::PgPool,
+    eios: &EiosSync,
+    mut on_progress: F,
+) -> Result<SyncReport, String>
+where
+    F: FnMut(usize, usize) + Send,
+{
     let _guard = SYNC_LOCK
         .try_lock()
         .map_err(|_| "Синхронизация уже выполняется".to_owned())?;
+    // A PostgreSQL advisory lock also prevents a CLI sync and /sync from
+    // running at the same time in separate local processes.
+    let mut lock_connection = pool.acquire().await.map_err(|error| error.to_string())?;
+    let locked: bool = sqlx::query_scalar("SELECT pg_try_advisory_lock($1)")
+        .bind(DATABASE_SYNC_LOCK_KEY)
+        .fetch_one(&mut *lock_connection)
+        .await
+        .map_err(|error| error.to_string())?;
+    if !locked {
+        return Err("Синхронизация уже выполняется в другом процессе".to_owned());
+    }
 
-    sync_all_groups_inner(pool, eios).await
+    let result = sync_all_groups_inner(pool, eios, &mut on_progress).await;
+    let unlocked: Result<bool, sqlx::Error> = sqlx::query_scalar("SELECT pg_advisory_unlock($1)")
+        .bind(DATABASE_SYNC_LOCK_KEY)
+        .fetch_one(&mut *lock_connection)
+        .await;
+    if let Err(error) = unlocked {
+        tracing::warn!("Could not explicitly release EIOS sync lock: {}", error);
+    }
+    result
 }
 
-async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<SyncReport, String> {
+async fn sync_all_groups_inner<F>(
+    pool: &sqlx::PgPool,
+    eios: &EiosSync,
+    on_progress: &mut F,
+) -> Result<SyncReport, String>
+where
+    F: FnMut(usize, usize),
+{
     sqlx::query(
         r#"
         INSERT INTO sync_metadata (
@@ -142,6 +180,8 @@ async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<S
     let mut successful = 0usize;
     let mut failed = 0usize;
     let mut imported_lessons = 0usize;
+    let total = rows.len();
+    on_progress(0, total);
 
     tracing::info!("Active groups found for schedule sync: {}", rows.len());
 
@@ -161,6 +201,7 @@ async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<S
             Err(error) => {
                 failed += 1;
                 tracing::error!("Could not download schedule for {}: {}", group_name, error);
+                on_progress(successful + failed, total);
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 continue;
             }
@@ -179,6 +220,7 @@ async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<S
                 "Empty or invalid schedule for {}. Existing database data was preserved.",
                 group_name
             );
+            on_progress(successful + failed, total);
             tokio::time::sleep(Duration::from_secs(1)).await;
             continue;
         }
@@ -199,6 +241,7 @@ async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<S
                 tracing::error!("Could not import schedule for {}: {}", group_name, error);
             }
         }
+        on_progress(successful + failed, total);
 
         // Не отправляем запросы к ЭИОС слишком часто.
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -244,6 +287,8 @@ async fn sync_all_groups_inner(pool: &sqlx::PgPool, eios: &EiosSync) -> Result<S
         imported_lessons
     );
 
+    on_progress(total, total);
+
     Ok(SyncReport {
         groups_total: successful + failed,
         groups_successful: successful,
@@ -286,6 +331,32 @@ async fn import_group_schedule(
     let end_bound = local_midnight_utc(end_date, offset)?;
 
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
+    // Snapshot the current schedule before upserting, so room/teacher edits
+    // can be compared and students can opt in to change alerts.
+    let old_rows = sqlx::query_as::<_, (DateTime<Utc>, DateTime<Utc>, String, Option<String>, Option<String>)>(
+        r#"SELECT l.starts_at,l.ends_at,l.subject,r.name,t.full_name
+           FROM lessons l LEFT JOIN rooms r ON r.id=l.room_id LEFT JOIN teachers t ON t.id=l.teacher_id
+           WHERE l.group_id=$1 AND l.starts_at >= $2 AND l.starts_at < $3 AND l.source_data->>'source'='eios'"#
+    ).bind(group_id).bind(start_bound).bind(end_bound).fetch_all(&mut *tx).await.map_err(|e| e.to_string())?;
+    let natural_key = |starts: DateTime<Utc>, ends: DateTime<Utc>, subject: &str| {
+        format!(
+            "{}|{}|{}",
+            starts.to_rfc3339(),
+            ends.to_rfc3339(),
+            subject.trim().to_lowercase()
+        )
+    };
+    let old_by_key: HashMap<String, (Option<String>, Option<String>)> = old_rows
+        .iter()
+        .map(|(starts, ends, subject, room, teacher)| {
+            (
+                natural_key(*starts, *ends, subject),
+                (room.clone(), teacher.clone()),
+            )
+        })
+        .collect();
+    let mut new_natural_keys = std::collections::HashSet::<String>::new();
 
     // Сначала обновляем существующие занятия по стабильному external_id.
     // Это сохраняет UUID и историю уже отправленных напоминаний.
@@ -331,6 +402,43 @@ async fn import_group_schedule(
 
                 if ends_at <= starts_at {
                     continue;
+                }
+
+                let key = natural_key(starts_at, ends_at, &lesson.name);
+                new_natural_keys.insert(key.clone());
+                if let Some((old_room, old_teacher)) = old_by_key.get(&key) {
+                    for (kind, old_value, new_value) in [
+                        (
+                            "room_changed",
+                            old_room.as_deref(),
+                            (!lesson.room.trim().is_empty()).then_some(lesson.room.trim()),
+                        ),
+                        (
+                            "teacher_changed",
+                            old_teacher.as_deref(),
+                            (!lesson.teacher.trim().is_empty()).then_some(lesson.teacher.trim()),
+                        ),
+                    ] {
+                        if old_value != new_value {
+                            let change_key = stable_id(
+                                "schedule-change",
+                                &[
+                                    &group_id.to_string(),
+                                    kind,
+                                    &key,
+                                    old_value.unwrap_or(""),
+                                    new_value.unwrap_or(""),
+                                ],
+                            );
+                            sqlx::query("INSERT INTO bot_schedule_changes(group_id,change_key,change_kind,starts_at,subject,old_room,new_room,old_teacher,new_teacher) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(change_key) DO NOTHING")
+                                .bind(group_id).bind(change_key).bind(kind).bind(starts_at).bind(&lesson.name)
+                                .bind(if kind=="room_changed" { old_value } else { None })
+                                .bind(if kind=="room_changed" { new_value } else { None })
+                                .bind(if kind=="teacher_changed" { old_value } else { None })
+                                .bind(if kind=="teacher_changed" { new_value } else { None })
+                                .execute(&mut *tx).await.map_err(|e| e.to_string())?;
+                        }
+                    }
                 }
 
                 let teacher_id = if lesson.teacher.trim().is_empty() {
@@ -438,6 +546,18 @@ async fn import_group_schedule(
     // Удаляем устаревшие занятия только после успешного импорта новых данных.
     // При пустом результате старое расписание остаётся нетронутым.
     if !seen_external_ids.is_empty() {
+        for (starts, ends, subject, room, teacher) in &old_rows {
+            if !new_natural_keys.contains(&natural_key(*starts, *ends, subject)) {
+                let key = natural_key(*starts, *ends, subject);
+                let change_key = stable_id(
+                    "schedule-change",
+                    &[&group_id.to_string(), "class_cancelled", &key],
+                );
+                sqlx::query("INSERT INTO bot_schedule_changes(group_id,change_key,change_kind,starts_at,subject,old_room,old_teacher) VALUES($1,$2,'class_cancelled',$3,$4,$5,$6) ON CONFLICT(change_key) DO NOTHING")
+                    .bind(group_id).bind(change_key).bind(*starts).bind(subject).bind(room).bind(teacher)
+                    .execute(&mut *tx).await.map_err(|e| e.to_string())?;
+            }
+        }
         sqlx::query(
             r#"
             DELETE FROM lessons

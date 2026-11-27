@@ -1,0 +1,781 @@
+//! Private student cabinet and opt-in adult matching. Public cards never show
+//! Telegram usernames; contact links are sent only after a mutual like.
+
+use sqlx::PgPool;
+use teloxide::{
+    prelude::*,
+    types::{CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, MessageId},
+};
+
+const TAGS: [(&str, &str); 6] = [
+    ("study", "📚 Учёба"),
+    ("coffee", "☕ Кофе"),
+    ("walks", "🌿 Прогулки"),
+    ("games", "🎮 Игры"),
+    ("films", "🎬 Кино"),
+    ("books", "📖 Книги"),
+];
+
+type SocialResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+fn button(label: impl Into<String>, action: impl Into<String>) -> InlineKeyboardButton {
+    InlineKeyboardButton::callback(label, action)
+}
+
+fn nav(action: &str) -> Vec<InlineKeyboardButton> {
+    vec![button("⬅️ Назад", action), button("🏠 Меню", "ui:main")]
+}
+
+pub async fn open_cabinet(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    actor: i64,
+) -> ResponseResult<()> {
+    let (text, keyboard) = cabinet_screen(db, actor).await;
+    bot.send_message(chat_id, text)
+        .reply_markup(keyboard)
+        .await?;
+    Ok(())
+}
+
+pub async fn open_dating(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    actor: i64,
+) -> ResponseResult<()> {
+    let (text, keyboard) = dating_home(db, actor).await;
+    bot.send_message(chat_id, text)
+        .reply_markup(keyboard)
+        .await?;
+    Ok(())
+}
+
+pub async fn open_admin_reports(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    actor: i64,
+    admin_id: i64,
+) -> ResponseResult<()> {
+    if admin_id <= 0 || actor != admin_id {
+        bot.send_message(chat_id, "⛔ Очередь доступна только администратору бота.")
+            .await?;
+        return Ok(());
+    }
+    let (text, keyboard, _) = report_queue(db).await;
+    bot.send_message(chat_id, text)
+        .reply_markup(keyboard)
+        .await?;
+    Ok(())
+}
+
+pub async fn handle_callback(
+    bot: &Bot,
+    db: &PgPool,
+    query: &CallbackQuery,
+    admin_id: i64,
+) -> ResponseResult<bool> {
+    let Some(action) = query.data.as_deref() else {
+        return Ok(false);
+    };
+    if !action.starts_with("pc:") && !action.starts_with("dating:") {
+        return Ok(false);
+    }
+    let actor = i64::try_from(query.from.id.0).unwrap_or_default();
+    let Some(message) = query.regular_message() else {
+        bot.answer_callback_query(query.id.clone()).await?;
+        return Ok(true);
+    };
+    if message.chat.id.0 != actor {
+        bot.answer_callback_query(query.id.clone())
+            .text("Личный кабинет и анкеты доступны только в личном чате с ботом.")
+            .show_alert(true)
+            .await?;
+        return Ok(true);
+    }
+    bot.answer_callback_query(query.id.clone()).await?;
+    let result = if action.starts_with("pc:") {
+        profile_action(bot, db, actor, message.chat.id, message.id, action).await
+    } else {
+        dating_action(
+            bot,
+            db,
+            actor,
+            message.chat.id,
+            message.id,
+            action,
+            admin_id,
+        )
+        .await
+    };
+    if let Err(error) = result {
+        tracing::warn!("Student social callback failed: {}", error);
+        bot.edit_message_text(
+            message.chat.id,
+            message.id,
+            "Не удалось выполнить действие. Открой кабинет заново: /profile",
+        )
+        .reply_markup(InlineKeyboardMarkup::new(vec![nav("pc:open")]))
+        .await?;
+    }
+    Ok(true)
+}
+
+async fn profile_action(
+    bot: &Bot,
+    db: &PgPool,
+    actor: i64,
+    chat_id: ChatId,
+    message_id: MessageId,
+    action: &str,
+) -> SocialResult<()> {
+    let (text, keyboard) = if action == "pc:open" {
+        cabinet_screen(db, actor).await
+    } else if action == "pc:groups" || action.starts_with("pc:groups:") {
+        let page = action
+            .strip_prefix("pc:groups:")
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(0)
+            .max(0);
+        groups_screen(db, page).await
+    } else if let Some(id) = action
+        .strip_prefix("pc:group:")
+        .and_then(|v| uuid::Uuid::parse_str(v).ok())
+    {
+        let changed = sqlx::query("UPDATE users SET group_id=$2,updated_at=now() WHERE telegram_id=$1 AND EXISTS(SELECT 1 FROM groups WHERE id=$2 AND is_active=TRUE)")
+            .bind(actor).bind(id).execute(db).await?;
+        if changed.rows_affected() == 0 {
+            (
+                "Группа не найдена или больше недоступна.".into(),
+                cabinet_keyboard(),
+            )
+        } else {
+            cabinet_screen(db, actor).await
+        }
+    } else if action == "pc:name" {
+        start_flow(db, chat_id.0, actor, "cabinet_name", message_id).await?;
+        ("✏️ Отправь новое имя для отображения в личном кабинете (2–48 символов). Оно не меняет имя Telegram.\n\nНажми «Отмена» или отправь /cancel, чтобы выйти.".into(),
+            InlineKeyboardMarkup::new(vec![vec![button("Отмена", "pc:cancel")]]))
+    } else if action == "pc:cancel" {
+        clear_flow(db, chat_id.0, actor).await?;
+        cabinet_screen(db, actor).await
+    } else {
+        (
+            "Кнопка устарела. Открой кабинет заново.".into(),
+            cabinet_keyboard(),
+        )
+    };
+    bot.edit_message_text(chat_id, message_id, text)
+        .reply_markup(keyboard)
+        .await?;
+    Ok(())
+}
+
+fn cabinet_keyboard() -> InlineKeyboardMarkup {
+    InlineKeyboardMarkup::new(vec![
+        vec![button("🎓 Выбрать группу", "pc:groups:0")],
+        vec![button("✏️ Имя в кабинете", "pc:name")],
+        vec![button("🔔 Уведомления", "ui:settings")],
+        vec![button("💚 Знакомства", "dating:open")],
+        nav("ui:main"),
+    ])
+}
+
+async fn cabinet_screen(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarkup) {
+    let row = sqlx::query_as::<_, (String, Option<String>, serde_json::Value)>(
+        "SELECT COALESCE(p.display_name,u.first_name,'Студент'),g.name,u.settings FROM users u LEFT JOIN bot_user_profiles p ON p.telegram_id=u.telegram_id LEFT JOIN groups g ON g.id=u.group_id WHERE u.telegram_id=$1"
+    ).bind(actor).fetch_optional(db).await.ok().flatten();
+    let Some((name, group, settings)) = row else {
+        return (
+            "Профиль пока не создан. Напиши /start в личном чате.".into(),
+            cabinet_keyboard(),
+        );
+    };
+    let text = format!("👤 ЛИЧНЫЙ КАБИНЕТ\n\nИмя: {name}\nУчебная группа: {}\nНапоминания: {}\nДайджест: {}\n\nНастройки приватные. В анкете знакомств имя и интересы показываются только участникам, которые сами включили знакомства.",
+        group.unwrap_or_else(|| "не выбрана".into()),
+        if settings["reminders_enabled"] == true { "включены" } else { "выключены" },
+        if settings["daily_digest_enabled"] == true { settings["daily_digest_time"].as_str().unwrap_or("07:00").to_owned() } else { "выключен".into() });
+    (text, cabinet_keyboard())
+}
+
+async fn groups_screen(db: &PgPool, page: i64) -> (String, InlineKeyboardMarkup) {
+    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM groups WHERE is_active=TRUE")
+        .fetch_one(db)
+        .await
+        .unwrap_or(0);
+    let pages = ((total + 7) / 8).max(1);
+    let page = page.min(pages - 1);
+    let rows = sqlx::query_as::<_, (uuid::Uuid, String)>(
+        "SELECT id,name FROM groups WHERE is_active=TRUE ORDER BY name LIMIT 8 OFFSET $1",
+    )
+    .bind(page * 8)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    let mut keyboard = rows
+        .into_iter()
+        .map(|(id, name)| vec![button(name, format!("pc:group:{id}"))])
+        .collect::<Vec<_>>();
+    let mut paging = Vec::new();
+    if page > 0 {
+        paging.push(button("◀️", format!("pc:groups:{}", page - 1)));
+    }
+    paging.push(button(format!("{}/{}", page + 1, pages), "pc:groups:0"));
+    if page + 1 < pages {
+        paging.push(button("▶️", format!("pc:groups:{}", page + 1)));
+    }
+    keyboard.push(paging);
+    keyboard.push(vec![
+        button("⬅️ В кабинет", "pc:open"),
+        button("🏠 Меню", "ui:main"),
+    ]);
+    ("🎓 Выбери свою группу. Поиск по списку добавлю текстом только если групп станет слишком много.".into(), InlineKeyboardMarkup::new(keyboard))
+}
+
+async fn dating_home(db: &PgPool, actor: i64) -> (String, InlineKeyboardMarkup) {
+    let profile = sqlx::query_as::<_, (String, String, Vec<String>, Option<chrono::DateTime<chrono::Utc>>, bool, bool)>(
+        "SELECT display_name,bio,tags,age_confirmed_at,is_active,is_paused FROM bot_dating_profiles WHERE telegram_id=$1"
+    ).bind(actor).fetch_optional(db).await.ok().flatten();
+    if let Some((name, bio, tags, age_confirmed, active, paused)) = profile {
+        if age_confirmed.is_none() || !active {
+            return dating_intro();
+        }
+        return dating_profile_screen(name, bio, tags, paused);
+    }
+    dating_intro()
+}
+
+fn dating_intro() -> (String, InlineKeyboardMarkup) {
+    ("💚 ЗНАКОМСТВА\n\nДобровольные знакомства для общения, совместной учёбы и свиданий. Анкеты доступны только пользователям, подтвердившим возраст 18+.\n\nПублично показываются только выбранное имя, короткое описание и интересы. Username и контакт не показываются; написать можно только после взаимного лайка. Можно поставить анкету на паузу или удалить её.".into(),
+        InlineKeyboardMarkup::new(vec![
+            vec![button("Мне есть 18 лет — создать анкету", "dating:consent")],
+            vec![button("⬅️ Кабинет", "pc:open"), button("🏠 Меню", "ui:main")],
+        ]))
+}
+
+fn tag_label(tag: &str) -> &str {
+    TAGS.iter()
+        .find(|(key, _)| *key == tag)
+        .map(|(_, label)| *label)
+        .unwrap_or("✨ Общение")
+}
+
+fn dating_profile_screen(
+    name: String,
+    bio: String,
+    tags: Vec<String>,
+    paused: bool,
+) -> (String, InlineKeyboardMarkup) {
+    let tag_text = if tags.is_empty() {
+        "пока не выбраны".into()
+    } else {
+        tags.iter()
+            .map(|tag| tag_label(tag))
+            .collect::<Vec<_>>()
+            .join(" · ")
+    };
+    let text = format!("💚 МОЯ АНКЕТА\n\n{name} · 18+\n{}\n\nИнтересы: {tag_text}\nСтатус: {}\n\nАнкета показывается только взаимно подходящим участникам раздела знакомств.",
+        if bio.is_empty() { "Описание пока пустое" } else { &bio },
+        if paused { "на паузе" } else { "активна" });
+    let mut rows = vec![
+        vec![
+            button("🔎 Смотреть анкеты", "dating:discover"),
+            button("💞 Мои совпадения", "dating:matches"),
+        ],
+        vec![
+            button("✏️ Имя", "dating:name"),
+            button("📝 Описание", "dating:bio"),
+        ],
+    ];
+    for chunk in TAGS.chunks(2) {
+        rows.push(
+            chunk
+                .iter()
+                .map(|(key, label)| {
+                    button(
+                        format!(
+                            "{}{}",
+                            if tags.iter().any(|v| v == key) {
+                                "✅ "
+                            } else {
+                                ""
+                            },
+                            label
+                        ),
+                        format!("dating:tag:{key}"),
+                    )
+                })
+                .collect(),
+        );
+    }
+    rows.push(vec![
+        button(
+            if paused {
+                "▶️ Вернуть анкету"
+            } else {
+                "⏸ Пауза"
+            },
+            "dating:pause",
+        ),
+        button("🗑 Удалить анкету", "dating:delete"),
+    ]);
+    rows.push(nav("pc:open"));
+    (text, InlineKeyboardMarkup::new(rows))
+}
+
+#[derive(Clone)]
+struct Candidate {
+    id: i64,
+    name: String,
+    bio: String,
+    tags: Vec<String>,
+}
+
+async fn dating_action(
+    bot: &Bot,
+    db: &PgPool,
+    actor: i64,
+    chat_id: ChatId,
+    message_id: MessageId,
+    action: &str,
+    admin_id: i64,
+) -> SocialResult<()> {
+    let (text, keyboard, notification) = if action == "dating:open" || action == "dating:profile" {
+        let (text, kb) = dating_home(db, actor).await;
+        (text, kb, None)
+    } else if action == "dating:consent" {
+        let row = sqlx::query_as::<_, (String,)>("SELECT COALESCE(p.display_name,u.first_name,'Студент') FROM users u LEFT JOIN bot_user_profiles p ON p.telegram_id=u.telegram_id WHERE u.telegram_id=$1")
+            .bind(actor).fetch_optional(db).await?.unwrap_or(("Студент".into(),));
+        sqlx::query("INSERT INTO bot_dating_profiles(telegram_id,display_name,tags,age_confirmed_at) VALUES($1,$2,ARRAY['study']::text[],now()) ON CONFLICT(telegram_id) DO UPDATE SET age_confirmed_at=COALESCE(bot_dating_profiles.age_confirmed_at,now()),is_active=TRUE,is_paused=FALSE,updated_at=now()")
+            .bind(actor).bind(row.0).execute(db).await?;
+        let (text, kb) = dating_home(db, actor).await;
+        (text, kb, None)
+    } else if action == "dating:pause" {
+        sqlx::query("UPDATE bot_dating_profiles SET is_paused=NOT is_paused,updated_at=now() WHERE telegram_id=$1 AND age_confirmed_at IS NOT NULL AND is_active=TRUE").bind(actor).execute(db).await?;
+        let (text, kb) = dating_home(db, actor).await;
+        (text, kb, None)
+    } else if action == "dating:delete" {
+        (
+            "Удалить анкету, совпадения и историю свайпов? Это действие нельзя отменить.".into(),
+            InlineKeyboardMarkup::new(vec![vec![
+                button("🗑 Да, удалить", "dating:delete:yes"),
+                button("Отмена", "dating:profile"),
+            ]]),
+            None,
+        )
+    } else if action == "dating:delete:yes" {
+        sqlx::query("DELETE FROM bot_dating_profiles WHERE telegram_id=$1")
+            .bind(actor)
+            .execute(db)
+            .await?;
+        dating_intro_with_text("Анкета удалена. Данные анкеты и история знакомств очищены.")
+    } else if action == "dating:name" || action == "dating:bio" {
+        start_flow(
+            db,
+            chat_id.0,
+            actor,
+            if action.ends_with("name") {
+                "dating_name"
+            } else {
+                "dating_bio"
+            },
+            message_id,
+        )
+        .await?;
+        let field = if action.ends_with("name") {
+            "имя (2–48 символов)"
+        } else {
+            "описание (до 280 символов)"
+        };
+        (format!("✏️ Отправь новое {field}. Не добавляй телефон или другие личные контакты: username не публикуется.\n\nНажми «Отмена» или /cancel, чтобы выйти."),
+            InlineKeyboardMarkup::new(vec![vec![button("Отмена","dating:cancel")]]),None)
+    } else if action == "dating:cancel" {
+        clear_flow(db, chat_id.0, actor).await?;
+        let (text, kb) = dating_home(db, actor).await;
+        (text, kb, None)
+    } else if let Some(tag) = action.strip_prefix("dating:tag:") {
+        if !TAGS.iter().any(|(key, _)| *key == tag) {
+            (
+                "Такого интереса нет.".into(),
+                InlineKeyboardMarkup::new(vec![nav("dating:profile")]),
+                None,
+            )
+        } else {
+            sqlx::query("UPDATE bot_dating_profiles SET tags=CASE WHEN $2=ANY(tags) THEN array_remove(tags,$2) ELSE array_append(tags,$2) END,updated_at=now() WHERE telegram_id=$1 AND is_active=TRUE")
+                .bind(actor).bind(tag).execute(db).await?;
+            let (text, kb) = dating_home(db, actor).await;
+            (text, kb, None)
+        }
+    } else if action == "dating:discover" {
+        match next_candidate(db, actor).await {
+            Some(candidate) => (
+                candidate_text(&candidate),
+                candidate_keyboard(candidate.id),
+                None,
+            ),
+            None => (
+                "Пока новых анкет нет. Попробуй позже или измени интересы в своей анкете.".into(),
+                InlineKeyboardMarkup::new(vec![
+                    vec![button("👤 Моя анкета", "dating:profile")],
+                    nav("pc:open"),
+                ]),
+                None,
+            ),
+        }
+    } else if action.starts_with("dating:like:") || action.starts_with("dating:pass:") {
+        let is_like = action.starts_with("dating:like:");
+        let target = action
+            .rsplit(':')
+            .next()
+            .and_then(|v| v.parse::<i64>().ok())
+            .filter(|id| *id > 0);
+        let Some(target) = target else {
+            return Ok(());
+        };
+        sqlx::query("INSERT INTO bot_dating_swipes(from_telegram_id,to_telegram_id,action) SELECT $1,$2,$3 WHERE EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$1 AND is_active=TRUE AND is_paused=FALSE AND age_confirmed_at IS NOT NULL) AND EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$2 AND is_active=TRUE AND is_paused=FALSE AND age_confirmed_at IS NOT NULL) ON CONFLICT(from_telegram_id,to_telegram_id) DO UPDATE SET action=EXCLUDED.action,created_at=now()")
+            .bind(actor).bind(target).bind(if is_like{"like"}else{"pass"}).execute(db).await?;
+        if is_like && sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM bot_dating_swipes WHERE from_telegram_id=$2 AND to_telegram_id=$1 AND action='like') AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks WHERE (blocker_telegram_id=$1 AND blocked_telegram_id=$2) OR (blocker_telegram_id=$2 AND blocked_telegram_id=$1))")
+            .bind(actor).bind(target).fetch_one(db).await.unwrap_or(false) {
+            let (one,two)=if actor<target {(actor,target)} else {(target,actor)};
+            sqlx::query("INSERT INTO bot_dating_matches(user1_telegram_id,user2_telegram_id,status) VALUES($1,$2,'active') ON CONFLICT(user1_telegram_id,user2_telegram_id) DO UPDATE SET status='active',created_at=now(),ended_at=NULL")
+                .bind(one).bind(two).execute(db).await?;
+            let target_profile=profile_short(db,target).await;
+            let name=target_profile.map(|v|v.0).unwrap_or_else(||"новый знакомый".into());
+            (format!("💞 Взаимный лайк! Вы понравились друг другу.\n\n{name} · Написать можно только по взаимному согласию."),InlineKeyboardMarkup::new(vec![vec![contact_button(target)],vec![button("Мои совпадения","dating:matches")],nav("dating:profile")]),Some((target,format!("💞 У вас взаимный лайк с {}! Чтобы начать общение, нажми кнопку ниже.",profile_short(db,actor).await.map(|v|v.0).unwrap_or_else(||"студентом".into())))))
+        } else {
+            let (text,kb)=match next_candidate(db,actor).await { Some(c)=>(candidate_text(&c),candidate_keyboard(c.id)),None=>("Новые анкеты закончились. Загляни позже.".into(),InlineKeyboardMarkup::new(vec![vec![button("Моя анкета","dating:profile")]])) };
+            (if is_like { format!("👍 Лайк отправлен.\n\n{text}") } else { text },kb,None)
+        }
+    } else if let Some(target_text) = action.strip_prefix("dating:reportmenu:") {
+        let target = target_text.parse::<i64>().unwrap_or_default();
+        (
+            "Почему ты хочешь пожаловаться на анкету? После жалобы анкета будет скрыта от тебя."
+                .into(),
+            InlineKeyboardMarkup::new(vec![
+                vec![
+                    button("Спам", format!("dating:report:{target}:spam")),
+                    button(
+                        "Неподходящее",
+                        format!("dating:report:{target}:inappropriate"),
+                    ),
+                ],
+                vec![
+                    button(
+                        "Возможно, младше 18",
+                        format!("dating:report:{target}:underage"),
+                    ),
+                    button("Другое", format!("dating:report:{target}:other")),
+                ],
+                vec![button("⬅️ Назад к анкете", format!("dating:discover"))],
+            ]),
+            None,
+        )
+    } else if action.starts_with("dating:report:") {
+        let parts = action.split(':').collect::<Vec<_>>();
+        let target = parts
+            .get(2)
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or_default();
+        let category = parts.get(3).copied().unwrap_or("other");
+        if target <= 0 || !["spam", "inappropriate", "underage", "other"].contains(&category) {
+            (
+                "Жалоба не обработана.".into(),
+                InlineKeyboardMarkup::new(vec![nav("dating:profile")]),
+                None,
+            )
+        } else {
+            sqlx::query("INSERT INTO bot_dating_reports(reporter_telegram_id,target_telegram_id,category) VALUES($1,$2,$3)").bind(actor).bind(target).bind(category).execute(db).await?;
+            block_user(db, actor, target).await?;
+            if admin_id > 0 {
+                let _=bot.send_message(ChatId(admin_id),format!("Новая жалоба на анкету #{target}: {category}. Очередь: /dating_reports")).await;
+            }
+            (
+                "Жалоба отправлена. Анкета скрыта, пользователь заблокирован для твоего профиля."
+                    .into(),
+                InlineKeyboardMarkup::new(vec![nav("dating:profile")]),
+                None,
+            )
+        }
+    } else if let Some(target_text) = action.strip_prefix("dating:block:") {
+        let target = target_text.parse::<i64>().unwrap_or_default();
+        if target > 0 {
+            block_user(db, actor, target).await?;
+        }
+        (
+            "Анкета скрыта. Пользователь больше не появится в подборках.".into(),
+            InlineKeyboardMarkup::new(vec![
+                vec![button("Продолжить поиск", "dating:discover")],
+                nav("dating:profile"),
+            ]),
+            None,
+        )
+    } else if action == "dating:matches" {
+        matches_screen(db, actor).await
+    } else if let Some(id_text) = action.strip_prefix("dating:unmatch:") {
+        let other = id_text.parse::<i64>().unwrap_or_default();
+        let (one, two) = if actor < other {
+            (actor, other)
+        } else {
+            (other, actor)
+        };
+        sqlx::query("UPDATE bot_dating_matches SET status='ended',ended_at=now() WHERE user1_telegram_id=$1 AND user2_telegram_id=$2 AND status='active'").bind(one).bind(two).execute(db).await?;
+        sqlx::query("DELETE FROM bot_dating_swipes WHERE (from_telegram_id=$1 AND to_telegram_id=$2) OR (from_telegram_id=$2 AND to_telegram_id=$1)").bind(actor).bind(other).execute(db).await?;
+        matches_screen(db, actor).await
+    } else if action == "dating:adminqueue" {
+        if actor != admin_id || admin_id <= 0 {
+            (
+                "Недостаточно прав.".into(),
+                InlineKeyboardMarkup::new(vec![nav("ui:main")]),
+                None,
+            )
+        } else {
+            report_queue(db).await
+        }
+    } else if let Some(rest) = action.strip_prefix("dating:reportdone:") {
+        if actor != admin_id || admin_id <= 0 {
+            (
+                "Недостаточно прав.".into(),
+                InlineKeyboardMarkup::new(vec![nav("ui:main")]),
+                None,
+            )
+        } else {
+            let mut p = rest.split(':');
+            let id = p
+                .next()
+                .and_then(|v| v.parse::<i64>().ok())
+                .unwrap_or_default();
+            let status = p.next().unwrap_or("reviewed");
+            if id > 0 && ["reviewed", "dismissed"].contains(&status) {
+                sqlx::query("UPDATE bot_dating_reports SET status=$2,handled_by=$3 WHERE id=$1 AND status='open'").bind(id).bind(status).bind(actor).execute(db).await?;
+            }
+            report_queue(db).await
+        }
+    } else {
+        (
+            "Кнопка устарела.".into(),
+            InlineKeyboardMarkup::new(vec![nav("dating:profile")]),
+            None,
+        )
+    };
+
+    bot.edit_message_text(chat_id, message_id, text)
+        .reply_markup(keyboard)
+        .await?;
+    if let Some((target, message_text)) = notification {
+        let _ = bot
+            .send_message(ChatId(target), message_text)
+            .reply_markup(InlineKeyboardMarkup::new(vec![vec![contact_button(actor)]]))
+            .await;
+    }
+    Ok(())
+}
+
+fn dating_intro_with_text(text: &str) -> (String, InlineKeyboardMarkup, Option<(i64, String)>) {
+    let (_, keyboard) = dating_intro();
+    (text.into(), keyboard, None)
+}
+
+fn candidate_keyboard(id: i64) -> InlineKeyboardMarkup {
+    InlineKeyboardMarkup::new(vec![
+        vec![
+            button("💚 Нравится", format!("dating:like:{id}")),
+            button("➡️ Дальше", format!("dating:pass:{id}")),
+        ],
+        vec![
+            button("🚩 Пожаловаться", format!("dating:reportmenu:{id}")),
+            button("🚫 Скрыть", format!("dating:block:{id}")),
+        ],
+        nav("dating:profile"),
+    ])
+}
+
+fn candidate_text(candidate: &Candidate) -> String {
+    let interests = if candidate.tags.is_empty() {
+        "не указаны".into()
+    } else {
+        candidate
+            .tags
+            .iter()
+            .map(|tag| tag_label(tag))
+            .collect::<Vec<_>>()
+            .join(" · ")
+    };
+    format!("💚 АНКЕТА\n\n{} · 18+\n{}\n\nИнтересы: {}\n\nUsername будет скрыт; контакт откроется только после взаимного лайка.",candidate.name,if candidate.bio.is_empty(){"Без описания"}else{&candidate.bio},interests)
+}
+
+async fn next_candidate(db: &PgPool, actor: i64) -> Option<Candidate> {
+    sqlx::query_as::<_,(i64,String,String,Vec<String>)>(
+        "SELECT p.telegram_id,p.display_name,p.bio,p.tags FROM bot_dating_profiles own CROSS JOIN bot_dating_profiles p WHERE own.telegram_id=$1 AND own.is_active=TRUE AND own.is_paused=FALSE AND own.age_confirmed_at IS NOT NULL AND p.telegram_id<>own.telegram_id AND p.is_active=TRUE AND p.is_paused=FALSE AND p.age_confirmed_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM bot_dating_swipes s WHERE s.from_telegram_id=own.telegram_id AND s.to_telegram_id=p.telegram_id) AND NOT EXISTS(SELECT 1 FROM bot_dating_blocks b WHERE (b.blocker_telegram_id=own.telegram_id AND b.blocked_telegram_id=p.telegram_id) OR (b.blocker_telegram_id=p.telegram_id AND b.blocked_telegram_id=own.telegram_id)) AND NOT EXISTS(SELECT 1 FROM bot_dating_matches m WHERE m.status='active' AND ((m.user1_telegram_id=own.telegram_id AND m.user2_telegram_id=p.telegram_id) OR (m.user1_telegram_id=p.telegram_id AND m.user2_telegram_id=own.telegram_id))) ORDER BY (SELECT count(*) FROM unnest(own.tags) tag WHERE tag=ANY(p.tags)) DESC,p.updated_at DESC LIMIT 1"
+    ).bind(actor).fetch_optional(db).await.ok().flatten().map(|(id,name,bio,tags)|Candidate{id,name,bio,tags})
+}
+
+async fn profile_short(db: &PgPool, id: i64) -> Option<(String, String)> {
+    sqlx::query_as("SELECT display_name,bio FROM bot_dating_profiles WHERE telegram_id=$1 AND is_active=TRUE AND is_paused=FALSE AND age_confirmed_at IS NOT NULL").bind(id).fetch_optional(db).await.ok().flatten()
+}
+
+fn contact_button(id: i64) -> InlineKeyboardButton {
+    let url =
+        url::Url::parse(&format!("tg://user?id={id}")).expect("valid Telegram user deep link");
+    InlineKeyboardButton::url("✉️ Написать", url)
+}
+
+async fn block_user(db: &PgPool, actor: i64, target: i64) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO bot_dating_blocks(blocker_telegram_id,blocked_telegram_id) SELECT $1,$2 WHERE EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$1) AND EXISTS(SELECT 1 FROM bot_dating_profiles WHERE telegram_id=$2) ON CONFLICT DO NOTHING").bind(actor).bind(target).execute(db).await?;
+    let (one, two) = if actor < target {
+        (actor, target)
+    } else {
+        (target, actor)
+    };
+    sqlx::query("UPDATE bot_dating_matches SET status='ended',ended_at=now() WHERE user1_telegram_id=$1 AND user2_telegram_id=$2 AND status='active'").bind(one).bind(two).execute(db).await?;
+    Ok(())
+}
+
+async fn matches_screen(
+    db: &PgPool,
+    actor: i64,
+) -> (String, InlineKeyboardMarkup, Option<(i64, String)>) {
+    let rows=sqlx::query_as::<_,(i64,String,String)>("SELECT CASE WHEN m.user1_telegram_id=$1 THEN m.user2_telegram_id ELSE m.user1_telegram_id END,p.display_name,p.bio FROM bot_dating_matches m JOIN bot_dating_profiles p ON p.telegram_id=CASE WHEN m.user1_telegram_id=$1 THEN m.user2_telegram_id ELSE m.user1_telegram_id END WHERE (m.user1_telegram_id=$1 OR m.user2_telegram_id=$1) AND m.status='active' ORDER BY m.created_at DESC LIMIT 20").bind(actor).fetch_all(db).await.unwrap_or_default();
+    if rows.is_empty() {
+        return ("Пока нет взаимных совпадений. Лайки отправляются приватно и показываются только при взаимном интересе.".into(),InlineKeyboardMarkup::new(vec![vec![button("🔎 Смотреть анкеты","dating:discover")],nav("dating:profile")]),None);
+    }
+    let mut text =
+        String::from("💞 МОИ СОВПАДЕНИЯ\n\nКонтакты открываются только после взаимного лайка.\n");
+    let mut keyboard = Vec::new();
+    for (id, name, bio) in rows {
+        text.push_str(&format!(
+            "\n{name} · {}\n",
+            if bio.is_empty() {
+                "без описания"
+            } else {
+                &bio
+            }
+        ));
+        keyboard.push(vec![
+            contact_button(id),
+            button("Закончить общение", format!("dating:unmatch:{id}")),
+        ]);
+    }
+    keyboard.push(nav("dating:profile"));
+    (text, InlineKeyboardMarkup::new(keyboard), None)
+}
+
+async fn report_queue(db: &PgPool) -> (String, InlineKeyboardMarkup, Option<(i64, String)>) {
+    let rows=sqlx::query_as::<_,(i64,i64,i64,String,chrono::DateTime<chrono::Utc>)>("SELECT id,reporter_telegram_id,target_telegram_id,category,created_at FROM bot_dating_reports WHERE status='open' ORDER BY created_at LIMIT 20").fetch_all(db).await.unwrap_or_default();
+    if rows.is_empty() {
+        return (
+            "✅ Открытых жалоб на анкеты нет.".into(),
+            InlineKeyboardMarkup::new(vec![nav("ui:main")]),
+            None,
+        );
+    }
+    let mut text = String::from("🛡 ЖАЛОБЫ НА АНКЕТЫ\n\n");
+    let mut rows_markup = Vec::new();
+    for (id, reporter, target, category, created) in rows {
+        text.push_str(&format!(
+            "#{id} · {category} · анкета {target} · автор {reporter} · {}\n",
+            created.format("%d.%m %H:%M")
+        ));
+        rows_markup.push(vec![
+            button(
+                format!("#{id} рассмотрена"),
+                format!("dating:reportdone:{id}:reviewed"),
+            ),
+            button("Отклонить", format!("dating:reportdone:{id}:dismissed")),
+        ]);
+    }
+    rows_markup.push(nav("ui:main"));
+    (text, InlineKeyboardMarkup::new(rows_markup), None)
+}
+
+async fn start_flow(
+    db: &PgPool,
+    chat_id: i64,
+    actor: i64,
+    flow: &str,
+    message_id: MessageId,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO bot_user_flows(chat_id,telegram_id,flow,step,payload,expires_at) VALUES($1,$2,$3,'text',jsonb_build_object('message_id',$4),now()+interval '10 minutes') ON CONFLICT(chat_id,telegram_id) DO UPDATE SET flow=EXCLUDED.flow,step=EXCLUDED.step,payload=EXCLUDED.payload,expires_at=EXCLUDED.expires_at,updated_at=now()")
+        .bind(chat_id).bind(actor).bind(flow).bind(message_id.0).execute(db).await?;
+    Ok(())
+}
+
+async fn clear_flow(db: &PgPool, chat_id: i64, actor: i64) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow IN ('cabinet_name','dating_name','dating_bio')").bind(chat_id).bind(actor).execute(db).await?;
+    Ok(())
+}
+
+pub async fn handle_text_flow(
+    bot: &Bot,
+    db: &PgPool,
+    message: &Message,
+    actor: i64,
+    text: &str,
+) -> SocialResult<bool> {
+    if !message.chat.is_private() {
+        return Ok(false);
+    }
+    let flow=sqlx::query_as::<_,(String,serde_json::Value)>("SELECT flow,payload FROM bot_user_flows WHERE chat_id=$1 AND telegram_id=$2 AND flow IN ('cabinet_name','dating_name','dating_bio') AND expires_at>now()")
+        .bind(actor).bind(actor).fetch_optional(db).await?;
+    let Some((flow, payload)) = flow else {
+        return Ok(false);
+    };
+    let source_id = payload["message_id"].as_i64().unwrap_or_default();
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        clear_flow(db, actor, actor).await.ok();
+        let (screen, kb) = if flow == "cabinet_name" {
+            cabinet_screen(db, actor).await
+        } else {
+            dating_home(db, actor).await
+        };
+        if source_id > 0 {
+            let _ = bot
+                .edit_message_text(message.chat.id, MessageId(source_id as i32), screen)
+                .reply_markup(kb)
+                .await;
+        }
+        return Ok(true);
+    }
+    let value = text.trim();
+    let max = if flow == "dating_bio" { 280 } else { 48 };
+    if value.chars().count() < 2 || value.chars().count() > max || value.contains('\n') {
+        bot.send_message(
+            message.chat.id,
+            format!("Текст должен быть длиной 2–{max} символов. Повтори или нажми «Отмена»."),
+        )
+        .await?;
+        return Ok(true);
+    }
+    match flow.as_str() {
+        "cabinet_name" => {
+            sqlx::query("INSERT INTO bot_user_profiles(telegram_id,display_name) VALUES($1,$2) ON CONFLICT(telegram_id) DO UPDATE SET display_name=EXCLUDED.display_name,updated_at=now()").bind(actor).bind(value).execute(db).await?;
+        }
+        "dating_name" => {
+            sqlx::query("UPDATE bot_dating_profiles SET display_name=$2,updated_at=now() WHERE telegram_id=$1").bind(actor).bind(value).execute(db).await?;
+        }
+        "dating_bio" => {
+            sqlx::query(
+                "UPDATE bot_dating_profiles SET bio=$2,updated_at=now() WHERE telegram_id=$1",
+            )
+            .bind(actor)
+            .bind(value)
+            .execute(db)
+            .await?;
+        }
+        _ => return Ok(false),
+    }
+    clear_flow(db, actor, actor).await.ok();
+    let (screen, kb) = if flow == "cabinet_name" {
+        cabinet_screen(db, actor).await
+    } else {
+        dating_home(db, actor).await
+    };
+    if source_id > 0 {
+        let _ = bot
+            .edit_message_text(message.chat.id, MessageId(source_id as i32), screen)
+            .reply_markup(kb)
+            .await;
+    }
+    Ok(true)
+}
