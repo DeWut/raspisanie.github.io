@@ -29,6 +29,11 @@
     }
     .title b { display: block; font-size: 15px; }
     .title span { color: var(--muted); font-size: 12px; }
+    .map-style-toggle { position:absolute; z-index:8; top:calc(var(--safe-top) + 12px); right:12px; display:flex; align-items:center; gap:7px; min-height:42px; padding:8px 11px; border:1px solid rgba(255,255,255,.75); border-radius:13px; background:rgba(20,31,27,.9); color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.22); font:650 12px system-ui,sans-serif; cursor:pointer; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); touch-action:manipulation; }
+    .map-style-toggle svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .map-style-toggle:active { transform:scale(.96); }
+    .map-style-toggle:focus-visible { outline:3px solid #8ab7ff; outline-offset:2px; }
+    .map-attribution { position:absolute; z-index:4; right:8px; bottom:calc(var(--safe-bottom) + 5px); max-width:calc(100% - 16px); padding:3px 6px; border-radius:6px; background:rgba(255,255,255,.72); color:#26352d; font:9px/1.25 system-ui,sans-serif; pointer-events:none; text-align:right; }
     .tools {
       top: calc(var(--safe-top) + 66px); right: 10px;
       display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
@@ -189,12 +194,7 @@
       .title { top: calc(var(--safe-top) + 8px); left: 8px; max-width: calc(100% - 68px); padding: 7px 9px; }
       .title b { font-size: 13px; }
       .title span { display: block; max-width: 100%; font-size: 10px; line-height: 1.25; }
-      #btn-controls { top: calc(var(--safe-top) + 8px); right: 8px; min-width: 44px; min-height: 40px; font-size: 11px; }
-      .tools { top: calc(var(--safe-top) + 54px); right: 8px; width: min(230px, calc(100% - 16px)); gap: 5px; padding: 7px; }
-      .tools button { min-height: 40px; padding: 7px 6px; font-size: 11px; }
-      #infoBtn { left: 8px; bottom: calc(var(--safe-bottom) + 10px); }
-      #info { left: 8px; right: 8px; bottom: calc(var(--safe-bottom) + 56px); max-height: 42dvh; }
-      .stats { left: 54px; right: 8px; bottom: calc(var(--safe-bottom) + 20px); font-size: 10px; }
+      .map-style-toggle { top: calc(var(--safe-top) + 8px); right: 8px; min-height: 40px; }
       #floorplan { padding: max(6px, var(--safe-top)) 6px max(6px, var(--safe-bottom)); place-items: center; }
       .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 12px); padding: 12px; border-radius: 17px; }
       .floorplan-head { gap: 8px; margin-bottom: 11px; }
@@ -209,8 +209,6 @@
       .room-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); }
       .room-card { min-height: 56px; padding: 8px; }
       .floor-note { margin-top: 10px; font-size: 10px; }
-      .maplibregl-ctrl-top-right { top: calc(var(--safe-top) + 58px); right: 8px; }
-      .maplibregl-ctrl-group button { width: 36px; height: 36px; }
     }
     @media (max-height: 520px) {
       .title span { display: none; }
@@ -232,12 +230,10 @@
       <span>СПбГЛТУ · территория и корпуса</span>
     </div>
 
-    <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
-    <div class="hud tools" id="tools" hidden>
-      <button id="btn-mode" type="button">Спутник</button>
-      <button id="btn-orbit" type="button" aria-pressed="false">Автооблёт</button>
-      <button id="btn-home" type="button">Сброс</button>
-    </div>
+    <button class="hud map-style-toggle" id="btn-mode" type="button" aria-label="Переключить тип карты" title="Переключить на спутник">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+      <span id="map-mode-label">Схема</span>
+    </button>
 
     <div id="floorplan" hidden aria-hidden="true">
       <section class="floorplan-card" role="dialog" aria-modal="true" aria-labelledby="floorplan-title">
@@ -246,16 +242,8 @@
       </section>
     </div>
 
-    <button class="hud" id="infoBtn" type="button" aria-label="О карте">i</button>
-    <div class="hud" id="info" hidden>
-      <p><b>Карта.</b> Корпуса, дорожки, парки и водоёмы.</p>
-      <p><b>Корпуса.</b> Нажмите на маркер, чтобы открыть сведения о здании.</p>
-      <p><b>3D.</b> Включает объёмное отображение зданий.</p>
-      <p><b>Этажи.</b> Схемы доступны для корпусов, по которым есть планы.</p>
-      <p><b>Спутник.</b> Снимки Esri World Imagery.</p><p class="muted">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri/Maxar.</p>
-    </div>
-    <div class="stats" id="stats"></div>
 
+    <div class="map-attribution">© OpenStreetMap · © Overture Maps · Imagery © Esri / Maxar</div>
     <div class="status" id="status">Загрузка карты…</div>
   </div>
 
@@ -273,9 +261,9 @@
     })();
   </script>
   <script src="./vendor/maplibre-gl.js"></script>
-  <script src="./map3d-geometry.js?v=20261127-34"></script>
-  <script src="./floorplans.js?v=20261127-34"></script>
-  <script src="./floorplans-building1.js?v=20261127-34"></script>
-  <script src="./map3d.js?v=20261127-35"></script>
+  <script src="./map3d-geometry.js?v=20261127-36"></script>
+  <script src="./floorplans.js?v=20261127-36"></script>
+  <script src="./floorplans-building1.js?v=20261127-36"></script>
+  <script src="./map3d.js?v=20261127-36"></script>
 </body>
 </html>

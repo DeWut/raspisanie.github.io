@@ -142,8 +142,6 @@
     setStatus('3D-режим недоступен: ' + e.message, true);
     return;
   }
-  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '© OpenStreetMap contributors (ODbL) · © Overture Maps Foundation (ODbL)' }), 'bottom-right');
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
   // Recalculate the map viewport after its parent navigation dialog becomes visible.
   window.addEventListener('resize', function () {
@@ -168,10 +166,12 @@
 
   function updateModeButton() {
     var button = $('btn-mode');
+    var label = $('map-mode-label');
     if (button) {
-      button.textContent = mode === 'sat' ? 'Схема' : 'Спутник';
-      button.title = mode === 'sat' ? 'Переключить на векторную схему' : 'Переключить на спутниковую карту';
-      button.setAttribute('aria-pressed', mode === 'scheme' ? 'true' : 'false');
+      if (label) label.textContent = mode === 'sat' ? 'Спутник' : 'Схема';
+      button.title = mode === 'sat' ? 'Сейчас спутник. Нажмите, чтобы включить схему' : 'Сейчас схема. Нажмите, чтобы включить спутник';
+      button.setAttribute('aria-label', mode === 'sat' ? 'Переключить на схему' : 'Переключить на спутник');
+      button.setAttribute('aria-pressed', mode === 'sat' ? 'true' : 'false');
     }
   }
 
@@ -712,6 +712,10 @@
     panel.hidden = false;
     panel.setAttribute('aria-hidden', 'false');
     renderFloorPlan(building, floor, requestedRoom || '');
+    if (!window.CAMPUS_FLOORPLANS || !window.CAMPUS_FLOORPLANS[String(building.number)]) {
+      setStatus('Для этого корпуса пока нет графического плана этажей.', true);
+      setTimeout(function () { setStatus(''); }, 5000);
+    }
     if (!fromRoute) updateFloorRoute(building, floor, requestedRoom);
   }
 
@@ -761,8 +765,13 @@
     mine.getElement().querySelectorAll('[data-campus-fallback-photo]').forEach(function (image) {
       image.addEventListener('error', function () { var figure = image.closest('.campus-photo'); if (figure) figure.remove(); }, { once: true });
     });
-    var floorButton = mine.getElement().querySelector('[data-open-floorplan]');
-    if (floorButton) floorButton.addEventListener('click', function () { openFloorPlan(floorButton.getAttribute('data-open-floorplan')); });
+    mine.getElement().addEventListener('click', function (event) {
+      var floorButton = event.target.closest && event.target.closest('[data-open-floorplan]');
+      if (!floorButton) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openFloorPlan(floorButton.getAttribute('data-open-floorplan'));
+    });
     mine.on('close', function () {
       if (popup === mine) {
         popup = null;
@@ -824,32 +833,12 @@
   /* ---------- UI wiring ---------- */
 
   function wire() {
-    var controls = $('tools');
-    var controlsButton = $('btn-controls');
-    if (controlsButton && controls) {
-      controlsButton.addEventListener('click', function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        controls.hidden = !controls.hidden;
-        controlsButton.setAttribute('aria-expanded', controls.hidden ? 'false' : 'true');
-      });
-    }
-    if (controls) {
-      controls.addEventListener('click', function (event) {
-        var btn = event.target.closest('button');
-        if (!btn || !controls.contains(btn)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        switch (btn.id) {
-          case 'btn-mode': setMode(mode === 'sat' ? 'scheme' : 'sat'); break;
-          case 'btn-orbit': setOrbit(!orbiting); break;
-          case 'btn-home':
-            setOrbit(false);
-            map.flyTo({ center: HOME.center, zoom: HOME.zoom, pitch: mode === 'scheme' ? 58 : HOME.pitch, bearing: mode === 'scheme' ? 0 : HOME.bearing, duration: 1800 });
-            break;
-        }
-      });
-    }
+    var modeButton = $('btn-mode');
+    if (modeButton) modeButton.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      setMode(mode === 'sat' ? 'scheme' : 'sat');
+    });
     var floorClose = $('floorplan-close');
     if (floorClose) floorClose.addEventListener('click', closeFloorPlan);
     var floorContent = $('floorplan-content');
@@ -903,22 +892,13 @@
     });
     var floorPanel = $('floorplan');
     if (floorPanel) floorPanel.addEventListener('click', function (event) { if (event.target === floorPanel) closeFloorPlan(); });
-    var infoButton = $('infoBtn');
-    if (infoButton) infoButton.addEventListener('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      var box = $('info');
-      box.hidden = !box.hidden;
-    });
     setMode(DEFAULT_MAP_MODE);
     setBuildingMode(DEFAULT_BUILDINGS_3D);
     setOrbit(false);
   }
 
   function showStats(s) {
-    var el = $('stats');
-    if (!el) { return; }
-    el.textContent = 'Зданий на карте: ' + s.buildings;
+    return;
   }
 
   function whenStyleReady() {
