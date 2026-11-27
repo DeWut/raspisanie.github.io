@@ -74,6 +74,18 @@ test('height quality is classified from OSM data', () => {
   assert.strictEqual(out.stats.buildings, 4);
 });
 
+test('sub-square-metre mapped footprints are not silently omitted from the building count', () => {
+  const input = sampleScene();
+  input.features.push({
+    id: 'way/tiny',
+    properties: { kind: 'building', osmId: 'tiny', heightKnown: false },
+    geometry: { type: 'Polygon', coordinates: [rect(130, 0, 0.9, 0.7)] }
+  });
+  const out = G.buildScene(input, campus);
+  assert.strictEqual(out.stats.buildings, 5);
+  assert.ok(out.ground.some(f => f.properties.kind === 'building-footprint' && f.properties.pid === 'tiny'));
+});
+
 test('campus directory link is resolved by OSM id', () => {
   const out = G.buildScene(sampleScene(), campus);
   assert.strictEqual(out.index['2'].campus, '3');
@@ -234,14 +246,15 @@ test('named arboretum polygons generate clustered trees while respecting paths',
     }]
   };
   const out = G.buildScene(garden, null);
-  assert.strictEqual(out.stats.trees, 0, 'unnamed woodland polygons do not imply tree locations');
-  assert.strictEqual(out.stats.estimatedTrees, 0, 'only named arboretums receive explicitly estimated placements');
-  assert.strictEqual(out.trees.length, 0, 'do not invent tree points from generic vegetation polygons');
+  assert.ok(out.stats.estimatedTrees > 0, 'named arboretums receive clearly-labelled estimated placements');
+  assert.strictEqual(out.stats.mappedTrees, 0, 'these test placements are not surveyed OSM tree points');
+  assert.strictEqual(out.stats.trees, out.stats.estimatedTrees);
+  assert.ok(out.trees.length >= out.stats.estimatedTrees * 5, 'each estimated tree has a trunk and layered crown');
   const pathY = 0;
   for (const f of out.trees) {
     if (f.properties.z0 === 0) {   // trunks mark the planting point
       const c = centroidLL(f);
-      assert.ok(Math.abs(c[1] - pathY) >= 2.9, 'trees must not stand on the path');
+      assert.ok(Math.abs(c[1] - pathY) >= 3.5, 'estimated trees must not stand on the path');
     }
   }
   assert.deepStrictEqual(G.validateScene(out), []);
