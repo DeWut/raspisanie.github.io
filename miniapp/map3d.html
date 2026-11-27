@@ -74,7 +74,7 @@
     .stats { position: absolute; z-index: 5; left: 58px; bottom: calc(var(--safe-bottom) + 24px); right: 10px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); pointer-events: none; }
     .bpop .maplibregl-popup-content { background: var(--glass); color: var(--ink); border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(8px); }
     .bpop .maplibregl-popup-tip { display: none; }
-    .pop { max-height: 34vh; overflow: auto; font-size: 13px; }
+    .pop { max-height: min(58dvh, 520px); overflow: auto; font-size: 13px; overscroll-behavior: contain; }
     .pop h3 { margin: 0 20px 6px 0; font-size: 15px; }
     .pop p { margin: 0 0 6px; }
     .pop ul { margin: 6px 0 0; padding-left: 18px; }
@@ -100,6 +100,21 @@
     .campus-number-marker:focus-visible { outline: 3px solid #d8f27a; outline-offset: 3px; }
     .campus-photo-link { display: block; border-radius: 8px; overflow: hidden; }
     .campus-photo-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .commons-card { overflow: hidden; }
+    .commons-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 7px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+    .commons-item { flex: 0 0 min(72%, 220px); min-width: 0; overflow: hidden; border-radius: 9px; background: rgba(100,110,120,.12); scroll-snap-align: start; text-decoration: none; }
+    .commons-item img { display: block; width: 100%; height: 116px; object-fit: cover; }
+    .commons-caption { display: block; padding: 5px 7px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+    .commons-more { display: inline-block; margin-top: 7px; font-size: 11px; font-weight: 650; }
+    .building-history, .building-units { margin-top: 9px; }
+    .building-history b, .building-units > b { display: block; margin-bottom: 4px; font-size: 12px; }
+    .building-history p { margin: 0; line-height: 1.45; }
+    .campus-photo { margin: 0 0 7px; }
+    .campus-photo img { display: block; width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; }
+    .campus-photo figcaption { margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .building-units ul { margin: 5px 0 0; padding-left: 18px; }
+    .building-units li { margin: 0 0 4px; }
+
     @media (max-width: 600px) { .campus-number-marker { width: 34px; height: 34px; font-size: 14px; } }
     .floor-open { border: 0; border-radius: 8px; padding: 8px 11px; background: #2f6fb3; color: white; font: inherit; cursor: pointer; }
     #floorplan { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(10,18,25,.58); backdrop-filter: blur(5px); }
