@@ -230,6 +230,9 @@ pub async fn get_chat_settings(
         "context_retention_days": row.try_get::<i16,_>("context_retention_days")?,
         "homework_autocollect_enabled": row.try_get::<bool,_>("homework_autocollect_enabled")?,
         "homework_approver_role": row.try_get::<String,_>("homework_approver_role")?,
+        "homework_reminders_enabled": row.try_get::<bool,_>("homework_reminders_enabled")?,
+        "exam_reminders_enabled": row.try_get::<bool,_>("exam_reminders_enabled")?,
+        "event_reminders_enabled": row.try_get::<bool,_>("event_reminders_enabled")?,
         "schedule_changes_enabled": row.try_get::<bool,_>("schedule_changes_enabled")?,
         "memes_enabled": row.try_get::<bool,_>("memes_enabled")?,
         "timezone": row.try_get::<String,_>("timezone")?,
@@ -251,6 +254,9 @@ pub struct ChatSettingsPatch {
     pub consent_context: Option<bool>,
     pub homework_autocollect_enabled: Option<bool>,
     pub homework_approver_role: Option<String>,
+    pub homework_reminders_enabled: Option<bool>,
+    pub exam_reminders_enabled: Option<bool>,
+    pub event_reminders_enabled: Option<bool>,
     pub schedule_changes_enabled: Option<bool>,
     pub memes_enabled: Option<bool>,
     pub spam_filter_enabled: Option<bool>,
@@ -312,6 +318,9 @@ pub async fn update_chat_settings(
           settings=CASE WHEN $14::boolean IS NULL THEN settings
                         ELSE jsonb_set(COALESCE(settings,'{}'::jsonb),'{spam_filter_enabled}',to_jsonb($14::boolean),true) END,
           content_permissions=COALESCE(content_permissions,'{}'::jsonb) || COALESCE($15::jsonb,'{}'::jsonb),
+          homework_reminders_enabled=COALESCE($16,homework_reminders_enabled),
+          exam_reminders_enabled=COALESCE($17,exam_reminders_enabled),
+          event_reminders_enabled=COALESCE($18,event_reminders_enabled),
           timezone='Europe/Moscow',
           updated_at=now()
         WHERE chat_id=$1 AND is_active=TRUE
@@ -332,6 +341,9 @@ pub async fn update_chat_settings(
     .bind(body.memes_enabled)
     .bind(body.spam_filter_enabled)
     .bind(body.content_permissions)
+    .bind(body.homework_reminders_enabled)
+    .bind(body.exam_reminders_enabled)
+    .bind(body.event_reminders_enabled)
     .execute(&mut *tx)
     .await?;
 
