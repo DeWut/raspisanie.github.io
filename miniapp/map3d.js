@@ -338,7 +338,7 @@
     try {
       var url = new URL(sourceUrl);
       if (url.hostname !== 'commons.wikimedia.org') return '';
-      var match = url.pathname.match(/^\\/wiki\\/Category:(.+)$/);
+      var match = url.pathname.match(/^\/wiki\/Category:(.+)$/);
       return match ? decodeURIComponent(match[1]).replace(/_/g, ' ') : '';
     } catch (e) { return ''; }
   }
@@ -347,7 +347,7 @@
     if (!value) return '';
     var node = document.createElement('div');
     node.innerHTML = String(value);
-    return (node.textContent || '').replace(/\\s+/g, ' ').trim();
+    return (node.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
   function loadCommonsGallery(container, building) {
@@ -384,8 +384,8 @@
         var pages = data.query && data.query.pages ? Object.keys(data.query.pages).map(function (key) { return data.query.pages[key]; }) : [];
         var images = pages.map(function (page) {
           var info = page.imageinfo && page.imageinfo[0];
-          if (!info || !info.thumburl || !/^https:\\/\\//.test(info.thumburl)) return null;
-          if (!/\\.(jpe?g|png|webp)$/i.test(page.title || '')) return null;
+          if (!info || !info.thumburl || !/^https:\/\//.test(info.thumburl)) return null;
+          if (!/\.(jpe?g|png|webp)$/i.test(page.title || '')) return null;
           var meta = info.extmetadata || {};
           var author = wikiPlainText(meta.Artist && meta.Artist.value) || info.user || '';
           var license = wikiPlainText(meta.LicenseShortName && meta.LicenseShortName.value) || '';
@@ -469,7 +469,7 @@
       if (heritage.style) html += '<p><b>Стиль:</b> ' + esc(heritage.style) + '</p>';
       if (heritage.architects) html += '<p><b>Архитекторы:</b> ' + esc(heritage.architects) + '</p>';
 
-      if (heritage.heritageSourceUrl && /^https:\\/\\/commons\\.wikimedia\\.org\\//.test(heritage.heritageSourceUrl)) {
+      if (heritage.heritageSourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(heritage.heritageSourceUrl)) {
         html += '<section class="wiki-card commons-card"><b>Фотографии корпуса</b><div data-commons-gallery>';
         if (photo && photo.src) {
           var photoUrl = null;
@@ -482,7 +482,7 @@
         }
         html += '</div><a class="commons-more" href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Открыть Wikimedia Commons</a></section>';
       }
-      if (heritage.historySourceUrl && /^https?:\\/\\//.test(heritage.historySourceUrl)) {
+      if (heritage.historySourceUrl && /^https?:\/\//.test(heritage.historySourceUrl)) {
         html += '<p><a href="' + esc(heritage.historySourceUrl) + '" target="_blank" rel="noopener noreferrer">Подробнее об истории</a></p>';
       }
     }
@@ -498,7 +498,7 @@
     if (camp && camp.officialSource && /^https?:\\/\\//.test(camp.officialSource)) {
       html += '<p class="muted"><a href="' + esc(camp.officialSource) + '" target="_blank" rel="noopener noreferrer">На официальной карте университета</a></p>';
     }
-    if (p.src && /^https:\\/\\/www\\.openstreetmap\\.org\\//.test(p.src)) {
+    if (p.src && /^https:\/\/www\.openstreetmap\.org\//.test(p.src)) {
       html += '<p class="muted"><a href="' + esc(p.src) + '" target="_blank" rel="noopener">Объект на OpenStreetMap</a></p>';
     }
     return html + '</div>';
