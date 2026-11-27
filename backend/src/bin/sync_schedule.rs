@@ -52,7 +52,7 @@ async fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
         .await?;
     let eios = EiosSync::new("data/eios_cache", "1")?;
 
-    println!("Загружаю актуальное расписание ЕИОС в локальную PostgreSQL БД…");
+    println!("Загружаю актуальное расписание ЕИОС в подключённую PostgreSQL БД…");
     let report = schedule_sync::sync_all_groups_with_progress(&pool, &eios, |done, total| {
         println!("SYNC_PROGRESS={done}/{total}");
         let _ = std::io::stdout().flush();
