@@ -346,16 +346,19 @@
         // pilasters. These are decorative vertical strips, not guessed doors.
         var isHistoric = !!(camp && camp.heritage && /ампир|empire/i.test(String(camp.heritage.style || '')));
         if (isHistoric) {
+          var pilasterCount = 0;
           outer.forEach(function (a, edge) {
+            if (pilasterCount >= 32) return;
             var b = outer[(edge + 1) % outer.length];
             var dx = b[0] - a[0], dy = b[1] - a[1];
             var L = Math.sqrt(dx * dx + dy * dy);
-            if (L < 9) return;
+            if (L < 12) return;
             var ux = dx / L, uy = dy / L;
             var nx = (signedArea(outer) > 0 ? 1 : -1) * uy;
             var ny = (signedArea(outer) > 0 ? -1 : 1) * ux;
-            var count = Math.floor(L / 8);
-            for (var pi = 0; pi <= count; pi++) {
+            var count = Math.max(1, Math.floor(L / 12));
+            for (var pi = 0; pi < count && pilasterCount < 32; pi++) {
+              pilasterCount++;
               var t = Math.min(L - 1.2, Math.max(1.2, (pi + 0.5) * L / (count + 1)));
               var cx = a[0] + ux * t, cy = a[1] + uy * t;
               var half = 0.16, depth = 0.11;
