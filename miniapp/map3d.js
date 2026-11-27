@@ -325,8 +325,8 @@
       var markerButton = document.createElement('button');
       markerButton.type = 'button';
       markerButton.className = 'campus-number-marker';
-      markerButton.setAttribute('aria-label', 'Корпус ' + building.number + ': ' + (building.name || 'учебный корпус'));
-      markerButton.title = 'Корпус ' + building.number;
+      markerButton.setAttribute('aria-label', 'Открыть корпус ' + building.number + ': ' + (building.name || 'учебный корпус'));
+      markerButton.title = 'Корпус ' + building.number + ' · открыть сведения';
       var number = document.createElement('span');
       number.textContent = String(building.number);
       markerButton.appendChild(number);
@@ -335,13 +335,13 @@
         event.stopPropagation();
         setOrbit(false);
         var coordinate = [Number(building.longitude), Number(building.latitude)];
-        map.flyTo({ center: coordinate, zoom: 18.4, pitch: buildings3D ? 58 : 0, bearing: buildings3D ? map.getBearing() : 0, duration: 1100 });
-        var buildingPid = resolveBuildingPid(building);
-        if (buildingPid) setTimeout(function () { selectBuilding(buildingPid, coordinate); }, 1150);
+        map.flyTo({ center: coordinate, zoom: 18.4, pitch: buildings3D ? 58 : 0, bearing: buildings3D ? map.getBearing() : 0, duration: 900 });
+        window.setTimeout(function () { selectCampusBuilding(building, coordinate); }, 650);
       });
-      var marker = new maplibregl.Marker({ element: markerButton, anchor: 'center' })
+      var marker = new maplibregl.Marker({ element: markerButton, anchor: 'bottom' })
         .setLngLat([Number(building.longitude), Number(building.latitude)])
         .addTo(map);
+      marker.getElement().style.zIndex = '12';
       campusMarkers.push(marker);
     });
   }
@@ -374,9 +374,12 @@
       var photoUrl = null;
       try { photoUrl = new URL(photo.src, location.href).href; } catch (e) { photoUrl = null; }
       if (photoUrl && /^https?:/.test(photoUrl)) {
-        html += '<figure class="campus-photo"><img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async">';
+        var photoSource = photo.sourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(photo.sourceUrl) ? photo.sourceUrl : '';
+        html += '<figure class="campus-photo">';
+        if (photoSource) html += '<a class="campus-photo-link" href="' + esc(photoSource) + '" target="_blank" rel="noopener noreferrer" aria-label="Открыть фотографию в Wikimedia Commons">';
+        html += '<img src="' + esc(photoUrl) + '" alt="' + esc(photo.alt || title) + '" loading="lazy" decoding="async">';
+        if (photoSource) html += '</a>';
         html += '<figcaption>' + esc(photo.credit || 'Фото Wikimedia Commons');
-        if (photo.sourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(photo.sourceUrl)) html += ' · <a href="' + esc(photo.sourceUrl) + '" target="_blank" rel="noopener noreferrer">источник</a>';
         if (photo.licenseUrl && /^https:\/\/creativecommons\.org\//.test(photo.licenseUrl)) html += ' · <a href="' + esc(photo.licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(photo.license || 'лицензия') + '</a>';
         html += '</figcaption></figure>';
       }
@@ -384,6 +387,9 @@
     html += '<h3>' + esc(title) + '</h3>';
     if (camp && camp.description) { html += '<p>' + esc(camp.description) + '</p>'; }
     if (camp && camp.address) { html += '<p class="muted">' + esc(camp.address) + '</p>'; }
+    if (heritage && heritage.heritageSourceUrl && /^https:\/\/commons\.wikimedia\.org\//.test(heritage.heritageSourceUrl)) {
+      html += '<section class="wiki-card commons-card"><b>Wikimedia Commons</b><p>Фотографии и материалы об этом корпусе.</p><a href="' + esc(heritage.heritageSourceUrl) + '" target="_blank" rel="noopener noreferrer">Открыть материалы в Wikimedia Commons</a></section>';
+    }
     html += '<section class="wiki-card"><b>Справка Wikipedia</b><p data-wikipedia-summary>Загружаем краткую справку…</p><a data-wikipedia-link href="' + esc(WIKIPEDIA_PAGE) + '" target="_blank" rel="noopener noreferrer">Открыть статью в Wikipedia</a></section>';
     if (p.hq === 'known') { html += '<p><b>Высота:</b> ' + esc(p.hm) + ' м (' + esc(p.hs || p.ds || 'указана в источнике') + ')</p>'; }
     else if (p.hq === 'levels') { html += '<p><b>Высота:</b> около ' + esc(p.hm) + ' м (' + esc(p.hs || 'оценка по числу этажей источника') + ')</p>'; }
@@ -466,18 +472,41 @@
     if (panel) { panel.hidden = true; panel.setAttribute('aria-hidden', 'true'); }
   }
 
-  function selectBuilding(pid, lngLat) {
-    var info = scene && scene.index[pid];
-    if (!info) { return; }
+  function showBuildingPopup(info, lngLat) {
+    if (!info) return;
     if (popup) { var old = popup; popup = null; old.remove(); }
-    map.getSource('hl').setData({ type: 'FeatureCollection', features: scene.highlight[pid] || [] });
-    var mine = new maplibregl.Popup({ closeButton: true, maxWidth: '320px', className: 'bpop', focusAfterOpen: false })
+    var highlight = info.pid && scene && scene.highlight[info.pid] ? scene.highlight[info.pid] : [];
+    if (map.getSource('hl')) map.getSource('hl').setData({ type: 'FeatureCollection', features: highlight });
+    var mine = new maplibregl.Popup({ closeButton: true, maxWidth: '340px', className: 'bpop', focusAfterOpen: false })
       .setLngLat(lngLat).setHTML(popupHtml(info)).addTo(map);
     popup = mine;
     updateWikipediaBlock(mine.getElement());
     var floorButton = mine.getElement().querySelector('[data-open-floorplan]');
     if (floorButton) floorButton.addEventListener('click', function () { openFloorPlan(floorButton.getAttribute('data-open-floorplan')); });
-    mine.on('close', function () { if (popup === mine) { popup = null; map.getSource('hl').setData(EMPTY); } });
+    mine.on('close', function () {
+      if (popup === mine) {
+        popup = null;
+        if (map.getSource('hl')) map.getSource('hl').setData(EMPTY);
+      }
+    });
+  }
+
+  function selectBuilding(pid, lngLat) {
+    var info = scene && scene.index[pid];
+    if (info) showBuildingPopup(info, lngLat);
+  }
+
+  function selectCampusBuilding(building, lngLat) {
+    if (!building) return;
+    var pid = resolveBuildingPid(building);
+    var info = pid && scene && scene.index[pid] ? scene.index[pid] : {
+      pid: pid || '',
+      campus: String(building.number),
+      name: building.name || ('Корпус № ' + building.number),
+      hq: 'unknown'
+    };
+    info.campus = String(building.number);
+    showBuildingPopup(info, lngLat);
   }
 
   map.on('click', function (e) {
@@ -558,25 +587,6 @@
     setOrbit(false);
   }
 
-  function buildChips() {
-    var host = $('chips');
-    var list = ((campusData && campusData.buildings) || []).slice().sort(function (a, b) { return parseInt(a.number, 10) - parseInt(b.number, 10); });
-    host.innerHTML = '';
-    list.forEach(function (b) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'chip';
-      btn.textContent = 'Корпус ' + b.number;
-      btn.addEventListener('click', function () {
-        setOrbit(false);
-        map.flyTo({ center: [b.longitude, b.latitude], zoom: 18.4, pitch: mode === 'scheme' && !buildings3D ? 0 : 64, bearing: mode === 'scheme' ? 0 : map.getBearing(), duration: 1600 });
-        var buildingPid = resolveBuildingPid(b);
-        if (buildingPid) setTimeout(function () { selectBuilding(buildingPid, [b.longitude, b.latitude]); }, 1700);
-      });
-      host.appendChild(btn);
-    });
-  }
-
   function showStats(s) {
     var el = $('stats');
     if (!el) { return; }
@@ -609,7 +619,6 @@
     scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
     syncSceneData();
     buildCampusMarkers();
-    buildChips();
     showStats(scene.stats);
     setStatus('');
     if (campusData && campusData.map && campusData.map.center) { HOME.center = campusData.map.center; }
