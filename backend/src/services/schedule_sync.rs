@@ -248,10 +248,10 @@ where
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
-    let status = if failed == 0 {
-        "success"
-    } else if successful == 0 {
+    let status = if total == 0 || successful == 0 {
         "failed"
+    } else if failed == 0 {
+        "success"
     } else {
         "partial"
     };
@@ -270,13 +270,14 @@ where
         SET
             status = $1,
             details = $2,
-            last_synced_at = now(),
+            last_synced_at = CASE WHEN $3 THEN now() ELSE last_synced_at END,
             updated_at = now()
         WHERE source = 'eios_schedule'
         "#,
     )
     .bind(status)
     .bind(details)
+    .bind(successful > 0)
     .execute(pool)
     .await
     .map_err(|error| error.to_string())?;
@@ -289,6 +290,14 @@ where
     );
 
     on_progress(total, total);
+
+    if successful == 0 {
+        return Err(if total == 0 {
+            "В PostgreSQL нет активных групп для синхронизации".to_owned()
+        } else {
+            format!("Не удалось синхронизировать ни одной группы из {total}; прежние данные и дата последней успешной синхронизации сохранены")
+        });
+    }
 
     Ok(SyncReport {
         groups_total: successful + failed,
