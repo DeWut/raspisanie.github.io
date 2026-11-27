@@ -114,7 +114,7 @@
     .floor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 13px; font-weight: 700; }
     .floor-toolbar > div { display: flex; gap: 5px; }
     .floor-toolbar button { min-width: 38px; padding: 6px 10px; }
-    .floorplan-viewport { width: 100%; max-height: min(64dvh, 680px); min-height: 180px; overflow: auto; border: 1px solid #aeb5ba; border-radius: 8px; background: #fff; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+    .floorplan-viewport { width: 100%; height: min(64dvh, 680px); min-height: 180px; overflow: auto; border: 1px solid #aeb5ba; border-radius: 8px; background: #fff; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
     .floorplan-drawing { width: 100%; min-width: 0; transition: width .15s ease; }
     .floorplan-svg { display: block; width: 100%; height: auto; background: #fff; }
     /* SPDS/GOST-inspired monochrome drafting hierarchy for a readable campus directory. */
@@ -168,7 +168,7 @@
       #info { left: 8px; right: 8px; bottom: calc(var(--safe-bottom) + 56px); max-height: 42dvh; }
       .stats { left: 54px; right: 8px; bottom: calc(var(--safe-bottom) + 20px); font-size: 10px; }
       .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 16px); padding: 10px; }
-      .floorplan-viewport { max-height: 56dvh; min-height: 160px; }
+      .floorplan-viewport { height: 56dvh; min-height: 160px; }
       .floorplan-drawing { min-width: 0; }
       .floor-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; gap: 5px; }
       .floor-tab { min-width: 0; padding: 8px 3px; font-size: 12px; text-align: center; }
