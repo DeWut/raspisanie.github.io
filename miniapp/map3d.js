@@ -495,7 +495,7 @@
       html += '</ul></section>';
     }
     if (camp && camp.units && camp.units.length) html += '<p><button type="button" class="floor-open" data-open-floorplan="' + esc(camp.number) + '">Планы этажей и кабинеты</button></p>';
-    if (camp && camp.officialSource && /^https?:\\/\\//.test(camp.officialSource)) {
+    if (camp && camp.officialSource && /^https?:\/\//.test(camp.officialSource)) {
       html += '<p class="muted"><a href="' + esc(camp.officialSource) + '" target="_blank" rel="noopener noreferrer">На официальной карте университета</a></p>';
     }
     if (p.src && /^https:\/\/www\.openstreetmap\.org\//.test(p.src)) {
