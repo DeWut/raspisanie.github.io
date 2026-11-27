@@ -466,7 +466,7 @@
     $('.hero-card').classList.toggle('summary-only', !today);
     $('#hero-footer-text').textContent = !navigator.onLine ? 'Оффлайн · сохранённое расписание' : (state.schedule?.updated ? `Обновлено ${state.schedule.updated}` : 'Расписание загружено');
     $('#week-label').textContent = `${isOddWeek(state.selectedDate) ? 'нечётная' : 'чётная'} неделя`;
-    $('#welcome-date').textContent = today ? 'ТВОЙ УЧЕБНЫЙ ДЕНЬ' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' }).toUpperCase();
+    $('#welcome-date').textContent = today ? 'СЕГОДНЯ' : formatDate(state.selectedDate, { day: 'numeric', month: 'long' }).toUpperCase();
     $('#schedule-heading').textContent = formatDate(state.selectedDate, { day: 'numeric', month: 'long' });
     $('#today-button').textContent = 'Сегодня';
     $('#today-button').hidden = !today;
@@ -623,7 +623,7 @@
       else throw new Error('no-groups');
     } catch {
       $('#hero-title').textContent = 'Расписание пока недоступно';
-      $('#hero-subtitle').textContent = 'Проверь подключение и обнови экран';
+      $('#hero-subtitle').textContent = 'Проверьте подключение к интернету.';
       $('#hero-footer-text').textContent = 'Не удалось подключиться к источнику расписания';
       $('#schedule-list').innerHTML = '<div class="empty-card"><span class="empty-illustration">↻</span><strong>Не удалось загрузить расписание</strong><p>Проверьте подключение и повторите попытку.</p><button class="text-button" id="retry-load" type="button">Повторить загрузку</button></div>';
       $('#retry-load')?.addEventListener('click', () => loadData());
