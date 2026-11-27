@@ -146,6 +146,10 @@
               <label class="control-field"><span>Кто подтверждает найденные задания</span>
                 <select id="chat-setting-approver"><option value="class_leader">Староста</option><option value="moderator">Модератор</option><option value="admin">Администратор Telegram</option></select>
               </label>
+              <label class="control-field"><span>Кто может добавлять и изменять ДЗ</span><select id="chat-setting-permission-homework"><option value="everyone">Все участники</option><option value="admins">Только администраторы и модераторы</option><option value="selected">Выбранные редакторы</option></select></label>
+              <label class="control-field"><span>Кто может управлять экзаменами</span><select id="chat-setting-permission-exams"><option value="everyone">Все участники</option><option value="admins">Только администраторы и модераторы</option><option value="selected">Выбранные редакторы</option></select></label>
+              <label class="control-field"><span>Кто может управлять мероприятиями</span><select id="chat-setting-permission-events"><option value="everyone">Все участники</option><option value="admins">Только администраторы и модераторы</option><option value="selected">Выбранные редакторы</option></select></label>
+              <p class="control-hint">Режим «Выбранные редакторы» использует список редакторов раздела, который можно менять командой /content_editor.</p>
               <label class="settings-toggle-row"><span><strong>Фильтр повторяющегося спама</strong><small>Создаёт сигнал после повторов; автоматически сообщения не удаляет</small></span><input id="chat-setting-spam" type="checkbox" /></label>
               <label class="settings-toggle-row"><span><strong>Мемы и развлекательные ответы</strong><small>Разрешить необязательные ответы бота</small></span><input id="chat-setting-memes" type="checkbox" /></label>
 
