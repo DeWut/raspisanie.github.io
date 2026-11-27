@@ -231,6 +231,381 @@
       $('#settings-save-status').textContent = 'Расписание сохранено локально, но группа не привязалась к аккаунту Neon.';
     }
   }
+  function switchControlPane(name) {
+    document.querySelectorAll('[data-control-tab]').forEach((button) => {
+      button.classList.toggle('active', button.dataset.controlTab === name);
+      button.setAttribute('aria-selected', String(button.dataset.controlTab === name));
+    });
+    document.querySelectorAll('[data-control-pane]').forEach((pane) => {
+      pane.classList.toggle('hidden', pane.dataset.controlPane !== name);
+    });
+    if (name === 'groups') void loadManagedChats();
+    if (name === 'diagnostics') void loadNotificationHealth();
+  }
+
+  function selectedManagedChatId() {
+    return String($('#managed-chat-select')?.value || state.control.selectedChatId || '');
+  }
+
+  async function loadManagedChats() {
+    const select = $('#managed-chat-select');
+    const commandSelect = $('#command-chat-select');
+    const empty = $('#managed-chat-empty');
+    const editor = $('#managed-chat-editor');
+    if (!select || !commandSelect) return;
+    if (!hasTelegramAccountApi()) {
+      select.disabled = true;
+      commandSelect.disabled = true;
+      select.replaceChildren(new Option('Backend не подключён', ''));
+      commandSelect.replaceChildren(new Option('Backend не подключён', ''));
+      empty.hidden = false;
+      editor.hidden = true;
+      return;
+    }
+    try {
+      const data = await accountApi('/api/me/chats');
+      state.control.managedChats = Array.isArray(data.chats) ? data.chats : [];
+      select.replaceChildren();
+      commandSelect.replaceChildren(new Option('Выбери групповой чат', ''));
+      state.control.managedChats.forEach((chat) => {
+        const label = (chat.title || 'Учебный чат') + ' · ' + chat.group_name;
+        select.add(new Option(label, String(chat.chat_id)));
+        commandSelect.add(new Option(label, String(chat.chat_id)));
+      });
+      select.disabled = state.control.managedChats.length === 0;
+      commandSelect.disabled = state.control.managedChats.length === 0;
+      empty.hidden = state.control.managedChats.length > 0;
+      editor.hidden = state.control.managedChats.length === 0;
+      if (!state.control.managedChats.length) {
+        select.add(new Option('Нет доступных чатов', ''));
+        state.control.selectedChatId = '';
+        return;
+      }
+      const previous = state.control.selectedChatId;
+      const selected = state.control.managedChats.find((chat) => String(chat.chat_id) === previous) || state.control.managedChats[0];
+      state.control.selectedChatId = String(selected.chat_id);
+      select.value = state.control.selectedChatId;
+      commandSelect.value = state.control.selectedChatId;
+      await loadManagedChatGroups();
+      await loadManagedChatSettings();
+    } catch (error) {
+      console.warn('Could not load manageable group chats:', error);
+      select.disabled = true;
+      commandSelect.disabled = true;
+      select.replaceChildren(new Option('Не удалось загрузить список чатов', ''));
+      empty.hidden = false;
+      empty.textContent = error.status === 403
+        ? 'У Telegram-аккаунта нет прав администратора в доступных чатах.'
+        : 'Не удалось получить список чатов. Проверь подключение к backend.';
+      editor.hidden = true;
+    }
+  }
+
+  async function loadManagedChatGroups() {
+    if (!hasTelegramAccountApi()) return;
+    const select = $('#managed-chat-group');
+    if (!select) return;
+    try {
+      const groups = await accountApi('/api/groups');
+      state.control.managedGroups = Array.isArray(groups) ? groups : [];
+      select.replaceChildren();
+      state.control.managedGroups.forEach((group) => select.add(new Option(group.name, group.external_id)));
+    } catch (error) {
+      console.warn('Could not load groups for chat administration:', error);
+      select.replaceChildren(new Option('Не удалось загрузить группы', ''));
+    }
+  }
+
+  async function loadManagedChatSettings() {
+    const chatId = selectedManagedChatId();
+    if (!chatId || !hasTelegramAccountApi()) return;
+    const status = $('#managed-chat-status');
+    status.textContent = 'Загружаем настройки из Neon…';
+    try {
+      const settings = await accountApi('/api/me/chats/' + encodeURIComponent(chatId) + '/settings');
+      const setValue = (selector, value) => {
+        const element = $(selector);
+        if (element && value !== undefined && value !== null) element.value = String(value);
+      };
+      const setChecked = (selector, value) => {
+        const element = $(selector);
+        if (element) element.checked = value === true;
+      };
+      setChecked('#chat-setting-daily-schedule', settings.daily_schedule_enabled);
+      setValue('#chat-setting-schedule-time', settings.daily_schedule_time || '07:00');
+      setChecked('#chat-setting-digest', settings.daily_digest_enabled);
+      setValue('#chat-setting-digest-time', settings.daily_digest_time || '07:00');
+      setChecked('#chat-setting-lesson-notifications', settings.lesson_notifications_enabled);
+      setChecked('#chat-setting-changes', settings.schedule_changes_enabled);
+      setChecked('#chat-setting-autodz', settings.homework_autocollect_enabled);
+      setValue('#chat-setting-approver', settings.homework_approver_role || 'class_leader');
+      setChecked('#chat-setting-spam', settings.spam_filter_enabled);
+      setChecked('#chat-setting-memes', settings.memes_enabled);
+      setChecked('#chat-setting-assistant', settings.assistant_enabled);
+      setChecked('#chat-setting-context', settings.context_enabled);
+      setValue('#chat-setting-retention', settings.context_retention_days || 7);
+      $('#chat-setting-consent').checked = false;
+      if (settings.external_id) $('#managed-chat-group').value = settings.external_id;
+      status.textContent = 'Настройки чата «' + settings.group_name + '» загружены. Часовой пояс: Москва.';
+    } catch (error) {
+      status.textContent = error.status === 403
+        ? 'Telegram больше не подтверждает права администратора этого чата.'
+        : 'Не удалось загрузить настройки чата.';
+      console.warn('Could not load group chat settings:', error);
+    }
+  }
+
+  async function saveManagedChatSettings() {
+    const chatId = selectedManagedChatId();
+    const status = $('#managed-chat-status');
+    if (!chatId || !hasTelegramAccountApi()) {
+      status.textContent = 'Сначала подключи backend и выбери групповой чат.';
+      return;
+    }
+    const contextEnabled = $('#chat-setting-context').checked;
+    if (contextEnabled && !$('#chat-setting-consent').checked) {
+      status.textContent = 'Для включения контекста подтверди согласие администратора и уведомление участников.';
+      return;
+    }
+    const button = $('#managed-chat-settings-save');
+    button.disabled = true;
+    status.textContent = 'Сохраняем в Neon…';
+    const payload = {
+      daily_schedule_enabled: $('#chat-setting-daily-schedule').checked,
+      daily_schedule_time: $('#chat-setting-schedule-time').value || '07:00',
+      daily_digest_enabled: $('#chat-setting-digest').checked,
+      daily_digest_time: $('#chat-setting-digest-time').value || '07:00',
+      lesson_notifications_enabled: $('#chat-setting-lesson-notifications').checked,
+      schedule_changes_enabled: $('#chat-setting-changes').checked,
+      homework_autocollect_enabled: $('#chat-setting-autodz').checked,
+      homework_approver_role: $('#chat-setting-approver').value,
+      spam_filter_enabled: $('#chat-setting-spam').checked,
+      memes_enabled: $('#chat-setting-memes').checked,
+      assistant_enabled: $('#chat-setting-assistant').checked,
+      context_enabled: contextEnabled,
+      context_retention_days: Number($('#chat-setting-retention').value || 7),
+      consent_context: contextEnabled && $('#chat-setting-consent').checked,
+    };
+    try {
+      await accountApi('/api/me/chats/' + encodeURIComponent(chatId) + '/settings', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      status.textContent = 'Настройки чата сохранены. Бот применяет их из Neon.';
+      $('#chat-setting-consent').checked = false;
+      showToast('Настройки чата сохранены');
+    } catch (error) {
+      status.textContent = error.status === 403
+        ? 'Нет прав администратора для изменения этого чата.'
+        : error.status === 400
+          ? 'Проверь время, срок хранения и подтверждение согласия.'
+          : 'Не удалось сохранить настройки. Изменения не применены.';
+      console.error('Could not save group chat settings:', error);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function saveManagedChatGroup() {
+    const chatId = selectedManagedChatId();
+    const externalId = $('#managed-chat-group').value;
+    const status = $('#managed-chat-status');
+    if (!chatId || !externalId) return;
+    try {
+      const result = await accountApi('/api/me/chats/' + encodeURIComponent(chatId) + '/group', {
+        method: 'POST',
+        body: JSON.stringify({ external_id: externalId }),
+      });
+      status.textContent = 'Группа чата изменена: ' + result.group_name + '.';
+      await loadManagedChats();
+    } catch (error) {
+      status.textContent = error.status === 403
+        ? 'Изменять учебную группу чата может только администратор.'
+        : 'Не удалось изменить группу чата.';
+    }
+  }
+
+  const commandHints = {
+    '/add_dz': 'Предмет | описание задания | срок (например: Математика | решить № 1–5 | завтра)',
+    '/edit_dz': 'ID | новый предмет | новое описание | новый срок',
+    '/delete_dz': 'ID задания',
+    '/done': 'ID задания',
+    '/priority_dz': 'ID urgent или ID normal',
+    '/add_exam': 'Предмет | ДД.ММ.ГГГГ ЧЧ:ММ | аудитория | формат | темы | литература | описание',
+    '/edit_exam': 'ID | поле | новое значение',
+    '/exam_info': 'ID | темы | формат | литература | описание',
+    '/delete_exam': 'ID экзамена',
+    '/add_event': 'Название | дата и время | место | описание',
+    '/edit_event': 'ID | поле | новое значение',
+    '/cancel_event': 'ID мероприятия',
+    '/join_event': 'ID мероприятия',
+    '/leave_event': 'ID мероприятия',
+    '/event_maybe': 'ID мероприятия',
+    '/event_no': 'ID мероприятия',
+    '/event_attendees': 'ID мероприятия',
+    '/add_resource': 'Название | https://ссылка | предмет (необязательно)',
+    '/lost': 'Название | подробности',
+    '/found': 'Название | подробности',
+    '/subject_alias': 'Предмет | сокращение',
+    '/autodz_approver': 'class_leader, moderator или admin',
+    '/content_rights': 'homework|exams|events everyone|admins|selected',
+    '/content_editor': 'homework|exams|events add|remove @username',
+    '/report_resolve': 'ID жалобы',
+    '/search': 'Слова для поиска',
+  };
+
+  function updateGroupCommandHint() {
+    const command = $('#group-command-name')?.value || '';
+    const hint = commandHints[command] || 'Для просмотра списка оставь параметры пустыми. Для действий укажи ID или текст, как в подсказке команды.';
+    $('#group-command-hint').textContent = hint;
+    $('#group-command-argument').placeholder = hint;
+  }
+
+  async function runGroupCommand(event) {
+    event?.preventDefault();
+    const chatId = $('#command-chat-select').value || selectedManagedChatId();
+    const command = $('#group-command-name').value;
+    const argument = $('#group-command-argument').value.trim();
+    const output = $('#group-command-result');
+    const button = $('#group-command-run');
+    if (!chatId) {
+      output.textContent = 'Сначала выбери групповой чат, где у тебя есть права участника.';
+      return;
+    }
+    button.disabled = true;
+    output.textContent = 'Выполняем действие и проверяем права…';
+    try {
+      const result = await accountApi('/api/me/chats/' + encodeURIComponent(chatId) + '/command', {
+        method: 'POST',
+        body: JSON.stringify({ command, argument }),
+      });
+      output.textContent = result.response || 'Операция завершена.';
+    } catch (error) {
+      output.textContent = error.status === 403
+        ? 'Нет доступа к этому чату. Проверь, что ты состоишь в группе и у тебя есть нужная роль.'
+        : error.status === 400
+          ? 'Команда или параметры не поддерживаются в Mini App. Операции, требующие ответа на сообщение или вложения, выполняются в Telegram-чате.'
+          : 'Не удалось выполнить действие. Проверь подключение и повтори попытку.';
+      console.warn('Mini App group command failed:', error);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function appendAssistantMessage(text, role) {
+    const box = $('#assistant-messages');
+    const item = document.createElement('div');
+    item.className = 'assistant-message ' + (role === 'user' ? 'assistant-message-user' : 'assistant-message-bot');
+    item.textContent = text;
+    box.append(item);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function askAssistant(prompt) {
+    const text = String(prompt || '').trim();
+    if (!text || !hasTelegramAccountApi()) {
+      $('#assistant-status').textContent = 'Для помощника нужен открытый из Telegram Mini App и настроенный backend.';
+      return;
+    }
+    const send = $('#assistant-send');
+    const input = $('#assistant-input');
+    send.disabled = true;
+    appendAssistantMessage(text, 'user');
+    input.value = '';
+    $('#assistant-status').textContent = 'Ищу ответ в учебных данных…';
+    try {
+      const result = await accountApi('/api/me/assistant', {
+        method: 'POST',
+        body: JSON.stringify({ message: text }),
+      });
+      appendAssistantMessage(result.reply || 'Не удалось сформировать ответ.', 'assistant');
+      $('#assistant-status').textContent = result.engine === 'local_rules'
+        ? 'Локальный учебный помощник · без внешних AI API.'
+        : 'Ответ получен.';
+    } catch (error) {
+      appendAssistantMessage(
+        error.status === 409
+          ? 'Сначала выбери свою учебную группу в личных настройках.'
+          : 'Backend не смог обработать запрос. Попробуй переформулировать вопрос.',
+        'assistant',
+      );
+      $('#assistant-status').textContent = 'Запрос не выполнен.';
+    } finally {
+      send.disabled = false;
+      input.focus();
+    }
+  }
+
+  function renderNotificationHealth(data) {
+    const worker = data.worker || {};
+    const status = $('#notification-worker-status');
+    status.dataset.state = worker.healthy ? 'ok' : 'error';
+    const tick = worker.last_tick_at ? new Date(worker.last_tick_at).toLocaleString('ru-RU') : 'ещё не запускался';
+    const success = worker.last_success_at ? new Date(worker.last_success_at).toLocaleString('ru-RU') : 'отправок пока не зафиксировано';
+    status.textContent = 'Фоновый цикл: ' + (worker.healthy ? 'работает' : 'нет свежего heartbeat')
+      + '\nПоследняя проверка: ' + tick
+      + '\nПоследняя успешная доставка: ' + success
+      + (worker.last_error ? '\nПоследняя ошибка: ' + worker.last_error : '');
+    const list = $('#notification-deliveries');
+    list.replaceChildren();
+    const deliveries = Array.isArray(data.deliveries) ? data.deliveries : [];
+    if (!deliveries.length) {
+      list.textContent = 'Зафиксированных отправок пока нет. Нажми «Отправить тестовое уведомление мне», чтобы проверить канал Telegram.';
+      return;
+    }
+    deliveries.forEach((delivery) => {
+      const item = document.createElement('div');
+      item.className = 'notification-delivery-item';
+      item.dataset.status = delivery.status || '';
+      const title = document.createElement('strong');
+      title.textContent = (delivery.status === 'sent' ? '✓ ' : '⚠ ') + delivery.kind;
+      const detail = document.createElement('small');
+      const date = delivery.created_at ? new Date(delivery.created_at).toLocaleString('ru-RU') : '';
+      detail.textContent = date + (delivery.detail ? ' · ' + delivery.detail : '');
+      item.append(title, detail);
+      list.append(item);
+    });
+  }
+
+  async function loadNotificationHealth() {
+    const status = $('#notification-worker-status');
+    if (!hasTelegramAccountApi()) {
+      status.textContent = 'Backend не настроен или Mini App открыт не из Telegram.';
+      status.dataset.state = 'error';
+      return;
+    }
+    status.textContent = 'Загружаем журнал уведомлений…';
+    try {
+      renderNotificationHealth(await accountApi('/api/me/notification-health'));
+    } catch (error) {
+      status.textContent = 'Не удалось получить состояние уведомлений.';
+      status.dataset.state = 'error';
+    }
+  }
+
+  async function sendNotificationTest() {
+    const button = $('#notification-test');
+    const status = $('#notification-test-status');
+    if (!hasTelegramAccountApi()) {
+      status.textContent = 'Backend не подключён.';
+      return;
+    }
+    button.disabled = true;
+    status.textContent = 'Отправляем тест в твой личный Telegram…';
+    try {
+      const result = await accountApi('/api/me/notification-test', { method: 'POST' });
+      status.textContent = result.message || 'Тест отправлен.';
+      await loadNotificationHealth();
+    } catch (error) {
+      status.textContent = error.status === 401
+        ? 'Telegram не подтвердил аккаунт. Открой Mini App заново из бота.'
+        : 'Тест не доставлен. Убедись, что ты уже нажимал /start у бота, и проверь backend logs.';
+      await loadNotificationHealth();
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function presenceSessionId() {
     const key = 'spbftuit-presence-session';
     let id = safeStorageGet(key);
