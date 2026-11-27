@@ -20,7 +20,7 @@
   const isWeekPage = document.body.dataset.page === 'week';
   const requestedDate = pageParams.get('date');
   const parsedRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? new Date(requestedDate + 'T12:00:00Z') : null;
-  const state = { groups: [], schedule: null, scheduleMeta: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null, currentView: isWeekPage ? 'schedule' : 'home', account: null };
+  const state = { groups: [], schedule: null, scheduleMeta: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null, currentView: isWeekPage ? 'schedule' : 'home', account: null, control: { managedChats: [], managedGroups: [], selectedChatId: '' } };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
@@ -116,78 +116,94 @@
     const status = $('#settings-save-status');
     const note = $('#home-account-note');
     const saveButton = $('#settings-save');
-    const controls = ['#settings-reminders', '#settings-digest', '#settings-changes'];
+    const controls = ['#settings-reminders', '#settings-digest', '#settings-changes', '#settings-reminder-minutes', '#settings-digest-time'];
     const online = hasTelegramAccountApi();
     controls.forEach((selector) => { const el = $(selector); if (el) el.disabled = !online; });
     saveButton.disabled = !online;
     if (!online) {
       const message = !tg?.initData
         ? 'Открой Mini App через Telegram, чтобы настройки привязались к аккаунту.'
-        : 'Адрес backend не настроен. Расписание работает, синхронизация настроек с Neon пока отключена.';
+        : 'Адрес backend не настроен. Расписание работает, но настройки, команды и уведомления пока недоступны.';
       status.textContent = message;
       note.textContent = message;
+      const apiNote = $('#control-api-note');
+      if (apiNote) { apiNote.textContent = message; apiNote.dataset.state = 'error'; }
       return;
     }
     try {
       const profile = await accountApi('/api/me');
       state.account = profile;
-      $('#settings-link-group').hidden = Boolean(profile.group_id || !state.schedule?.id);
-      const settings = profile.settings || {};
+      const preferences = await accountApi('/api/me/preferences');
+      const settings = preferences.settings || {};
       $('#settings-reminders').checked = settings.reminders_enabled === true;
+      $('#settings-reminder-minutes').value = String(settings.reminder_minutes || 10);
       $('#settings-digest').checked = settings.daily_digest_enabled === true;
+      $('#settings-digest-time').value = settings.daily_digest_time || '07:00';
       $('#settings-changes').checked = settings.schedule_changes_enabled === true;
-      if (profile.group_id) {
+      $('#settings-link-group').hidden = Boolean(preferences.group_id || !state.schedule?.id);
+      if (preferences.group_name) $('#settings-group-name').textContent = preferences.group_name;
+      else updateSettingsGroupLabel();
+
+      if (preferences.group_id) {
         try {
-          const linkedGroup = await accountApi('/api/groups/' + encodeURIComponent(profile.group_id));
+          const linkedGroup = await accountApi('/api/groups/' + encodeURIComponent(preferences.group_id));
           const localGroup = state.groups.find((item) => String(item.id) === String(linkedGroup.external_id));
           if (localGroup && String(state.schedule?.id) !== String(localGroup.id)) {
             await selectGroup(localGroup.id, { persist: false, announce: false });
           }
-          $('#settings-group-name').textContent = linkedGroup.name || localGroup?.name || 'Не выбрана';
+          $('#settings-group-name').textContent = linkedGroup.name || localGroup?.name || preferences.group_name || 'Не выбрана';
         } catch {
-          $('#settings-group-name').textContent = state.schedule?.name || 'Не выбрана';
+          $('#settings-group-name').textContent = preferences.group_name || state.schedule?.name || 'Не выбрана';
         }
       } else {
-        updateSettingsGroupLabel();
         $('#settings-link-group').hidden = !state.schedule?.id;
-        if (state.schedule?.id) status.textContent = 'На этом устройстве выбрана группа. Нажми «Привязать к аккаунту», чтобы сохранить её отдельно для своего Telegram.';
       }
-      status.textContent = profile.group_id
-        ? 'Аккаунт Telegram связан. Изменения будут сохранены в Neon.'
-        : (state.schedule?.id ? 'Выбранную на этом устройстве группу можно отдельно привязать к Telegram-аккаунту.' : 'Сначала выбери учебную группу.');
 
-      note.textContent = 'Настройки аккаунта загружены из Neon.';
+      status.textContent = preferences.group_id
+        ? 'Telegram подтверждён. Настройки читаются и записываются в Neon.'
+        : (state.schedule?.id ? 'Выбранную на устройстве группу можно привязать к Telegram-аккаунту.' : 'Сначала выбери учебную группу.');
+      note.textContent = 'Аккаунт Telegram подключён к Neon.';
+      const apiNote = $('#control-api-note');
+      if (apiNote) {
+        apiNote.textContent = 'Backend доступен. Настройки и действия будут сохраняться в Neon и использоваться Telegram-ботом.';
+        apiNote.dataset.state = 'ok';
+      }
+      await loadManagedChats();
     } catch (error) {
       console.warn('Could not load Telegram account settings:', error);
-      status.textContent = error.status === 401
+      const message = error.status === 401
         ? 'Telegram не подтвердил сессию. Закрой Mini App и открой его заново из бота.'
         : 'Не удалось загрузить настройки из Neon. Проверь доступность backend.';
-      note.textContent = status.textContent;
+      status.textContent = message;
+      note.textContent = message;
+      const apiNote = $('#control-api-note');
+      if (apiNote) { apiNote.textContent = message; apiNote.dataset.state = 'error'; }
     }
   }
+
   async function saveMiniAppSettings() {
     const status = $('#settings-save-status');
     if (!hasTelegramAccountApi() || !state.account) {
       status.textContent = 'Нет связи с Telegram-аккаунтом и Neon. Настройки не были сохранены.';
       return;
     }
-    const settings = {
-      ...(state.account.settings || {}),
+    const payload = {
       reminders_enabled: $('#settings-reminders').checked,
+      reminder_minutes: Number($('#settings-reminder-minutes').value || 10),
       daily_digest_enabled: $('#settings-digest').checked,
-      daily_digest_time: '07:00',
+      daily_digest_time: $('#settings-digest-time').value || '07:00',
       schedule_changes_enabled: $('#settings-changes').checked,
     };
     const saveButton = $('#settings-save');
     saveButton.disabled = true;
     status.textContent = 'Сохраняем в Neon…';
     try {
-      const updated = await accountApi('/api/me', {
-        method: 'PUT',
-        body: JSON.stringify({ settings }),
+      const updated = await accountApi('/api/me/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
       });
-      state.account.settings = updated.settings || settings;
-      status.textContent = 'Настройки сохранены в Neon для твоего Telegram-аккаунта.';
+      state.account.settings = { ...(state.account.settings || {}), ...(updated.settings || payload) };
+      status.textContent = 'Личные настройки сохранены. Бот использует эти же параметры.';
       showToast('Настройки сохранены');
     } catch (error) {
       console.error('Could not save Telegram account settings:', error);
@@ -198,6 +214,7 @@
       saveButton.disabled = !hasTelegramAccountApi();
     }
   }
+
   async function saveSelectedGroupToAccount(externalId) {
     if (!hasTelegramAccountApi()) return;
     try {
