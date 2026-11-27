@@ -152,6 +152,10 @@ fn ui_keyboard(
             vec![ui_button("🔔 Изменения расписания", "ui:changes:toggle")],
             vec![ui_button("🏠 В меню", "ui:main")],
         ],
+        "homework" => vec![vec![
+            ui_button("⬅️ Назад", "ui:main"),
+            ui_button("🏠 В меню", "ui:main"),
+        ]],
         "deadlines" => vec![vec![
             ui_button("⬅️ Назад", "ui:main"),
             ui_button("🏠 В меню", "ui:main"),
@@ -464,6 +468,7 @@ async fn handle_ui_callback(
             .unwrap_or_default()
         }
         "ui:homework" => {
+            screen = "homework";
             if chat_id < 0 {
                 text = crate::services::group_content::handle_homework(
                     &state.db, chat_id, actor, "/dz", "",
@@ -471,8 +476,13 @@ async fn handle_ui_callback(
                 .await
                 .unwrap_or_else(|| "Домашние задания доступны в учебной группе.".into());
             } else {
-                screen = "deadlines";
-                text = "Задания группы открываются в учебном чате. Здесь можно посмотреть личные дедлайны отдельной кнопкой.".into();
+                text = match selected_group(&state.db, actor, chat_id).await {
+                    Some(group_id) => crate::services::group_content::homework_for_group(
+                        &state.db, group_id, actor,
+                    )
+                    .await,
+                    None => "Сначала выбери учебную группу: /group название. После этого здесь появятся задания, опубликованные в привязанном учебном чате.".into(),
+                };
             }
         }
         "ui:deadlines" => {
@@ -1401,7 +1411,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         "⏭ Следующая пара" => "/next",
         "📚 Задания" => "/homework",
         "🔔 Напоминания" => "/reminders",
-        "⚙️ Настройки" => "/settings",
+        "⚙️ Настройки" => if message.chat.id.0 < 0 { "/chat_settings" } else { "/settings" },
         "👤 Кабинет" => "/profile",
         "💚 Знакомства" => "/dating",
         "🏠 Меню" => "/menu",
@@ -3216,32 +3226,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
 
             if let Some(group_id) = group_id {
                 if argument.is_empty() {
-                    let tasks = sqlx::query_as::<_, (String, Option<DateTime<Utc>>)>(
-                        r#"
-                        SELECT title, due_at
-                        FROM group_tasks
-                        WHERE group_id = $1
-                        ORDER BY due_at NULLS LAST, created_at DESC
-                        LIMIT 15
-                        "#,
-                    )
-                    .bind(group_id)
-                    .fetch_all(db)
-                    .await
-                    .unwrap_or_default();
-
-                    if tasks.is_empty() {
-                        "📚 Пока нет добавленных заданий.".into()
-                    } else {
-                        let mut output = String::from("📚 *ЗАДАНИЯ ГРУППЫ*\n\n");
-                        for (title, due_at) in tasks {
-                            let due = due_at
-                                .map(|date| moscow_time(date, "%d.%m %H:%M"))
-                                .unwrap_or_else(|| "срок не указан".into());
-                            output.push_str(&format!("• {}\n  Срок: {}\n\n", title, due));
-                        }
-                        output
-                    }
+                    crate::services::group_content::homework_for_group(db, group_id, telegram_id).await
                 } else if is_group_chat {
                     "Добавлять задания через общий чат пока нельзя. Используй личный чат с ботом."
                         .into()
