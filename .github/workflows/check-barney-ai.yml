@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Check Python syntax
-        run: python -m py_compile scripts/barney_ai/prepare_dataset.py scripts/barney_ai/train_lfm3_lora.py
+        run: python -m py_compile scripts/barney_ai/prepare_dataset.py scripts/barney_ai/train_lfm3_lora.py scripts/barney_ai/teacher_mode.py
       - name: Build curated dataset
         run: |
           python scripts/barney_ai/prepare_dataset.py --output /tmp/barney_sft.jsonl
