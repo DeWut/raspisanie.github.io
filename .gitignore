@@ -30,3 +30,10 @@ installers/
 # Python bytecode and local caches
 __pycache__/
 *.py[cod]
+
+
+# BARNEY-NANO local datasets, training checkpoints, merged weights and releases
+/data/barney_nano/
+/training/
+.logs/
+logs/
