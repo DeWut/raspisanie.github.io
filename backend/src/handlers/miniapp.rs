@@ -631,6 +631,12 @@ pub async fn assistant_chat(
             };
             ("schedule", crate::bot::schedule_text(&state.db, group, "/week").await)
         }
+        Some(crate::services::conversation::Intent::Weekday(date)) => {
+            let Some(group) = group_id else {
+                return Ok(Json(json!({"kind":"schedule","reply":"Сначала выбери учебную группу в настройках Mini App."})));
+            };
+            ("schedule", crate::bot::schedule_text(&state.db, group, &format!("/date:{date}")).await)
+        }
         Some(crate::services::conversation::Intent::NextLesson) => {
             let Some(group) = group_id else {
                 return Ok(Json(json!({"kind":"schedule","reply":"Сначала выбери учебную группу в настройках Mini App."})));
