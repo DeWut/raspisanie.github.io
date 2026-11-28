@@ -1305,8 +1305,8 @@ async fn maybe_answer_bot_reply(
             "DELETE FROM bot_chat_context_messages WHERE chat_id=$1 AND id IN (SELECT id FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC OFFSET 100)"
         ).bind(chat_id).execute(&mut *tx).await?;
         let rows = sqlx::query_as::<_, (String,String)>(
-            "SELECT sender_role,content FROM bot_chat_context_messages WHERE chat_id=$1 ORDER BY created_at DESC,id DESC LIMIT 10"
-        ).bind(chat_id).fetch_all(&mut *tx).await?;
+            "SELECT sender_role,content FROM bot_chat_context_messages WHERE chat_id=$1 AND message_id<>$2 ORDER BY created_at DESC,id DESC LIMIT 10"
+        ).bind(chat_id).bind(message.id.0).fetch_all(&mut *tx).await?;
         tx.commit().await?;
         rows
     } else {
