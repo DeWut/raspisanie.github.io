@@ -52,12 +52,22 @@
     const candidates = [...new Set([localUrl, ...DATA_FALLBACKS.map((root) => new URL(path, root).href)])];
     let lastError;
     for (const url of candidates) {
+      let timeoutId;
       try {
-        const response = await fetch(url, { cache: 'no-cache' });
+        // A stalled CDN request must not keep the timetable on its loading
+        // screen forever. Abort each source after 7 seconds and try the next
+        // mirror; the cached copy is still the final fallback.
+        const controller = new AbortController();
+        timeoutId = window.setTimeout(() => controller.abort(), 7000);
+        const response = await fetch(url, { cache: 'no-cache', signal: controller.signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         await cacheDataResponse(localUrl, response);
         return response;
-      } catch (error) { lastError = error; }
+      } catch (error) {
+        lastError = error;
+      } finally {
+        if (timeoutId) window.clearTimeout(timeoutId);
+      }
     }
     const cached = await readCachedData(localUrl);
     if (cached) return cached;
@@ -2650,7 +2660,9 @@ async function addCampusParkLayers(map) {
     updateNotificationButton();
     updatePresence();
     window.setInterval(updatePresence, 45_000);
-    await loadTeacherDirectory();
+    // Teacher profiles are optional and must never block the timetable.
+    // Load them in the background while the group list and schedule render.
+    void loadTeacherDirectory();
     await loadData();
     if (hasTelegramAccountApi()) {
       await loadMiniAppAccount();
