@@ -120,7 +120,7 @@ echo This can take a while. Do not close this window.
 echo.
 set /p "CONFIRM=Start training now? [Y/N] "
 if /I not "%CONFIRM%"=="Y" goto MENU
-"%PY%" "%TRAIN%" --dataset "%DATA%" --epochs 2 --batch-size 1 --grad-accum 16 --max-length 512 --lora-rank 8
+"%PY%" "%TRAIN%" --dataset "%DATA%" --epochs 2 --batch-size 1 --grad-accum 16 --max-length 512 --lora-rank 8 --merge
 if errorlevel 1 (
   echo.
   echo [ERROR] Training failed. If CUDA out-of-memory, reduce max-length to 256
@@ -152,11 +152,14 @@ if not exist "%ROOT%\training\barney-lfm3-lora-merged\config.json" (
   goto MENU
 )
 if not exist "%LLAMA%\convert_hf_to_gguf.py" (
-  echo llama.cpp not found in tools\llama.cpp
-  echo Clone it with: git clone https://github.com/ggml-org/llama.cpp tools/llama.cpp
-  pause
-  goto MENU
+  echo Downloading llama.cpp converter...
+  where git >nul 2>nul || (echo Git is required. Install Git for Windows first.& pause & goto MENU)
+  git clone https://github.com/ggml-org/llama.cpp "%LLAMA%"
+  if errorlevel 1 (echo [ERROR] Could not download llama.cpp.& pause & goto MENU)
 )
+call "%VENV%\Scripts\activate.bat"
+pip install -r "%LLAMA%\requirements\requirements-convert_hf_to_gguf.txt"
+if errorlevel 1 (echo [ERROR] Could not install GGUF conversion dependencies.& pause & goto MENU)
 if not exist "%ROOT%\training" mkdir "%ROOT%\training"
 echo Converting merged checkpoint to GGUF...
 "%PY%" "%LLAMA%\convert_hf_to_gguf.py" "%ROOT%\training\barney-lfm3-lora-merged" --outfile "%ROOT%\training\barney-lfm3.gguf" --outtype q8_0
