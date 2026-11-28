@@ -1394,11 +1394,17 @@ async fn maybe_answer_bot_reply(
         }
         None => {
             let excerpt: String = previous_bot_text.chars().take(180).collect();
-            Some(if excerpt.is_empty() {
-                "Я проверил ответ, на который ты ответил, но не распознал тему нового вопроса. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и аудиториями — уточни, что именно нужно.".into()
+            let fallback = if excerpt.is_empty() {
+                "Я не распознал тему вопроса. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и аудиториями — уточни, что именно нужно.".to_owned()
             } else {
                 format!("Продолжаем тему сообщения «{excerpt}». Уточни, какую информацию нужно найти — я умею искать расписание, ДЗ, дедлайны, преподавателей и аудитории.")
-            })
+            };
+            let llm_history = history.iter().rev().take(8).map(|(role, content)| {
+                let role = if role == "bot" { "assistant" } else { "user" };
+                (role.to_owned(), content.clone())
+            }).collect::<Vec<_>>();
+            Some(crate::services::ollama::chat(&state.config, &user_text, &llm_history)
+                .await.unwrap_or(fallback))
         }
     };
 
