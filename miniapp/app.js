@@ -350,8 +350,10 @@
     } catch (error) {
       console.error('Could not save Telegram account settings:', error);
       status.textContent = error.status === 401
-        ? 'Telegram не подтвердил сессию. Открой Mini App заново.'
-        : 'Не удалось сохранить настройки. Проверь подключение к backend.';
+        ? 'Сессия Telegram истекла. Открой Mini App заново.'
+        : error.status
+          ? 'Сервер отклонил сохранение (HTTP ' + error.status + ').'
+          : 'Браузер не смог отправить запрос. Проверь соединение.';
     } finally {
       saveButton.disabled = !hasTelegramAccountApi();
     }
