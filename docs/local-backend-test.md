@@ -6,14 +6,14 @@
 
 - Установлены Rust toolchain, Cargo, доступ к Neon PostgreSQL и Ollama.
 - В backend/.env настроены существующие секреты проекта. Не коммить этот файл и не отправляй его содержимое в чат.
-- Ollama запущен, модель скачана командой ollama pull qwen3:8b.
+- Ollama запущен, модель скачана командой ollama pull lfm3.
 - Для локального backend используй следующие дополнительные переменные:
 
 ```dotenv
 PORT=8080
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_API_KEY=local-development-only
-OLLAMA_MODEL=qwen3:8b
+OLLAMA_MODEL=lfm3
 CORS_ALLOWED_ORIGINS=https://dewut.github.io
 DEV_BYPASS_AUTH=false
 ```
