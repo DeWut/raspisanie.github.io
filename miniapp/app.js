@@ -150,17 +150,22 @@
     if (name === 'schedule' && !state.schedule && state.groups.length) openGroupDialog();
   }
   function updateSettingsGroupLabel() {
-    const group = state.schedule?.name || state.groups.find((item) => String(item.id) === safeStorageGet(GROUP_KEY))?.name;
-    $('#settings-group-name').textContent = group || 'Не выбрана';
+    const select = $('#personal-group-select');
+    if (!select) return;
+    const groupId = state.schedule?.id || safeStorageGet(GROUP_KEY) || '';
+    if (groupId && [...select.options].some((option) => option.value === String(groupId))) {
+      select.value = String(groupId);
+    }
   }
   async function loadMiniAppAccount() {
     const status = $('#settings-save-status');
     const note = $('#home-account-note');
     const saveButton = $('#settings-save');
-    const controls = ['#settings-reminders', '#settings-digest', '#settings-changes', '#settings-reminder-minutes', '#settings-digest-time'];
+    const controls = ['#settings-reminders', '#settings-digest', '#settings-changes', '#settings-reminder-minutes', '#settings-digest-time', '#personal-group-select'];
     const online = hasTelegramAccountApi();
     controls.forEach((selector) => { const el = $(selector); if (el) el.disabled = !online; });
     saveButton.disabled = !online;
+    if ($('#personal-group-save')) $('#personal-group-save').disabled = !online;
     if (!online) {
       const message = !tg?.initData
         ? 'Открой Mini App через Telegram, чтобы настройки привязались к аккаунту.'
@@ -182,23 +187,13 @@
       $('#settings-digest').checked = settings.daily_digest_enabled === true;
       $('#settings-digest-time').value = settings.daily_digest_time || '07:00';
       $('#settings-changes').checked = settings.schedule_changes_enabled === true;
-      populatePersonalGroupSelect(preferences.group_external_id || state.schedule?.id || '');
-      if (preferences.group_name) $('#settings-group-name').textContent = preferences.group_name;
-      else updateSettingsGroupLabel();
-
-      if (preferences.group_id) {
-        try {
-          const linkedGroup = await accountApi('/api/groups/' + encodeURIComponent(preferences.group_id));
-          const localGroup = state.groups.find((item) => String(item.id) === String(linkedGroup.external_id));
-          if (localGroup && String(state.schedule?.id) !== String(localGroup.id)) {
-            await selectGroup(localGroup.id, { persist: false, announce: false });
-          }
-          $('#settings-group-name').textContent = linkedGroup.name || localGroup?.name || preferences.group_name || 'Не выбрана';
-        } catch {
-          $('#settings-group-name').textContent = preferences.group_name || state.schedule?.name || 'Не выбрана';
+      const linkedExternalId = preferences.group_external_id || '';
+      populatePersonalGroupSelect(linkedExternalId || state.schedule?.id || '');
+      if (linkedExternalId) {
+        const linkedGroup = state.groups.find((item) => String(item.id) === String(linkedExternalId));
+        if (linkedGroup && String(state.schedule?.id) !== String(linkedGroup.id)) {
+          await selectGroup(linkedGroup.id, { persist: false, announce: false });
         }
-      } else {
-        populatePersonalGroupSelect(state.schedule?.id || '');
       }
 
       status.textContent = preferences.group_id
@@ -306,7 +301,7 @@
       if (group && String(state.schedule?.id) !== externalId) {
         await selectGroup(group.id, { persist: false, announce: false });
       }
-      $('#settings-group-name').textContent = result.group_name || group?.name || 'Выбрана';
+      populatePersonalGroupSelect(externalId);
       status.textContent = 'Группа привязана к Telegram-аккаунту.';
       showToast('Учебная группа сохранена');
     } catch (error) {
@@ -361,7 +356,6 @@
         body: JSON.stringify({ external_id: String(externalId) }),
       });
       if (state.account) state.account.group_id = result.group_id;
-      $('#settings-link-group').hidden = true;
       $('#settings-group-name').textContent = result.group_name || state.schedule?.name || 'Выбрана';
       showToast('Группа привязана к Telegram-аккаунту в Neon');
     } catch (error) {
