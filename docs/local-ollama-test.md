@@ -22,7 +22,7 @@ python .\scripts\ollama_proxy.py
 
 Команда выведет случайный секрет в переменную текущего окна PowerShell. Сохрани его в менеджере паролей; не отправляй в чат и не коммить в GitHub. Окно proxy должно оставаться открытым. Ollama Desktop обычно запускает локальный сервер автоматически; если нет, запусти `ollama serve` в отдельном окне.
 
-5. В другом PowerShell окне запусти Funnel:
+6. В другом PowerShell окне запусти Funnel:
 
 ```powershell
 tailscale funnel --bg 11435
