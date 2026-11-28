@@ -2336,7 +2336,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                             _ => "/next".to_owned(),
                         };
                         Some(match selected_group(db, telegram_id, message.chat.id.0).await {
-                            Some(group_id) => schedule_text(db, group_id, command).await,
+                            Some(group_id) => schedule_text(db, group_id, &command).await,
                             None => "Сначала выбери учебную группу кнопкой «Кабинет» или командой /group название. После этого я смогу отвечать по твоему расписанию.".into(),
                         })
                     }
