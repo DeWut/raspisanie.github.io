@@ -1,0 +1,28 @@
+name: BARNEY-NANO code checks
+
+on:
+  push:
+    branches:
+      - feature/smart-campus-step-1
+    paths:
+      - "scripts/barney_nano/**"
+      - "docs/barney-nano.md"
+      - ".github/workflows/barney-nano-check.yml"
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python scripts
+        run: python -m compileall -q scripts/barney_nano
+      - name: Validate training dependencies file
+        run: test -s scripts/barney_nano/requirements.txt
+      - name: Validate Windows launcher and guide
+        run: |
+          test -s scripts/barney_nano/BARNEY_NANO.bat
+          test -s docs/barney-nano.md
