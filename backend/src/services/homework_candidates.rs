@@ -84,8 +84,16 @@ const HOMEWORK_WORDS: &[&str] = &[
 ];
 
 fn has_homework_intent(text: &str) -> bool {
-    let lower = text.to_lowercase();
-    HOMEWORK_WORDS.iter().any(|word| lower.contains(word))
+    let lower = text.to_lowercase().replace('ё', "е");
+    // Questions and requests to display existing homework must never enter
+    // the auto-collection queue as if they were a newly assigned task.
+    let is_lookup = [
+        "список дз", "список д/з", "список заданий", "покажи дз", "покажи д/з",
+        "покажи задания", "какие дз", "какое дз", "какие задания", "какое задание",
+        "что задали", "что задано", "что у нас по дз", "напиши список",
+        "выведи список", "мои задания", "мое дз", "моё дз", "домашние задания группы",
+    ].iter().any(|phrase| lower.contains(phrase));
+    !is_lookup && HOMEWORK_WORDS.iter().any(|word| lower.contains(word))
 }
 
 fn subject_tokens(text: &str) -> Vec<String> {
@@ -561,6 +569,10 @@ mod tests {
             .with_timezone(&Utc);
         assert!(has_homework_intent("По физике задали решить задачи 1-5"));
         assert!(!has_homework_intent("Привет, увидимся после пары"));
+        assert!(!has_homework_intent("Напиши список дз"));
+        assert!(!has_homework_intent("Покажи домашние задания"));
+        assert!(!has_homework_intent("Что задали по математике?"));
+        assert!(has_homework_intent("ДЗ по математике решить примеры"));
         assert_eq!(
             parse_due("Сдать до 12.12", now)
                 .unwrap()
