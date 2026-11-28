@@ -824,12 +824,12 @@
   }
 
   map.on('click', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['campus-model', 'bld', 'campus-bld-2d', 'bld-footprint'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['campus-model'] });
     if (!hits.length) { clearSelection(); return; }
     selectBuilding(String(hits[0].properties.pid), e.lngLat);
   });
   map.on('mousemove', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['campus-model', 'bld', 'campus-bld-2d', 'bld-footprint'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['campus-model'] });
     map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
   });
 
@@ -976,7 +976,7 @@
     }
     setTimeout(function () {
       var drawn = 0;
-      try { drawn = map.queryRenderedFeatures({ layers: ['bld', 'bld-footprint', 'campus-bld-2d'] }).length; } catch (e) { drawn = -1; }
+      try { drawn = map.queryRenderedFeatures({ layers: ['campus-model'] }).length; } catch (e) { drawn = -1; }
       if (drawn === 0 && scene.stats.buildings) {
         setStatus('Здания не отрисовались. Если страница открыта как файл (content:// или file://), браузер может блокировать Web Worker. Откройте её с сайта проекта.');
         setTimeout(function () { setStatus(''); }, 15000);
