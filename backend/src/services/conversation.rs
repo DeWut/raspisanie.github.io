@@ -19,6 +19,7 @@ pub enum Intent {
     Features,
     GroupLookup(String),
     ScheduleChanges,
+    HomeworkManagement,
 }
 
 fn normalize(text: &str) -> String {
@@ -97,6 +98,9 @@ pub fn detect(text: &str) -> Option<Intent> {
     }
     if has_any(&text, &["настройк", "параметр аккаунта", "уведомления включ", "личный кабинет", "центр управления", "что можно изменить"]) {
         return Some(Intent::Settings);
+    }
+    if has_any(&text, &["система домашних заданий", "как работает дз", "как работает домашнее задание", "добавлять задания", "редактировать задания", "удалять задания", "управлять дз", "управление дз"]) {
+        return Some(Intent::HomeworkManagement);
     }
     if has_any(&text, &["знакомств", "возможности mini app", "функции mini app", "какие функции", "что умеешь", "что можешь", "список возможностей"]) {
         return Some(Intent::Features);
