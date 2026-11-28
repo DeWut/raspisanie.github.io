@@ -54,8 +54,34 @@ Render environment:
 
 Скрипт сохраняет LoRA adapter. Не предполагай, что Ollama сможет загрузить любой adapter напрямую: поддержка зависит от архитектуры и формата. Для LFM3 проверь актуальную инструкцию Liquid AI и llama.cpp. Надёжный общий путь — объединить adapter с исходным HF checkpoint (опция `--merge`), затем конвертировать merged checkpoint в поддерживаемый LFM3 GGUF и импортировать GGUF через Modelfile. После этого меняется только `OLLAMA_MODEL` на локальное имя созданной модели.
 
+Пример экспорта объединённой модели в GGUF (после установки актуального llama.cpp и его Python-зависимостей):
+
+```powershell
+python .\llama.cpp\convert_hf_to_gguf.py .\training\barney-lfm3-lora-merged --outfile .\training\barney-lfm3.gguf --outtype q8_0
+```
+
+Создай рядом файл `Modelfile`:
+
+```text
+FROM ./barney-lfm3.gguf
+PARAMETER temperature 0.35
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.1
+SYSTEM Ты Барни — спокойный и доброжелательный учебный помощник СПбГЛТУ. Отвечай по-русски, кратко и по существу. Не выдумывай учебные данные.
+```
+
+Импортируй и проверь:
+
+```powershell
+ollama create barney-lfm3 -f .\training\Modelfile
+ollama run barney-lfm3
+```
+
+Если тест прошёл, укажи `OLLAMA_MODEL=barney-lfm3` в Render. Оставь исходную `lfm3` модель до тех пор, пока новая не проверена. Для GGUF используй сборку llama.cpp с поддержкой LFM3; опубликованные GGUF LFM3 подтверждают поддержку этой архитектуры, но конвертацию именно твоего merged checkpoint нужно проверить отдельно.
+
 Официальные источники:
 - https://huggingface.co/LiquidAI/LFM3-1.7B
 - https://docs.liquid.ai/lfm/fine-tuning/trl
 - https://github.com/Liquid4All/cookbook
+- https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF
 - https://ollama.com/docs/import
