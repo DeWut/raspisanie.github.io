@@ -1327,8 +1327,12 @@ async fn maybe_answer_bot_reply(
                 let topic = previous_bot_text.to_lowercase();
                 if topic.contains("расписан") || topic.contains("пара") {
                     intent = Some(crate::services::conversation::Intent::Tomorrow);
-                } else if topic.contains("домаш") || topic.contains("задан") {
-                    intent = Some(crate::services::conversation::Intent::Homework);
+                } else if topic.contains("домаш") || topic.contains("задан") || topic.contains("дз") {
+                    intent = Some(
+                        crate::services::conversation::homework_subject(&lower)
+                            .map(crate::services::conversation::Intent::HomeworkFor)
+                            .unwrap_or(crate::services::conversation::Intent::Homework)
+                    );
                 } else if topic.contains("дедлайн") || topic.contains("срок") {
                     intent = Some(crate::services::conversation::Intent::Deadlines);
                 }
@@ -1368,6 +1372,13 @@ async fn maybe_answer_bot_reply(
         Some(crate::services::conversation::Intent::Homework) => {
             if let Some(group) = group_id {
                 Some(crate::services::group_content::homework_for_group(db, group, actor).await)
+            } else {
+                Some("Сначала администратор должен привязать учебную группу к этому чату командой /setgroup.".into())
+            }
+        }
+        Some(crate::services::conversation::Intent::HomeworkFor(subject)) => {
+            if let Some(group) = group_id {
+                Some(crate::services::group_content::homework_for_group_subject(db, group, actor, &subject).await)
             } else {
                 Some("Сначала администратор должен привязать учебную группу к этому чату командой /setgroup.".into())
             }
