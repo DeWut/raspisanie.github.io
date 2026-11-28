@@ -393,8 +393,8 @@
     features.forEach(function (f) {
       var k = f && f.properties && f.properties.kind;
       if (!k || !f.geometry) return;
-      if (GROUND[k]) { out.ground.push(normalizeGroundFeature(f)); }
-      else if (k === 'building') { buildings.push(f); }
+      if (GROUND[k]) { if (!opts.campusOnly) out.ground.push(normalizeGroundFeature(f)); }
+      else if (k === 'building' && (!opts.campusOnly || f.properties.campusNumber)) { buildings.push(f); }
     });
 
     function polygonsOf(geom) {
@@ -438,7 +438,7 @@
         campus: props.campusNumber || (camp ? String(camp.number) : ''), hs: props.heightSource || '', ds: props.dataSource || ''
       };
       function part(rings, z0, z1, col) {
-        if (!rings) return;
+        if (!rings || opts.campusOnly) return;
         var p = {}; for (var key in base) { p[key] = base[key]; }
         p.col = col; p.z0 = z0; p.z1 = z1;
         add(out.solid, rings, p);
@@ -457,7 +457,7 @@
         var hasHoles = rings.length > 1;
         // A full, flat copy of every valid mapped building footprint is kept
         // separately from the 3D mesh. This powers a clean 2D scheme mode.
-        add(out.footprints, rings, {
+        if (!opts.campusOnly) add(out.footprints, rings, {
           kind: 'campus-building', pid: pid, name: base.name, campus: base.campus,
           col: wall, sourceUrl: base.src, heightQuality: hi.q
         });
