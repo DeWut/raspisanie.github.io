@@ -20,6 +20,8 @@ def main():
     parser.add_argument("--merge", action="store_true", help="Also save a merged HF checkpoint for GGUF conversion")
     args = parser.parse_args()
 
+    if not torch.cuda.is_available():
+        raise SystemExit("LoRA training requires a CUDA GPU in this starter script. Use a GPU notebook/runtime; Ollama inference alone does not train weights.")
     raw = load_dataset("json", data_files=args.dataset, split="train")
     if len(raw) < 30:
         raise SystemExit(f"Only {len(raw)} examples. Add and review more examples before training.")
