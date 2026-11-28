@@ -33,6 +33,7 @@ __pycache__/
 
 
 # BARNEY-NANO local datasets, training checkpoints, merged weights and releases
+/.venv-barney-nano/
 /data/barney_nano/
 /training/
 .logs/
