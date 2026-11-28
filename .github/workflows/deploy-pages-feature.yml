@@ -33,8 +33,11 @@ jobs:
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
+          name: feature-pages-${{ github.run_id }}-${{ github.run_attempt }}
           path: .
 
       - name: Deploy site
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: feature-pages-${{ github.run_id }}-${{ github.run_attempt }}
