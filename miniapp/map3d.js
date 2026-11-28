@@ -67,8 +67,7 @@
   var buildings3D = true;
   var DEFAULT_MAP_MODE = 'sat';
   var DEFAULT_BUILDINGS_3D = true;
-  var satelliteCamera = null;
-  var styleRequest = 0;
+  var schemeLayerIds = [];
   var SCHEME_STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
   var ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   var EMPTY = { type: 'FeatureCollection', features: [] };
@@ -134,7 +133,7 @@
   var map;
   try {
     map = new maplibregl.Map({
-      container: 'map', style: buildStyle(),
+      container: 'map', style: SCHEME_STYLE_URL,
       center: HOME.center, zoom: HOME.zoom, pitch: HOME.pitch, bearing: HOME.bearing,
       minZoom: 14, maxZoom: 20.5, maxPitch: 80,
       maxBounds: [[30.318, 59.982], [30.362, 60.004]],
@@ -150,21 +149,28 @@
     if (map) map.resize();
   });
 
-  // 3D is permanent. Use mapped height geometry where available; retain flat
-  // footprints only for buildings without reliable height data.
+  // The basemap style is loaded exactly once. Campus geometry is installed as
+  // independent sources and survives every basemap toggle.
+  function installCampusLayers() {
+    schemeLayerIds = map.getStyle().layers.map(function (layer) { return layer.id; });
+    map.addSource('esri', { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 19,
+      attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' });
+    map.addLayer({ id: 'sat', type: 'raster', source: 'esri', layout: { visibility: 'none' },
+      paint: { 'raster-fade-duration': 0, 'raster-opacity': 1 } }, schemeLayerIds[0]);
+    map.addSource('campusMass', { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 });
+    map.addSource('hl', { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 });
+    map.addLayer(extrusion('campus-model', 'campusMass', 0, 0.42));
+    map.addLayer(extrusion('hl', 'hl', 0, 0.55));
+    setMode(DEFAULT_MAP_MODE);
+  }
+
   function setBuildingMode() {
     buildings3D = true;
-    var hasExtrusions = !!(scene && scene.solid && scene.solid.length);
-    var showExtrusions = hasExtrusions;
-    if (map && map.getLayer('bld')) map.setLayoutProperty('bld', 'visibility', 'none');
-    if (map && map.getLayer('campus-bld-2d')) map.setLayoutProperty('campus-bld-2d', 'visibility', 'visible');
-    if (map && map.getLayer('bld-footprint')) map.setLayoutProperty('bld-footprint', 'visibility', 'visible');
     if (map && map.getLayer('campus-model')) map.setLayoutProperty('campus-model', 'visibility', 'visible');
     if (map && map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
-    if (map && map.getLayer('hl-flat')) map.setLayoutProperty('hl-flat', 'visibility', 'none');
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
-  map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
+  map.once('load', installCampusLayers);
 
   function updateModeButton() {
     var button = $('btn-mode');
@@ -208,14 +214,8 @@
 
   function syncSceneData() {
     if (!scene || !map || !map.isStyleLoaded()) return;
-    var source = map.getSource('ground');
-    if (source) source.setData({ type: 'FeatureCollection', features: scene.ground || [] });
-    source = map.getSource('campusMass');
+    var source = map.getSource('campusMass');
     if (source) source.setData({ type: 'FeatureCollection', features: scene.campusMass || [] });
-    source = map.getSource('footprints');
-    if (source) source.setData({ type: 'FeatureCollection', features: scene.footprints || [] });
-    source = map.getSource('solid');
-    if (source) source.setData({ type: 'FeatureCollection', features: scene.solid || [] });
     source = map.getSource('hl');
     if (source) source.setData(EMPTY);
     setBuildingMode(buildings3D);
@@ -223,48 +223,15 @@
 
   function setMode(next) {
     if (next !== 'sat' && next !== 'scheme') return;
-    var previous = mode;
-    if (next === previous) { updateModeButton(); return; }
     mode = next;
-    updateModeButton();
-    var requestId = ++styleRequest;
-
-    if (next === 'scheme') {
-      satelliteCamera = { pitch: map.getPitch(), bearing: map.getBearing() };
-      setStatus('Загрузка карты…');
-      map.easeTo({ pitch: 0, bearing: 0, duration: 650 });
-      fetch(SCHEME_STYLE_URL).then(function (response) {
-        if (!response.ok) throw new Error('OpenFreeMap: HTTP ' + response.status);
-        return response.json();
-      }).then(function (style) {
-        if (requestId !== styleRequest || mode !== 'scheme') return;
-        map.once('style.load', function () {
-          syncSceneData();
-          setBuildingMode(buildings3D);
-          setStatus('');
-        });
-        map.setStyle(addSchemeDataSourcesAndLayers(style), { diff: false });
-      }).catch(function (error) {
-        if (requestId !== styleRequest || mode !== 'scheme') return;
-        mode = 'sat';
-        updateModeButton();
-        if (satelliteCamera) map.easeTo({ pitch: satelliteCamera.pitch, bearing: satelliteCamera.bearing, duration: 450 });
-        setStatus('Не удалось загрузить векторную схему: ' + (error.message || error), true);
-        setTimeout(function () { setStatus(''); }, 10000);
-      });
-      return;
-    }
-
-    setStatus('Возвращаю спутниковую подложку…');
-    map.once('style.load', function () {
-      syncSceneData();
-      setBuildingMode(buildings3D);
-      applyAtmosphere();
-      setStatus('');
+    var satellite = mode === 'sat';
+    if (map.getLayer('sat')) map.setLayoutProperty('sat', 'visibility', satellite ? 'visible' : 'none');
+    schemeLayerIds.forEach(function (id) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', satellite ? 'none' : 'visible');
     });
-    map.setStyle(buildStyle(), { diff: false });
-    var camera = satelliteCamera || { pitch: HOME.pitch, bearing: HOME.bearing };
-    map.easeTo({ pitch: camera.pitch, bearing: camera.bearing, duration: 650 });
+    if (map.getLayer('campus-model')) map.setLayoutProperty('campus-model', 'visibility', 'visible');
+    if (map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
+    updateModeButton();
   }
 
   var scene = null;
@@ -395,13 +362,31 @@
         window.setTimeout(function () { selectCampusBuilding(building, coordinate); }, 650);
       });
       var anchor = buildingAnchor(building);
+      var pid = resolveBuildingPid(building);
+      var info = pid && scene && scene.index[pid];
+      var height = info && Number(info.hm) > 0 ? Number(info.hm) : 0;
       var marker = new maplibregl.Marker({ element: markerButton, anchor: 'center', offset: [0, 0] })
         .setLngLat(anchor)
         .addTo(map);
       marker.getElement().style.zIndex = '12';
+      marker._campusHeight = height;
       campusMarkers.push(marker);
     });
   }
+
+  function updateCampusMarkerHeights() {
+    if (!map || !campusMarkers.length) return;
+    var zoom = map.getZoom();
+    var pitch = map.getPitch() * Math.PI / 180;
+    var lat = map.getCenter().lat;
+    var metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+    campusMarkers.forEach(function (marker) {
+      var lift = marker._campusHeight > 0 && metersPerPixel > 0
+        ? marker._campusHeight * Math.sin(pitch) / metersPerPixel : 0;
+      marker.setOffset([0, -lift]);
+    });
+  }
+  map.on('render', updateCampusMarkerHeights);
 
   function applyAtmosphere() {
     try { map.setLight({ anchor: 'map', color: '#fff1d4', intensity: 0.5, position: [1.3, G.SUN_FROM_AZ, 42] }); } catch (e) { /* older/newer API */ }
@@ -1041,7 +1026,7 @@
     applyAtmosphere();
     wire();
     campusData = data[1];
-    scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
+    scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false, campusOnly: true });
     syncSceneData();
     buildCampusMarkers();
     openFloorPlanFromLocation();
