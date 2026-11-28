@@ -144,42 +144,66 @@ pub async fn list_managed_chats(
     auth: AuthUser,
 ) -> Result<Json<Value>, AppError> {
     let (_, telegram_id) = telegram_user_id(&state, &auth).await?;
-    let rows = sqlx::query_as::<_, (i64, Option<String>, String, bool, bool, bool, bool)>(
+    let token = state.config.teloxide_token.as_deref().ok_or(AppError::Internal)?;
+    let bot = Bot::new(token);
+    let bot_id = bot.get_me().await.map_err(|error| {
+        tracing::error!("Could not identify Telegram bot while listing chats: {}", error);
+        AppError::Internal
+    })?.id;
+
+    // Telegram has no API for listing every chat a user belongs to. Start with
+    // chats the bot has explicitly registered through /setgroup, then verify
+    // that both the bot and the authenticated Telegram user are still members.
+    let rows = sqlx::query_as::<_, (i64, Option<String>, String, bool, bool, bool)>(
         r#"
         SELECT c.chat_id, c.chat_title, g.name,
                c.daily_schedule_enabled, c.lesson_notifications_enabled,
-               c.daily_digest_enabled,
-               (c.owner_telegram_id=$1 OR m.telegram_status IN ('creator','administrator')) AS can_manage
+               c.daily_digest_enabled
         FROM bot_chat_settings c
         JOIN groups g ON g.id=c.group_id
-        LEFT JOIN bot_chat_members m
-          ON m.chat_id=c.chat_id AND m.telegram_id=$1
         WHERE c.is_active=TRUE
-          AND (
-            c.owner_telegram_id=$1
-            OR m.telegram_id IS NOT NULL
-          )
         ORDER BY COALESCE(c.chat_title,g.name),c.chat_id
+        LIMIT 200
         "#,
     )
-    .bind(telegram_id)
     .fetch_all(&state.db)
     .await?;
 
-    let chats = rows
-        .into_iter()
-        .map(|(chat_id, title, group_name, daily, lesson, digest, can_manage)| {
-            json!({
-                "chat_id": chat_id,
-                "title": title.unwrap_or_else(|| group_name.clone()),
-                "group_name": group_name,
-                "daily_schedule_enabled": daily,
-                "lesson_notifications_enabled": lesson,
-                "daily_digest_enabled": digest,
-                "can_manage": can_manage
-            })
-        })
-        .collect::<Vec<_>>();
+    let mut chats = Vec::new();
+    for (chat_id, title, group_name, daily, lesson, digest) in rows {
+        let bot_member = match bot.get_chat_member(ChatId(chat_id), bot_id).await {
+            Ok(member) => member,
+            Err(error) => {
+                tracing::debug!(chat_id, "Skipping chat where bot membership cannot be verified: {}", error);
+                continue;
+            }
+        };
+        if bot_member.kind.is_left() || bot_member.kind.is_banned() {
+            continue;
+        }
+
+        let role = match crate::services::chat_roles::sync_member(
+            &bot, &state.db, ChatId(chat_id), telegram_id, None
+        ).await {
+            Ok(Some(role)) => role,
+            Ok(None) => continue,
+            Err(error) => {
+                tracing::debug!(chat_id, telegram_id, "Skipping chat where user membership cannot be verified: {}", error);
+                continue;
+            }
+        };
+        let can_manage = matches!(role.as_str(), "owner" | "admin");
+        chats.push(json!({
+            "chat_id": chat_id,
+            "title": title.unwrap_or_else(|| group_name.clone()),
+            "group_name": group_name,
+            "daily_schedule_enabled": daily,
+            "lesson_notifications_enabled": lesson,
+            "daily_digest_enabled": digest,
+            "can_manage": can_manage,
+            "membership_verified": true
+        }));
+    }
 
     Ok(Json(json!({"chats": chats})))
 }
