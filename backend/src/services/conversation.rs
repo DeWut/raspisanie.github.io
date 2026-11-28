@@ -243,6 +243,7 @@ pub fn detect_with_context(
     if let Some(intent) = detect(text) { return Some(intent); }
     if !is_followup { return None; }
     match prior {
+        Some(Intent::Weekday(date)) => Some(Intent::Weekday(date)),
         Some(Intent::Today | Intent::Tomorrow | Intent::Week | Intent::NextLesson) => {
             if has_any(&lower, &["завтра", "на следующий день"]) { Some(Intent::Tomorrow) }
             else if has_any(&lower, &["сегодня", "на текущий день"]) { Some(Intent::Today) }
