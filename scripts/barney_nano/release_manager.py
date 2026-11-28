@@ -221,10 +221,30 @@ def benchmark_stats(path: Path) -> dict[str, Any]:
         1 for row in cases
         if isinstance(row, dict) and str(row.get("candidate_answer", "")).strip()
     )
+    candidate_speeds = [
+        float(row["candidate_tokens_per_second"])
+        for row in cases
+        if isinstance(row, dict) and isinstance(row.get("candidate_tokens_per_second"), (int, float))
+    ]
+    base_speeds = [
+        float(row["base_tokens_per_second"])
+        for row in cases
+        if isinstance(row, dict) and isinstance(row.get("base_tokens_per_second"), (int, float))
+    ]
+    avg_candidate_tps = sum(candidate_speeds) / len(candidate_speeds) if candidate_speeds else None
+    avg_base_tps = sum(base_speeds) / len(base_speeds) if base_speeds else None
+    speed_delta_pct = (
+        (avg_candidate_tps / avg_base_tps - 1) * 100
+        if avg_candidate_tps is not None and avg_base_tps
+        else None
+    )
     return {
         "exists": True,
         "cases": len(cases) if isinstance(cases, list) else 0,
         "non_empty": non_empty,
+        "avg_candidate_tokens_per_second": round(avg_candidate_tps, 3) if avg_candidate_tps is not None else None,
+        "avg_base_tokens_per_second": round(avg_base_tps, 3) if avg_base_tps is not None else None,
+        "candidate_speed_delta_percent": round(speed_delta_pct, 2) if speed_delta_pct is not None else None,
         "payload": payload,
     }
 
@@ -372,6 +392,9 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
             "exists": benchmark["exists"],
             "cases": benchmark["cases"],
             "non_empty_candidate_answers": benchmark["non_empty"],
+            "avg_candidate_tokens_per_second": benchmark.get("avg_candidate_tokens_per_second"),
+            "avg_base_tokens_per_second": benchmark.get("avg_base_tokens_per_second"),
+            "candidate_speed_delta_percent": benchmark.get("candidate_speed_delta_percent"),
         },
         "human_review": {
             "status": qa.get("status") if qa else "not_reviewed",
@@ -416,6 +439,9 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
         f"- Некорректных строк в датасете: {data['invalid_lines']}",
         f"- Лучший eval_loss: {trainer.get('min_eval_loss')}" if trainer and trainer.get("min_eval_loss") is not None else "- eval_loss: отсутствует",
         f"- Benchmark: {benchmark['non_empty']}/{benchmark['cases']} непустых ответов" if benchmark["exists"] else "- Benchmark: ещё не создан",
+        f"- Средняя скорость BARNEY-NANO: {benchmark['avg_candidate_tokens_per_second']:.2f} токенов/с" if benchmark.get("avg_candidate_tokens_per_second") is not None else "- Скорость BARNEY-NANO: не измерена",
+        f"- Средняя скорость базовой модели: {benchmark['avg_base_tokens_per_second']:.2f} токенов/с" if benchmark.get("avg_base_tokens_per_second") is not None else "- Скорость базовой модели: не измерена",
+        f"- Изменение скорости к базе: {benchmark['candidate_speed_delta_percent']:+.2f}%" if benchmark.get("candidate_speed_delta_percent") is not None else "- Изменение скорости: не рассчитано",
         f"- Ручная проверка: {report['human_review']['passed_cases']}/{report['human_review']['total_cases']} пройдено",
         "",
         "## Ворота выпуска",
@@ -463,6 +489,15 @@ def print_report(report: dict[str, Any]) -> None:
     print(f"Одобренные примеры: {dataset['examples']} ({dataset['unique_user_prompts']} уникальных запросов)")
     print(f"Eval loss: {training.get('min_eval_loss', 'нет данных')}")
     print(f"Benchmark: {report['benchmark']['non_empty_candidate_answers']}/{report['benchmark']['cases']}")
+    candidate_tps = report["benchmark"].get("avg_candidate_tokens_per_second")
+    base_tps = report["benchmark"].get("avg_base_tokens_per_second")
+    if candidate_tps is not None:
+        print(f"Скорость BARNEY-NANO: {candidate_tps:.2f} токенов/с")
+    if base_tps is not None:
+        print(f"Скорость базовой модели: {base_tps:.2f} токенов/с")
+    speed_delta = report["benchmark"].get("candidate_speed_delta_percent")
+    if speed_delta is not None:
+        print(f"Изменение скорости к базе: {speed_delta:+.2f}%")
     print(f"Ручная проверка: {report['human_review']['passed_cases']}/{report['human_review']['total_cases']}")
     print("\nВОРОТА ВЫПУСКА")
     passed = sum(1 for gate in report["gates"] if gate["passed"])
