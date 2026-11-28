@@ -2470,28 +2470,32 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 let answer = generated.unwrap_or_else(|| {
                     "Пока не смог уверенно разобрать этот вопрос. Можешь уточнить его или спросить меня об учёбе, технологиях, программировании и повседневных задачах. Если локальная модель не подключена, свободный диалог ограничен.".to_owned()
                 });
-                let mut tx = db.begin().await?;
-                sqlx::query(
-                    "INSERT INTO bot_user_assistant_messages(telegram_id,role,content) VALUES($1,'user',$2),($1,'assistant',$3)"
-                )
-                .bind(telegram_id)
-                .bind(normalized_text.chars().take(600).collect::<String>())
-                .bind(answer.chars().take(4000).collect::<String>())
-                .execute(&mut *tx)
-                .await?;
-                sqlx::query(
-                    "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND created_at<now()-interval '7 days'"
-                )
-                .bind(telegram_id)
-                .execute(&mut *tx)
-                .await?;
-                sqlx::query(
-                    "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND id IN (SELECT id FROM bot_user_assistant_messages WHERE telegram_id=$1 ORDER BY id DESC OFFSET 24)"
-                )
-                .bind(telegram_id)
-                .execute(&mut *tx)
-                .await?;
-                tx.commit().await?;
+                match db.begin().await {
+                    Ok(mut tx) => {
+                        let saved = sqlx::query(
+                            "INSERT INTO bot_user_assistant_messages(telegram_id,role,content) VALUES($1,'user',$2),($1,'assistant',$3)"
+                        )
+                        .bind(telegram_id)
+                        .bind(normalized_text.chars().take(600).collect::<String>())
+                        .bind(answer.chars().take(4000).collect::<String>())
+                        .execute(&mut *tx)
+                        .await;
+                        if saved.is_ok() {
+                            let _ = sqlx::query(
+                                "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND created_at<now()-interval '7 days'"
+                            ).bind(telegram_id).execute(&mut *tx).await;
+                            let _ = sqlx::query(
+                                "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND id IN (SELECT id FROM bot_user_assistant_messages WHERE telegram_id=$1 ORDER BY id DESC OFFSET 24)"
+                            ).bind(telegram_id).execute(&mut *tx).await;
+                            if let Err(error) = tx.commit().await {
+                                tracing::warn!("Could not save Barney conversation context: {}", error);
+                            }
+                        } else {
+                            tracing::warn!("Could not save Barney conversation context");
+                        }
+                    }
+                    Err(error) => tracing::warn!("Could not open Barney context transaction: {}", error),
+                }
                 reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
                 return Ok(());
             }
