@@ -16,7 +16,8 @@ def main():
     parser.add_argument("--epochs", type=float, default=2.0)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--grad-accum", type=int, default=8)
-    parser.add_argument("--max-length", type=int, default=2048)
+    parser.add_argument("--max-length", type=int, default=512)
+    parser.add_argument("--lora-rank", type=int, default=8)
     parser.add_argument("--merge", action="store_true", help="Also save a merged HF checkpoint for GGUF conversion")
     args = parser.parse_args()
 
@@ -43,7 +44,7 @@ def main():
     )
     model.config.use_cache = False
     lora = LoraConfig(
-        r=16, lora_alpha=32, lora_dropout=0.05, task_type="CAUSAL_LM",
+        r=args.lora_rank, lora_alpha=args.lora_rank * 2, lora_dropout=0.05, task_type="CAUSAL_LM",
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "in_proj", "out_proj", "w1", "w2", "w3"],
     )
     config = SFTConfig(
@@ -76,6 +77,8 @@ def main():
     tokenizer.save_pretrained(args.output)
     print(f"LoRA adapter saved to {args.output}")
     if args.merge:
+        print("Moving model to CPU before merging to keep the 6 GB laptop GPU free...")
+        trainer.model.to("cpu")
         merged = trainer.model.merge_and_unload()
         merged_path = args.output + "-merged"
         merged.save_pretrained(merged_path, safe_serialization=True)
