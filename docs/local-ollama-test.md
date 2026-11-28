@@ -17,6 +17,7 @@
 ```powershell
 ollama pull qwen3:8b
 $env:OLLAMA_PROXY_TOKEN = [guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
+Write-Host "Сохрани этот секрет в Render как OLLAMA_API_KEY: $env:OLLAMA_PROXY_TOKEN"
 python .\scripts\ollama_proxy.py
 ```
 
