@@ -190,6 +190,57 @@ pub fn homework_subject(text: &str) -> Option<String> {
     (subject.chars().count() >= 4).then_some(subject)
 }
 
+/// Resolves short follow-ups using the previous user turn, without retaining
+/// unbounded personal conversation history or guessing when the topic is unclear.
+pub fn detect_with_context(
+    text: &str,
+    previous_user: Option<&str>,
+    previous_assistant: Option<&str>,
+) -> Option<Intent> {
+    if let Some(intent) = detect(text) { return Some(intent); }
+    let lower = normalize(text);
+    let is_followup = lower.starts_with("а ") || lower.starts_with("и ")
+        || lower.starts_with("а если") || lower.starts_with("а когда")
+        || lower.starts_with("а где") || lower.starts_with("а сколько")
+        || lower.starts_with("а по ") || lower.starts_with("и по ")
+        || lower.starts_with("почему ") || lower.starts_with("тогда ")
+        || lower.starts_with("а это ") || lower.starts_with("а там ");
+    if !is_followup { return None; }
+
+    let prior = previous_user.and_then(detect);
+    match prior {
+        Some(Intent::Today | Intent::Tomorrow | Intent::Week | Intent::NextLesson) => {
+            if has_any(&lower, &["завтра", "на следующий день"]) { Some(Intent::Tomorrow) }
+            else if has_any(&lower, &["сегодня", "на текущий день"]) { Some(Intent::Today) }
+            else if has_any(&lower, &["недел", "выходные", "всю неделю"]) { Some(Intent::Week) }
+            else if has_any(&lower, &["а аудитория", "в какой аудитории", "кто ведет", "кто ведет"]) { Some(Intent::NextLesson) }
+            else { Some(Intent::Week) }
+        }
+        Some(Intent::Homework | Intent::HomeworkFor(_)) => {
+            homework_subject(text).map(Intent::HomeworkFor).or(Some(Intent::Homework))
+        }
+        Some(Intent::Deadlines) => Some(Intent::Deadlines),
+        Some(Intent::FreeRooms(_)) => Some(Intent::FreeRooms(time_in(text))),
+        Some(Intent::Teacher(_)) => detect(text).or_else(|| {
+            let query = text.split_whitespace().filter(|w| !["а","и","когда","где","какие","пары","занятия","у"].contains(w)).collect::<Vec<_>>().join(" ");
+            (query.chars().count() >= 3).then_some(Intent::Teacher(query))
+        }),
+        Some(Intent::Profile) => Some(Intent::Profile),
+        Some(Intent::Settings | Intent::GroupChangeInfo) => Some(Intent::Settings),
+        Some(Intent::ScheduleChanges) => Some(Intent::ScheduleChanges),
+        _ => {
+            let topic = previous_assistant.unwrap_or("").to_lowercase();
+            if topic.contains("расписан") || topic.contains("следующая пара") {
+                if has_any(&lower, &["завтра"]) { Some(Intent::Tomorrow) } else { Some(Intent::NextLesson) }
+            } else if topic.contains("домаш") || topic.contains("задан") || topic.contains("дз") {
+                homework_subject(text).map(Intent::HomeworkFor).or(Some(Intent::Homework))
+            } else if topic.contains("дедлайн") || topic.contains("срок") {
+                Some(Intent::Deadlines)
+            } else { None }
+        }
+    }
+}
+
 pub fn detect(text: &str) -> Option<Intent> {
     let text = normalize(text)
         .replace("дщ", "дз")
