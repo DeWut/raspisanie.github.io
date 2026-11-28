@@ -53,8 +53,8 @@ class ReleaseManagerTests(unittest.TestCase):
             path = Path(temporary) / "benchmark.json"
             path.write_text(json.dumps({
                 "cases": [
-                    {"candidate_answer": "Ответ"},
-                    {"candidate_answer": ""},
+                    {"candidate_answer": "Ответ", "candidate_tokens_per_second": 12.0, "base_tokens_per_second": 16.0},
+                    {"candidate_answer": "", "candidate_tokens_per_second": 8.0, "base_tokens_per_second": 8.0},
                     {"candidate_answer": "Ещё ответ"},
                 ]
             }), encoding="utf-8")
@@ -62,6 +62,8 @@ class ReleaseManagerTests(unittest.TestCase):
             self.assertTrue(stats["exists"])
             self.assertEqual(stats["cases"], 3)
             self.assertEqual(stats["non_empty"], 2)
+            self.assertEqual(stats["avg_candidate_tokens_per_second"], 10.0)
+            self.assertEqual(stats["avg_base_tokens_per_second"], 12.0)
 
 
 if __name__ == "__main__":
