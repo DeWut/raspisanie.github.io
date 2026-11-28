@@ -129,12 +129,7 @@ fn dictionary_intent(text: &str) -> Option<Intent> {
         "deadlines" => Some(Intent::Deadlines),
         "free_rooms" => Some(Intent::FreeRooms(time_in(text))),
         "teacher" => {
-            let query = text.split_whitespace().filter(|word| ![
-                "найди","расписание","преподаватель","преподавателя","преподаватели","препод",
-                "когда","какой","какая","какие","у","занятия","занятие","ведет","ведёт",
-                "читает","кто","пары","пара","будут","есть","сегодня","завтра","во","сколько",
-                "покажи","найти","учителя","доцента","профессора"
-            ].contains(word)).collect::<Vec<_>>().join(" ");
+            let query = teacher_query(text);
             (query.chars().count() >= 3).then_some(Intent::Teacher(query))
         },
         "profile" => Some(Intent::Profile),
@@ -208,6 +203,24 @@ pub fn homework_subject(text: &str) -> Option<String> {
 
 /// Resolves short follow-ups using the previous user turn, without retaining
 /// unbounded personal conversation history or guessing when the topic is unclear.
+fn teacher_query(text: &str) -> String {
+    text.split_whitespace().filter(|word| ![
+        "найди","расписание","преподаватель","преподавателя","преподаватели","препод",
+        "когда","какой","какая","какие","у","занятия","занятие","ведет","ведёт",
+        "читает","кто","пары","пара","будут","есть","сегодня","завтра","во","сколько",
+        "покажи","найти","учителя","доцента","профессора","мне","подскажи","скажи"
+    ].contains(word)).map(|word| {
+        let mut value = word.to_owned();
+        for suffix in ["овыми","евыми","овой","евой","ову","еву","ова","ева","ого","его","ому","ему","ыми","ими","ую","ой","ей","ым","им","а","у","е","ы","и"] {
+            if value.ends_with(suffix) && value.chars().count() > suffix.chars().count()+3 {
+                value.truncate(value.len()-suffix.len());
+                break;
+            }
+        }
+        value
+    }).collect::<Vec<_>>().join(" ")
+}
+
 pub fn detect_with_context(
     text: &str,
     previous_user: Option<&str>,
@@ -302,12 +315,7 @@ pub fn detect(text: &str) -> Option<Intent> {
         return Some(Intent::FreeRooms(time_in(&text)));
     }
     if has_any(&text, &["преподавател", "препод", "кто ведет", "кто ведёт", "кто читает", "занятия у", "пары у", "когда у"]) {
-        let query = text.split_whitespace().filter(|word| ![
-            "найди","расписание","преподаватель","преподавателя","преподаватели","препод",
-            "когда","какой","какая","какие","у","занятия","занятие","ведет","ведёт",
-            "читает","кто","пары","пара","будут","есть","сегодня","завтра","во","сколько",
-            "покажи","найти"
-        ].contains(word)).collect::<Vec<_>>().join(" ");
+        let query = teacher_query(&text);
         if query.chars().count() >= 3 { return Some(Intent::Teacher(query)); }
     }
     if has_any(&text, &["дедлайн", "срок сдач", "когда сда", "что сдать", "надо сдать", "сроки", "к какому числу", "до какого числа"]) {
@@ -376,7 +384,7 @@ mod tests {
         assert_eq!(detect("какое дз задали?"), Some(Intent::Homework));
         assert_eq!(detect("свободные аудитории на 20:00"), Some(Intent::FreeRooms(Some("20:00".into()))));
         assert_eq!(detect("найди преподавателя Иванов"), Some(Intent::Teacher("иванов".into())));
-        assert_eq!(detect("когда у Иванова пары?"), Some(Intent::Teacher("иванова".into())));
+        assert_eq!(detect("когда у Иванова пары?"), Some(Intent::Teacher("иванов".into())));
         assert_eq!(detect("что у нас завтра?"), Some(Intent::Tomorrow));
         assert_eq!(detect("Барни, привет!"), Some(Intent::Greeting));
         assert_eq!(detect("Привет, какое ДЗ?"), Some(Intent::Homework));
