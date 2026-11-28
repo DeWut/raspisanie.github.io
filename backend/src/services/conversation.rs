@@ -319,6 +319,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn dictionary_handles_typos_and_natural_word_order() {
+        assert_eq!(dictionary_intent("покажи расписание на завтр"), Some(Intent::Tomorrow));
+        assert_eq!(dictionary_intent("напиши список команд бота"), Some(Intent::Help));
+        assert_eq!(dictionary_intent("можешь показать свободные аудитории"), Some(Intent::FreeRooms(None)));
+    }
+
+    #[test]
+    fn contextual_followups_keep_the_previous_topic() {
+        assert_eq!(
+            detect_with_context("а где следующая аудитория?", Some("Какая у меня следующая пара?"), None),
+            Some(Intent::NextLesson)
+        );
+        assert_eq!(
+            detect_with_context("а по физике?", Some("Покажи список ДЗ"), None),
+            Some(Intent::HomeworkFor("физик".into()))
+        );
+        assert_eq!(
+            detect_with_context("а завтра?", Some("Покажи расписание на сегодня"), None),
+            Some(Intent::Tomorrow)
+        );
+        assert_eq!(
+            detect_with_context("а какие сроки?", Some("Покажи список домашних заданий"), None),
+            Some(Intent::Deadlines)
+        );
+    }
+
+    #[test]
     fn detects_schedule_homework_rooms_and_teacher_without_ai() {
         assert_eq!(detect("какое расписание завтра?"), Some(Intent::Tomorrow));
         assert_eq!(detect("какое дз задали?"), Some(Intent::Homework));
