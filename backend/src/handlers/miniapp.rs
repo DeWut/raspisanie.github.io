@@ -30,9 +30,9 @@ pub async fn get_preferences(
     auth: AuthUser,
 ) -> Result<Json<Value>, AppError> {
     let (user_id, _) = telegram_user_id(&state, &auth).await?;
-    let row = sqlx::query_as::<_, (Option<uuid::Uuid>, Option<String>, Value)>(
+    let row = sqlx::query_as::<_, (Option<uuid::Uuid>, Option<String>, Option<String>, Value)>(
         r#"
-        SELECT u.group_id, g.name, u.settings
+        SELECT u.group_id, g.name, g.external_id, u.settings
         FROM users u
         LEFT JOIN groups g ON g.id=u.group_id
         WHERE u.id=$1
@@ -42,10 +42,11 @@ pub async fn get_preferences(
     .fetch_one(&state.db)
     .await?;
 
-    let settings = &row.2;
+    let settings = &row.3;
     Ok(Json(json!({
         "group_id": row.0,
         "group_name": row.1,
+        "group_external_id": row.2,
         "settings": {
             "reminders_enabled": settings["reminders_enabled"] == true,
             "reminder_minutes": settings["reminder_minutes"].as_i64().unwrap_or(10).clamp(10, 1440),
@@ -153,12 +154,10 @@ pub async fn list_managed_chats(
         JOIN groups g ON g.id=c.group_id
         LEFT JOIN bot_chat_members m
           ON m.chat_id=c.chat_id AND m.telegram_id=$1
-        LEFT JOIN users u ON u.telegram_id=$1
         WHERE c.is_active=TRUE
           AND (
             c.owner_telegram_id=$1
             OR m.telegram_id IS NOT NULL
-            OR u.group_id=c.group_id
           )
         ORDER BY COALESCE(c.chat_title,g.name),c.chat_id
         "#,
