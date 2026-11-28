@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101b16">
+  <meta name="description" content="Интерактивная карта кампуса СПбГЛТУ, корпуса и планы этажей.">
+  <title>SPBFTUIT — навигация по кампусу</title>
+  <link rel="icon" href="../favicon.png">
+  <style>
+    :root{color-scheme:dark;--bg:#101b16;--panel:#17271f;--line:rgba(210,235,216,.14);--ink:#f2f6ef;--muted:#aebcaf}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+    .page{height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr);padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+    header{min-height:76px;display:flex;align-items:center;gap:14px;padding:12px clamp(14px,3vw,28px);background:var(--bg);border-bottom:1px solid var(--line)}
+    .back{display:inline-flex;align-items:center;justify-content:center;min-width:46px;height:46px;padding:0 14px;border:1px solid var(--line);border-radius:14px;color:var(--ink);text-decoration:none;font-size:23px;background:var(--panel)}
+    .heading{min-width:0}.eyebrow{margin:0 0 3px;color:#a6c4ac;font-size:11px;font-weight:800;letter-spacing:.14em}.heading h1{margin:0;font-size:clamp(19px,4vw,25px);line-height:1.15}
+    .map-frame{display:block;width:100%;height:100%;border:0;background:#dce6dc}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <a class="back" href="./index.html" aria-label="Вернуться к расписанию">←</a>
+      <div class="heading"><p class="eyebrow">SPBFTUIT · НАВИГАЦИЯ</p><h1>Карта кампуса и планы этажей</h1></div>
+    </header>
+    <iframe class="map-frame" src="./map3d.html?v=20261128-44" title="Интерактивная 3D-карта кампуса с планами этажей" allow="fullscreen" loading="eager"></iframe>
+  </main>
+</body>
+</html>
