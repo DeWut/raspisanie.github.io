@@ -414,7 +414,8 @@
       commandSelect.disabled = state.control.managedChats.length === 0;
       empty.hidden = state.control.managedChats.length > 0;
       if (!state.control.managedChats.length) {
-        select.add(new Option('Нет доступных чатов', ''));
+        select.add(new Option('Нет подключённых чатов', ''));
+        commandSelect.replaceChildren(new Option('Нет подключённых чатов', ''));
         state.control.selectedChatId = '';
         editor.hidden = true;
         $('#managed-chat-readonly').hidden = true;
@@ -2549,6 +2550,7 @@ async function addCampusParkLayers(map) {
     document.querySelectorAll('[data-control-tab]').forEach((button) => {
       button.addEventListener('click', () => switchControlPane(button.dataset.controlTab));
     });
+    $('#managed-chats-refresh')?.addEventListener('click', () => void loadManagedChats());
     $('#managed-chat-select')?.addEventListener('change', () => {
       state.control.selectedChatId = $('#managed-chat-select').value;
       if ($('#command-chat-select')) $('#command-chat-select').value = state.control.selectedChatId;
