@@ -2374,6 +2374,46 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                             &query, None, None,
                         ).await
                     }
+                    crate::services::conversation::Intent::Profile => {
+                        let group_name = match selected_group(db, telegram_id, message.chat.id.0).await {
+                            Some(group) => sqlx::query_scalar::<_, String>("SELECT name FROM groups WHERE id=$1")
+                                .bind(group).fetch_optional(db).await.ok().flatten(),
+                            None => None,
+                        };
+                        let settings = sqlx::query_scalar::<_, serde_json::Value>(
+                            "SELECT settings FROM users WHERE telegram_id=$1"
+                        ).bind(telegram_id).fetch_optional(db).await.ok().flatten().unwrap_or_else(|| serde_json::json!({}));
+                        Some(format!(
+                            "Твой профиль\\nУчебная группа: {}\\nЛичные уведомления: {}\\nНапоминание о паре: за {} мин.\\nЕжедневная сводка: {}\\nУведомления об изменениях: {}\\nЧасовой пояс: Europe/Moscow",
+                            group_name.unwrap_or_else(|| "не привязана".into()),
+                            if settings["reminders_enabled"] == true { "включены" } else { "выключены" },
+                            settings["reminder_minutes"].as_i64().unwrap_or(10),
+                            if settings["daily_digest_enabled"] == true { "включена" } else { "выключена" },
+                            if settings["schedule_changes_enabled"] == true { "включены" } else { "выключены" }
+                        ))
+                    }
+                    crate::services::conversation::Intent::Settings => Some(
+                        "В личном кабинете можно изменить учебную группу, личные напоминания, интервал напоминания, ежедневную сводку и уведомления об изменениях расписания. В учебных чатах администраторы настраивают автопубликацию, уведомления о парах, помощника, контекст и сбор ДЗ.".to_owned()
+                    ),
+                    crate::services::conversation::Intent::GroupChangeInfo => Some(
+                        "Личная учебная группа хранится отдельно от остальных настроек аккаунта. При смене группы личные уведомления и параметры аккаунта сохраняются; настройки группового чата управляются отдельно его администраторами.".to_owned()
+                    ),
+                    crate::services::conversation::Intent::Features => Some(
+                        "Я могу работать с расписанием, следующей парой, ДЗ, дедлайнами, преподавателями, аудиториями и настройками. В Mini App также доступны личный кабинет, учебные чаты, инструменты, помощник и уведомления. Раздел знакомств и профилей открывается в соответствующей вкладке Mini App.".to_owned()
+                    ),
+                    crate::services::conversation::Intent::GroupLookup(name) => {
+                        let pattern = format!("%{}%", name);
+                        let found = sqlx::query_scalar::<_, uuid::Uuid>(
+                            "SELECT id FROM groups WHERE name ILIKE $1 OR external_id ILIKE $1 ORDER BY name LIMIT 1"
+                        ).bind(&pattern).fetch_optional(db).await.ok().flatten();
+                        Some(match found {
+                            Some(group) => schedule_text(db, group, "/week").await,
+                            None => format!("Не нашёл учебную группу «{}». Проверь написание или выбери группу командой /group.", name),
+                        })
+                    }
+                    crate::services::conversation::Intent::ScheduleChanges => Some(
+                        "Уведомления об изменениях расписания настраиваются в личном кабинете или настройках учебного чата. Отдельный журнал всех отмен и переносов по текстовому запросу пока не предоставляется; я не буду утверждать, что изменений нет, если не могу подтвердить это по данным.".to_owned()
+                    ),
                 };
                 let answer = answer.or_else(|| {
                     explicitly_addressed.then(|| {
