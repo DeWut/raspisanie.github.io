@@ -49,7 +49,13 @@ if "%CHOICE%"=="4" goto REVIEW
 if "%CHOICE%"=="5" goto TRAIN
 if "%CHOICE%"=="6" goto EVALUATE
 if "%CHOICE%"=="7" goto MERGE
-if "%CHOICE%"=="8" start "" "%ROOT%\data\barney_nano" & start "" "%ROOT%\training" & goto MENU
+if "%CHOICE%"=="8" (
+  if not exist "%ROOT%\data\barney_nano" mkdir "%ROOT%\data\barney_nano"
+  if not exist "%ROOT%\training" mkdir "%ROOT%\training"
+  start "" "%ROOT%\data\barney_nano"
+  start "" "%ROOT%\training"
+  goto MENU
+)
 if "%CHOICE%"=="0" exit /b
 goto MENU
 
