@@ -9,3 +9,4 @@ pub mod rag;
 pub mod schedule_sync;
 pub mod student_social;
 pub mod student_tools;
+pub mod ollama;
