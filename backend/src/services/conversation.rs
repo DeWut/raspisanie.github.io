@@ -164,16 +164,37 @@ fn knowledge_entries() -> &'static Vec<(String, Vec<String>, String)> {
 
 fn knowledge_intent(text: &str) -> Option<Intent> {
     let normalized = format!(" {} ", normalize(text));
-    knowledge_entries().iter()
-        .filter_map(|(id, phrases, _)| {
-            let best = phrases.iter().filter(|phrase| {
-                normalized.contains(&format!(" {} ", phrase))
-            })
-                .map(|phrase| phrase.chars().count()).max()?;
-            Some((id, best))
-        })
-        .max_by_key(|(_, length)| *length)
-        .map(|(id, _)| Intent::Knowledge(id.clone()))
+    let query_tokens = intent_tokens(text);
+    if query_tokens.is_empty() { return None; }
+    let mut ranked = knowledge_entries().iter().filter_map(|(id, phrases, _)| {
+        let exact = phrases.iter().filter(|phrase| normalized.contains(&format!(" {} ", phrase)))
+            .map(|phrase| phrase.chars().count()).max();
+        let fuzzy = phrases.iter().map(|phrase| phrase_similarity(&query_tokens, &intent_tokens(phrase)))
+            .fold(0.0_f32, f32::max);
+        let score = if exact.is_some() { 1.0 } else { fuzzy };
+        (score > 0.0).then_some((id, score))
+    }).collect::<Vec<_>>();
+    ranked.sort_by(|a,b| b.1.total_cmp(&a.1));
+    let (id, score) = ranked.first()?;
+    let second = ranked.get(1).map(|v| v.1).unwrap_or(0.0);
+    if *score < 0.62 || (*score - second < 0.08 && *score < 0.9) { return None; }
+    Some(Intent::Knowledge((*id).clone()))
+}
+
+/// Returns a few locally stored knowledge snippets relevant to a free-form
+/// question. This is retrieval augmentation, not model training.
+pub fn knowledge_context(query: &str) -> String {
+    let tokens = intent_tokens(query);
+    if tokens.is_empty() { return String::new(); }
+    let mut ranked = knowledge_entries().iter().filter_map(|(id, phrases, answer)| {
+        let score = phrases.iter().map(|phrase| phrase_similarity(&tokens, &intent_tokens(phrase)))
+            .fold(0.0_f32, f32::max);
+        (score >= 0.22).then_some((score, id, answer))
+    }).collect::<Vec<_>>();
+    ranked.sort_by(|a,b| b.0.total_cmp(&a.0));
+    ranked.into_iter().take(3).map(|(_, id, answer)| {
+        format!("[{}] {}", id, answer)
+    }).collect::<Vec<_>>().join("\\n")
 }
 
 pub fn knowledge_answer(id: &str) -> Option<String> {
