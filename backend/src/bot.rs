@@ -1390,6 +1390,12 @@ async fn maybe_answer_bot_reply(
                 None => None,
             }
         },
+        Some(crate::services::conversation::Intent::Weekday(date)) => {
+            match group_id {
+                Some(group) => Some(schedule_text(db, group, &format!("/date:{date}")).await),
+                None => None,
+            }
+        },
         Some(crate::services::conversation::Intent::NextLesson) => {
             match group_id {
                 Some(group) => Some(schedule_text(db, group, "/next").await),
@@ -2320,12 +2326,14 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     crate::services::conversation::Intent::Today
                     | crate::services::conversation::Intent::Tomorrow
                     | crate::services::conversation::Intent::Week
+                    | crate::services::conversation::Intent::Weekday(_)
                     | crate::services::conversation::Intent::NextLesson => {
-                        let command = match intent {
-                            crate::services::conversation::Intent::Today => "/today",
-                            crate::services::conversation::Intent::Tomorrow => "/tomorrow",
-                            crate::services::conversation::Intent::Week => "/week",
-                            _ => "/next",
+                        let command = match &intent {
+                            crate::services::conversation::Intent::Today => "/today".to_owned(),
+                            crate::services::conversation::Intent::Tomorrow => "/tomorrow".to_owned(),
+                            crate::services::conversation::Intent::Week => "/week".to_owned(),
+                            crate::services::conversation::Intent::Weekday(date) => format!("/date:{date}"),
+                            _ => "/next".to_owned(),
                         };
                         Some(match selected_group(db, telegram_id, message.chat.id.0).await {
                             Some(group_id) => schedule_text(db, group_id, command).await,
