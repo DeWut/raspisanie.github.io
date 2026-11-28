@@ -182,7 +182,7 @@
       $('#settings-digest').checked = settings.daily_digest_enabled === true;
       $('#settings-digest-time').value = settings.daily_digest_time || '07:00';
       $('#settings-changes').checked = settings.schedule_changes_enabled === true;
-      $('#settings-link-group').hidden = Boolean(preferences.group_id || !state.schedule?.id);
+      populatePersonalGroupSelect(preferences.group_external_id || state.schedule?.id || '');
       if (preferences.group_name) $('#settings-group-name').textContent = preferences.group_name;
       else updateSettingsGroupLabel();
 
@@ -198,7 +198,7 @@
           $('#settings-group-name').textContent = preferences.group_name || state.schedule?.name || 'Не выбрана';
         }
       } else {
-        $('#settings-link-group').hidden = !state.schedule?.id;
+        populatePersonalGroupSelect(state.schedule?.id || '');
       }
 
       status.textContent = preferences.group_id
@@ -215,8 +215,10 @@
     } catch (error) {
       console.warn('Could not load Telegram account settings:', error);
       const message = error.status === 401
-        ? 'Telegram не подтвердил сессию. Закрой Mini App и открой его заново из бота.'
-        : 'Не удалось загрузить настройки из Neon. Проверь доступность backend.';
+        ? 'Сессия Telegram истекла. Открой Mini App заново.'
+        : error.status
+          ? 'Ошибка загрузки настроек (HTTP ' + error.status + ').'
+          : 'Не удалось загрузить настройки. Проверь соединение.';
       status.textContent = message;
       note.textContent = message;
       const apiNote = $('#control-api-note');
@@ -270,6 +272,51 @@
   function resetBackendFromSettings() {
     try { localStorage.removeItem(API_STORAGE_KEY); } catch {}
     location.reload();
+  }
+
+  function populatePersonalGroupSelect(selectedExternalId = '') {
+    const select = $('#personal-group-select');
+    const button = $('#personal-group-save');
+    if (!select) return;
+    const previous = String(selectedExternalId || select.value || '');
+    select.replaceChildren(new Option('Выбери свою группу', ''));
+    state.groups.forEach((group) => select.add(new Option(group.name, String(group.id))));
+    select.value = state.groups.some((group) => String(group.id) === previous) ? previous : '';
+    if (button) button.disabled = !hasTelegramAccountApi() || !state.groups.length;
+  }
+
+  async function savePersonalGroup() {
+    const select = $('#personal-group-select');
+    const button = $('#personal-group-save');
+    const status = $('#personal-group-status');
+    const externalId = String(select?.value || '');
+    if (!externalId || !hasTelegramAccountApi()) {
+      status.textContent = externalId ? 'Открой Mini App через Telegram.' : 'Сначала выбери группу.';
+      return;
+    }
+    button.disabled = true;
+    status.textContent = 'Сохраняем…';
+    try {
+      const result = await accountApi('/api/me/group', {
+        method: 'POST',
+        body: JSON.stringify({ external_id: externalId }),
+      });
+      if (state.account) state.account.group_id = result.group_id;
+      const group = state.groups.find((item) => String(item.id) === externalId);
+      if (group && String(state.schedule?.id) !== externalId) {
+        await selectGroup(group.id, { persist: false, announce: false });
+      }
+      $('#settings-group-name').textContent = result.group_name || group?.name || 'Выбрана';
+      status.textContent = 'Группа привязана к Telegram-аккаунту.';
+      showToast('Учебная группа сохранена');
+    } catch (error) {
+      status.textContent = error.status
+        ? 'Не удалось сохранить группу (HTTP ' + error.status + ').'
+        : 'Не удалось сохранить группу. Проверь соединение.';
+      console.error('Could not bind personal group:', error);
+    } finally {
+      button.disabled = !hasTelegramAccountApi();
+    }
   }
 
   async function saveMiniAppSettings() {
@@ -387,8 +434,10 @@
       select.replaceChildren(new Option('Не удалось загрузить список чатов', ''));
       empty.hidden = false;
       empty.textContent = error.status === 403
-        ? 'У Telegram-аккаунта нет прав администратора в доступных чатах.'
-        : 'Не удалось получить список чатов. Проверь подключение к backend.';
+        ? 'Нет доступа к списку чатов.'
+        : error.status
+          ? 'Ошибка загрузки чатов (HTTP ' + error.status + ').'
+          : 'Не удалось загрузить чаты. Проверь соединение.';
       editor.hidden = true;
     }
   }
@@ -2490,14 +2539,7 @@ async function addCampusParkLayers(map) {
     $('#home-open-settings')?.addEventListener('click', () => showView('settings'));
     $('#schedule-back-home')?.addEventListener('click', () => showView('home'));
     $('#settings-back-home')?.addEventListener('click', () => showView('home'));
-    $('#settings-group-button')?.addEventListener('click', openGroupDialog);
-    $('#settings-link-group')?.addEventListener('click', () => {
-      if (state.schedule?.id) void saveSelectedGroupToAccount(state.schedule.id);
-      else {
-        showView('schedule');
-        openGroupDialog();
-      }
-    });
+    $('#personal-group-save')?.addEventListener('click', () => void savePersonalGroup());
     $('#settings-save')?.addEventListener('click', () => void saveMiniAppSettings());
     $('#control-api-connect')?.addEventListener('click', () => void connectBackendFromSettings());
     $('#control-api-reset')?.addEventListener('click', resetBackendFromSettings);
