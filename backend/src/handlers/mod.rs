@@ -11,6 +11,7 @@ pub mod rag;
 pub mod rooms;
 pub mod schedule;
 pub mod teams;
+pub mod telegram;
 pub mod tracker;
 
 use crate::state::SharedState;
@@ -22,6 +23,7 @@ use axum::{
 pub fn router() -> Router<SharedState> {
     Router::new()
         .route("/health", get(health::health))
+        .route("/telegram/webhook", post(telegram::telegram_webhook))
         .route("/api/presence", get(presence::count))
         .route("/api/presence/ping", post(presence::ping))
         .route("/api/me", get(me::get_me).put(me::update_me))
