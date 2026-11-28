@@ -1795,11 +1795,8 @@ async function addCampusParkLayers(map) {
     campusMapFrame?.addEventListener('load', requestCampusMapResize);
     $('#open-map').addEventListener('click', () => {
       closeQuickMenu();
-      $('#map-dialog').showModal();
-      requestAnimationFrame(() => {
-        requestCampusMapResize();
-        requestAnimationFrame(requestCampusMapResize);
-      });
+      // Campus navigation is a dedicated page, not a dialog layered over the timetable.
+      window.location.href = new URL('./navigation.html', APP_SCRIPT_URL).href;
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', () => {
