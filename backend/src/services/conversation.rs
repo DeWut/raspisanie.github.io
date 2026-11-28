@@ -17,6 +17,8 @@ pub enum Intent {
     Settings,
     GroupChangeInfo,
     Features,
+    GroupLookup(String),
+    ScheduleChanges,
 }
 
 fn normalize(text: &str) -> String {
@@ -81,6 +83,11 @@ pub fn detect(text: &str) -> Option<Intent> {
         .replace("расписанье", "расписание");
     if text.trim().is_empty() { return None; }
 
+    if has_any(&text, &["расписание", "расписан"]) && has_any(&text, &["группа", "группы", "группу"]) {
+        if let Some(candidate) = text.split_whitespace().find(|word| word.contains('-') && word.chars().any(|c| c.is_ascii_digit())) {
+            return Some(Intent::GroupLookup(candidate.to_owned()));
+        }
+    }
     if has_any(&text, &["какая у меня группа", "какая моя группа", "моя группа", "что ты обо мне знаешь", "мои персональные данные", "мой профиль", "мой аккаунт"]) {
         return Some(Intent::Profile);
     }
@@ -119,7 +126,7 @@ pub fn detect(text: &str) -> Option<Intent> {
         return Some(homework_subject(&text).map(Intent::HomeworkFor).unwrap_or(Intent::Homework));
     }
     if has_any(&text, &["изменения в расписании", "изменилось расписание", "изменения или отмены", "отменили пары", "перенесли пары", "замены", "переносы занятий"]) {
-        return Some(Intent::Help);
+        return Some(Intent::ScheduleChanges);
     }
     if has_any(&text, &["экзамен", "зачет", "зачёт", "сессия"]) {
         return Some(Intent::Help);
