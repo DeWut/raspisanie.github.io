@@ -301,8 +301,34 @@
     return issues;
   }
 
+  // Project marker coordinates at the same physical height as the 3D roof.
+  // MapLibre's HTML Marker only projects ground-level lng/lat, so use the
+  // renderer's Mercator transform for the full XYZ point instead.
+  function updateCampusMarkers() {
+    if (!map || !map.transform || !maplibregl.MercatorCoordinate) return;
+    campusMarkers.forEach(function (marker) {
+      var mc = maplibregl.MercatorCoordinate.fromLngLat(
+        { lng: marker.coordinate[0], lat: marker.coordinate[1] },
+        marker.height
+      );
+      var point = map.transform.coordinatePoint(mc, mc.z);
+      if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+        marker.element.style.visibility = 'hidden';
+        return;
+      }
+      var width = map.getCanvas().clientWidth, height = map.getCanvas().clientHeight;
+      marker.element.style.visibility =
+        point.x < -40 || point.y < -40 || point.x > width + 40 || point.y > height + 40
+          ? 'hidden' : 'visible';
+      marker.element.style.transform =
+        'translate3d(' + point.x.toFixed(2) + 'px,' + point.y.toFixed(2) + 'px,0) translate(-50%,-50%)';
+    });
+  }
+
   function buildCampusMarkers() {
-    campusMarkers.forEach(function (marker) { marker.remove(); });
+    campusMarkers.forEach(function (marker) {
+      if (marker.element && marker.element.parentNode) marker.element.parentNode.removeChild(marker.element);
+    });
     campusMarkers = [];
     var list = ((campusData && campusData.buildings) || []).filter(function (b) {
       return b && b.number && isFinite(Number(b.longitude)) && isFinite(Number(b.latitude));
@@ -310,9 +336,14 @@
     list.forEach(function (building) {
       var markerButton = document.createElement('button');
       markerButton.type = 'button';
-      markerButton.className = 'campus-number-marker';
+      markerButton.className = 'campus-number-marker campus-roof-marker';
       markerButton.setAttribute('aria-label', 'Открыть корпус ' + building.number + ': ' + (building.name || 'учебный корпус'));
       markerButton.title = 'Корпус ' + building.number + ' · открыть сведения';
+      markerButton.style.position = 'absolute';
+      markerButton.style.left = '0';
+      markerButton.style.top = '0';
+      markerButton.style.zIndex = '12';
+      markerButton.style.willChange = 'transform';
       var number = document.createElement('span');
       number.textContent = String(building.number);
       markerButton.appendChild(number);
@@ -325,16 +356,19 @@
         window.setTimeout(function () { selectCampusBuilding(building, coordinate); }, 650);
       });
       var anchor = buildingAnchor(building);
-      var marker = new maplibregl.Marker({ element: markerButton, anchor: 'center', offset: [0, 0] })
-        .setLngLat(anchor)
-        .addTo(map);
-      marker.getElement().style.zIndex = '12';
-      // Keep the marker attached to the footprint's geographic coordinate.
-      // A screen-space height offset drifts as zoom/pitch changes and is not
-      // a valid substitute for MapLibre's terrain/elevation projection.
-      campusMarkers.push(marker);
+      var pid = resolveBuildingPid(building);
+      var info = pid && scene && scene.index[pid];
+      var roofHeight = info && Number(info.hm) > 0 ? Number(info.hm) : 0;
+      // Attach directly to the top center of the building, not to the ground
+      // footprint. Height is in metres, matching campusMass properties z1.
+      var entry = { element: markerButton, coordinate: anchor, height: roofHeight + 0.18 };
+      map.getCanvasContainer().appendChild(markerButton);
+      campusMarkers.push(entry);
     });
+    updateCampusMarkers();
   }
+  map.on('render', updateCampusMarkers);
+  map.on('resize', updateCampusMarkers);
 
   function applyAtmosphere() {
     try { map.setLight({ anchor: 'map', color: '#fff1d4', intensity: 0.5, position: [1.3, G.SUN_FROM_AZ, 42] }); } catch (e) { /* older/newer API */ }
