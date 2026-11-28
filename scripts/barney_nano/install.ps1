@@ -51,7 +51,11 @@ function Invoke-WingetUpgradeIfAvailable([string]$PackageId, [string]$DisplayNam
     $code = $LASTEXITCODE
     $output | ForEach-Object { Write-Host $_ }
     if ($code -eq 0) {
-        Write-Ok "$DisplayName update check completed (winget skips packages with no applicable update)."
+        Write-Ok "$DisplayName update check completed."
+        return $true
+    }
+    if ($code -eq -1978335189) {
+        Write-Skip $DisplayName
         return $true
     }
     Write-Warn "$DisplayName update check/install returned exit code $code. Review winget output above."
