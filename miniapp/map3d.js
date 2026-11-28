@@ -124,6 +124,23 @@
     buildings3D = true;
     if (map && map.getLayer('campus-model')) map.setLayoutProperty('campus-model', 'visibility', 'visible');
     if (map && map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
+    applyCampusSurfaceMode();
+  }
+
+  // Satellite mode: let the real aerial photograph read as the roof surface,
+  // while retaining a light 3D shell for the walls and building volume.
+  // Scheme mode keeps the original fully shaded campus model unchanged.
+  function applyCampusSurfaceMode() {
+    if (!map || !map.getLayer('campus-model')) return;
+    if (mode === 'sat') {
+      map.setPaintProperty('campus-model', 'fill-extrusion-color', '#e7eee8');
+      map.setPaintProperty('campus-model', 'fill-extrusion-opacity', 0.20);
+      map.setPaintProperty('campus-model', 'fill-extrusion-vertical-gradient', true);
+    } else {
+      map.setPaintProperty('campus-model', 'fill-extrusion-color', ['get', 'col']);
+      map.setPaintProperty('campus-model', 'fill-extrusion-opacity', 0.42);
+      map.setPaintProperty('campus-model', 'fill-extrusion-vertical-gradient', true);
+    }
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
   map.once('load', installCampusLayers);
@@ -166,6 +183,7 @@
     });
     if (map.getLayer('campus-model')) map.setLayoutProperty('campus-model', 'visibility', 'visible');
     if (map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
+    applyCampusSurfaceMode();
     updateModeButton();
   }
 
