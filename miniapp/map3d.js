@@ -129,13 +129,26 @@
     };
   }
 
+  var androidDevice = /Android/i.test(navigator.userAgent || '');
+  var lowPowerDevice = androidDevice && (
+    (typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 4) ||
+    Math.min(window.innerWidth || 0, window.innerHeight || 0) < 430
+  );
+  if (typeof maplibregl.supported === 'function' && !maplibregl.supported()) {
+    setStatus('На этом устройстве недоступен WebGL. Открой карту в обновлённом Telegram или браузере.', true);
+    return;
+  }
+
   var map;
   try {
     map = new maplibregl.Map({
       container: 'map', style: buildStyle(),
-      center: HOME.center, zoom: HOME.zoom, pitch: HOME.pitch, bearing: HOME.bearing,
-      minZoom: 14, maxZoom: 20.5, maxPitch: 80,
+      center: HOME.center, zoom: HOME.zoom,
+      pitch: lowPowerDevice ? 52 : HOME.pitch, bearing: HOME.bearing,
+      minZoom: 14, maxZoom: 20.5, maxPitch: lowPowerDevice ? 68 : 80,
       maxBounds: [[30.318, 59.982], [30.362, 60.004]],
+      pixelRatio: Math.min(window.devicePixelRatio || 1, lowPowerDevice ? 1.35 : (androidDevice ? 1.5 : 2)),
+      antialias: false,
       attributionControl: false
     });
   } catch (e) {
@@ -143,10 +156,32 @@
     return;
   }
 
-  // Recalculate the map viewport after its parent navigation dialog becomes visible.
-  window.addEventListener('resize', function () {
-    if (map) map.resize();
-  });
+  // Recalculate the map viewport when the dialog, WebView or device orientation changes.
+  function resizeMap() {
+    if (map && document.visibilityState !== 'hidden') {
+      window.requestAnimationFrame(function () { if (map) map.resize(); });
+    }
+  }
+  window.addEventListener('resize', resizeMap, { passive: true });
+  window.addEventListener('orientationchange', function () {
+    window.setTimeout(resizeMap, 180);
+  }, { passive: true });
+  document.addEventListener('visibilitychange', resizeMap);
+  if (typeof ResizeObserver !== 'undefined') {
+    var mapResizeObserver = new ResizeObserver(resizeMap);
+    var mapElement = $('map');
+    if (mapElement) mapResizeObserver.observe(mapElement);
+  }
+  var mapCanvas = map.getCanvas();
+  mapCanvas.addEventListener('webglcontextlost', function (event) {
+    event.preventDefault();
+    setStatus('Графический контекст карты потерян. Попробуйте свернуть и снова открыть карту.', true);
+  }, false);
+  mapCanvas.addEventListener('webglcontextrestored', function () {
+    setStatus('Восстанавливаю отображение карты…');
+    resizeMap();
+    if (map) map.triggerRepaint();
+  }, false);
 
   // 3D is permanent. Use mapped height geometry where available; retain flat
   // footprints only for buildings without reliable height data.
@@ -159,7 +194,7 @@
     if (map && map.getLayer('bld-footprint')) map.setLayoutProperty('bld-footprint', 'visibility', 'visible');
     if (map && map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
     if (map && map.getLayer('hl-flat')) map.setLayoutProperty('hl-flat', 'visibility', 'none');
-    if (map) map.easeTo({ pitch: 58, bearing: -18, duration: 650 });
+    if (map) map.easeTo({ pitch: lowPowerDevice ? 52 : 58, bearing: -18, duration: lowPowerDevice ? 220 : 650 });
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
   map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
