@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LoRA fine-tuning of a compact pretrained student using LFM3-distilled dialogues."""
 from __future__ import annotations
-import argparse, hashlib, json
+import argparse, hashlib, json, shutil
 from datetime import datetime, timezone
 from pathlib import Path
 import torch
@@ -98,8 +98,11 @@ def main():
     trainable_percent = (trainable_params / total_params * 100) if total_params else 0.0
     print(f"Trainable parameters: {trainable_params:,} / {total_params:,} ({trainable_percent:.5f}%)")
     args.output.mkdir(parents=True, exist_ok=True)
+    trainer_dir = args.output / "_trainer"
+    if trainer_dir.exists():
+        shutil.rmtree(trainer_dir)
     training_args = TrainingArguments(
-        output_dir=str(args.output), num_train_epochs=args.epochs,
+        output_dir=str(trainer_dir), num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size, per_device_eval_batch_size=1,
         gradient_accumulation_steps=args.grad_accum, learning_rate=1.5e-4,
         lr_scheduler_type="cosine", warmup_ratio=0.05, weight_decay=0.01,
@@ -151,5 +154,20 @@ def main():
     print(f"Adapter saved: {args.output}")
     print(f"Trainable parameters: {trainable_params:,} / {total_params:,} ({trainable_percent:.5f}%)")
     print("Run evaluate_student.py, then inspect the readiness report and human review. Do not deploy based on training loss alone.")
+
+    # A new successful training run invalidates reports and candidate pointers
+    # from the previous weights. The old Ollama model tag is deliberately kept.
+    for stale_name in (
+        "barney-nano-benchmark.json",
+        "barney-nano-benchmark.txt",
+        "barney-nano-qa.json",
+        "barney-nano-candidate.json",
+        "barney-nano-readiness.json",
+        "barney-nano-readiness.md",
+    ):
+        stale_path = ROOT / "training" / stale_name
+        if stale_path.exists():
+            stale_path.unlink()
+    print("Previous benchmark/QA/release pointers invalidated for the new weights.")
 
 if __name__ == "__main__": main()
