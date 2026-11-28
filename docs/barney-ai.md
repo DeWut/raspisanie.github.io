@@ -44,7 +44,7 @@ Render environment:
    ```
 5. Запусти LoRA SFT:
    ```powershell
-   python scripts/barney_ai/train_lfm3_lora.py --epochs 2 --batch-size 1 --grad-accum 8
+   python scripts/barney_ai/train_lfm3_lora.py --epochs 2 --batch-size 1 --grad-accum 8 --merge
    ```
 6. Сравни adapter на отложенной выборке и вручную проверь ответы. Не заменяй рабочую модель до проверки.
 
