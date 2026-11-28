@@ -1788,15 +1788,10 @@ async function addCampusParkLayers(map) {
     });
     $('#toggle-notifications')?.addEventListener('click', () => { closeQuickMenu(); toggleLessonReminders(); });
     $('#open-calendar').addEventListener('click', () => { closeQuickMenu(); renderCalendar(); $('#calendar-dialog').showModal(); });
-    const campusMapFrame = $('#campus-map-frame');
-    const requestCampusMapResize = () => {
-      campusMapFrame?.contentWindow?.postMessage({ type: 'campus-map-resize' }, location.origin);
-    };
-    campusMapFrame?.addEventListener('load', requestCampusMapResize);
     $('#open-map').addEventListener('click', () => {
       closeQuickMenu();
-      // Open the map as its own full-screen page, separate from the timetable.
-      window.location.href = new URL('./map3d.html?v=20261128-44', APP_SCRIPT_URL).href;
+      // Navigate away from the timetable: the campus map is a separate page.
+      window.location.assign(new URL('./map3d.html?v=20261128-45', APP_SCRIPT_URL).href);
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', () => {
