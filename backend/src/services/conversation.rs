@@ -9,6 +9,7 @@ pub enum Intent {
     Week,
     NextLesson,
     Homework,
+    HomeworkFor(String),
     Deadlines,
     FreeRooms(Option<String>),
     Teacher(String),
@@ -39,6 +40,33 @@ fn time_in(text: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Extracts a short subject key from phrases such as "ДЗ по математике"
+/// and conversational follow-ups such as "а по математике?". The key is
+/// deliberately stemmed so common Russian case endings still match DB names.
+pub fn homework_subject(text: &str) -> Option<String> {
+    let normalized = normalize(text);
+    let after = normalized.split_once("по предмету ")
+        .map(|(_, value)| value)
+        .or_else(|| normalized.split_once("по ").map(|(_, value)| value))?;
+    let token = after.split_whitespace()
+        .find(|word| !["дз", "домашка", "домашнее", "задание", "задания", "задали", "предмету", "а", "и", "что", "мне", "нам"].contains(word))?;
+    let mut subject = token.to_owned();
+    for suffix in ["иями", "ями", "ами", "ого", "ему", "ому", "иях", "иях", "ии"] {
+        if subject.ends_with(suffix) && subject.len() > suffix.len() + 2 {
+            subject.truncate(subject.len() - suffix.len());
+            break;
+        }
+    }
+    if subject.ends_with('е') && subject.len() > 4 {
+        subject.pop();
+    } else if (subject.ends_with("ку") || subject.ends_with("гу")) && subject.len() > 4 {
+        subject.pop();
+    } else if (subject.ends_with("ой") || subject.ends_with("ей")) && subject.len() > 4 {
+        subject.truncate(subject.len() - 2);
+    }
+    (subject.chars().count() >= 3).then_some(subject)
 }
 
 pub fn detect(text: &str) -> Option<Intent> {
@@ -80,7 +108,7 @@ pub fn detect(text: &str) -> Option<Intent> {
     if has_any(&text, &["домашн", "домашк", "дз", "задали", "задание", "задания", "домашка"])
         && has_any(&text, &["какое", "какие", "покажи", "есть", "задан", "дз", "домашн", "что"])
     {
-        return Some(Intent::Homework);
+        return Some(homework_subject(&text).map(Intent::HomeworkFor).unwrap_or(Intent::Homework));
     }
     if has_any(&text, &["завтра", "на завтра"]) {
         return Some(Intent::Tomorrow);
@@ -122,6 +150,8 @@ mod tests {
         assert_eq!(detect("А какое домашнее задание задали?"), Some(Intent::Homework));
         assert_eq!(detect("Что задали по улв?"), Some(Intent::Homework));
         assert_eq!(detect("Покажи домашку"), Some(Intent::Homework));
+        assert_eq!(detect("Что задали по математике?"), Some(Intent::HomeworkFor("математик".into())));
+        assert_eq!(homework_subject("а по физике?"), Some("физик".into()));
         assert_eq!(detect("Какие занятия у Иванова?"), Some(Intent::Teacher("иванова".into())));
         assert_eq!(detect("Во сколько у нас пара?"), Some(Intent::Today));
         assert_eq!(detect("Добрый вечер!"), Some(Intent::Greeting));
