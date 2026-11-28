@@ -82,7 +82,8 @@ assert.match(api, /sync_member\(/, 'Group commands must verify current Telegram 
 assert.match(api, /can_manage_chat\(/, 'Changing group settings must require administrator rights');
 assert.match(api, /consent_context/);
 assert.match(api, /content_permissions/);
-assert.match(api, /"engine": "local_rules"/);
+assert.match(api, /let mut engine = "local_rules"/, 'The assistant must default to deterministic local rules');
+assert.match(api, /"engine": engine/, 'The API must report which assistant engine actually handled the request');
 assert.match(api, /bot_user_assistant_messages/);
 
 assert.match(bot, /bot_chat_daily_deliveries/);
