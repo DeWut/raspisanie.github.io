@@ -86,50 +86,6 @@
     return layer;
   }
 
-  function buildStyle() {
-    var layers = [
-      { id: 'bg', type: 'background', paint: { 'background-color': '#dfe6d3' } },
-      { id: 'sat', type: 'raster', source: 'esri', paint: { 'raster-fade-duration': 0, 'raster-opacity': 1 }, layout: { visibility: 'visible' } },
-      { id: 'park', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'park-boundary'],
-        paint: { 'fill-color': '#cfe0b4', 'fill-opacity': 0.55 } },
-      { id: 'green', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'green-area'],
-        paint: {
-          'fill-color': ['match', ['get', 'areaType'], 'wood', '#86ad76', 'scrub', '#9bbd82', '#b4d08f'],
-          'fill-opacity': 0.9
-        } },
-      { id: 'water', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'water'],
-        paint: { 'fill-color': '#8bb8d8' } },
-      { id: 'path-casing', type: 'line', source: 'ground', filter: ['==', ['get', 'kind'], 'path'],
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#c9bfa5', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.8, 20, 2.4] } },
-      { id: 'path', type: 'line', source: 'ground', filter: ['==', ['get', 'kind'], 'path'],
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 20, 1.6] } },
-      { id: 'campus-bld-2d', type: 'fill', source: 'footprints', layout: { visibility: 'none' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#79766f' } },
-      { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#625e55' } },
-      extrusion('campus-model', 'campusMass', 0, 0.42),
-      extrusion('bld', 'solid', 0, 1),
-      { id: 'hl-flat', type: 'fill', source: 'hl', layout: { visibility: 'none' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.24, 'fill-outline-color': '#e0ad35' } },
-      extrusion('hl', 'hl', 0, 0.55)
-    ];
-    return {
-      version: 8,
-      sources: {
-        esri: { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 19,
-          attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' },
-        ground: { type: 'geojson', data: EMPTY },
-        footprints: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
-        solid: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
-        campusMass: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
-        hl: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 }
-      },
-      layers: layers
-    };
-  }
-
   var map;
   try {
     map = new maplibregl.Map({
@@ -181,35 +137,6 @@
       button.setAttribute('aria-label', mode === 'sat' ? 'Переключить на схему' : 'Переключить на спутник');
       button.setAttribute('aria-pressed', mode === 'sat' ? 'true' : 'false');
     }
-  }
-
-  function addSchemeDataSourcesAndLayers(style) {
-    var next = JSON.parse(JSON.stringify(style));
-    next.sources = next.sources || {};
-    next.sources.ground = { type: 'geojson', data: EMPTY };
-    next.sources.footprints = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
-    next.sources.solid = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
-    next.sources.campusMass = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
-    next.sources.hl = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
-
-    var campusLayers = [
-      { id: 'campus-bld-2d', type: 'fill', source: 'footprints', layout: { visibility: 'none' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#77736b' } },
-      { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
-        layout: { visibility: 'visible' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#77736b' } },
-      extrusion('campus-model', 'campusMass', 0, 0.42),
-      extrusion('bld', 'solid', 0, 1),
-      { id: 'hl-flat', type: 'fill', source: 'hl', layout: { visibility: 'none' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.24, 'fill-outline-color': '#d99e27' } },
-      extrusion('hl', 'hl', 0, 0.55)
-    ];
-    var layers = next.layers || [];
-    var firstSymbol = layers.findIndex(function (layer) { return layer.type === 'symbol'; });
-    if (firstSymbol < 0) firstSymbol = layers.length;
-    layers.splice.apply(layers, [firstSymbol, 0].concat(campusLayers));
-    next.layers = layers;
-    return next;
   }
 
   function syncSceneData() {
@@ -375,7 +302,7 @@
   }
 
   function updateCampusMarkerHeights() {
-    if (!map || !campusMarkers.length) return;
+    if (!map || !campusMarkers || !campusMarkers.length) return;
     var zoom = map.getZoom();
     var pitch = map.getPitch() * Math.PI / 180;
     var lat = map.getCenter().lat;
