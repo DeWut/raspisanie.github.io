@@ -197,7 +197,6 @@ pub fn detect_with_context(
     previous_user: Option<&str>,
     previous_assistant: Option<&str>,
 ) -> Option<Intent> {
-    if let Some(intent) = detect(text) { return Some(intent); }
     let lower = normalize(text);
     let is_followup = lower.starts_with("а ") || lower.starts_with("и ")
         || lower.starts_with("а если") || lower.starts_with("а когда")
@@ -205,9 +204,15 @@ pub fn detect_with_context(
         || lower.starts_with("а по ") || lower.starts_with("и по ")
         || lower.starts_with("почему ") || lower.starts_with("тогда ")
         || lower.starts_with("а это ") || lower.starts_with("а там ");
-    if !is_followup { return None; }
-
     let prior = previous_user.and_then(detect);
+    // Resolve a contextual reference before fuzzy matching: "а где аудитория?"
+    // after asking about the next lesson is still about that lesson, not a room search.
+    if is_followup && matches!(prior, Some(Intent::NextLesson))
+        && has_any(&lower, &["аудитор", "время", "преподавател", "кабинет"]) {
+        return Some(Intent::NextLesson);
+    }
+    if let Some(intent) = detect(text) { return Some(intent); }
+    if !is_followup { return None; }
     match prior {
         Some(Intent::Today | Intent::Tomorrow | Intent::Week | Intent::NextLesson) => {
             if has_any(&lower, &["завтра", "на следующий день"]) { Some(Intent::Tomorrow) }
