@@ -49,12 +49,26 @@ function Invoke-RenderApi([string]$Method, [string]$Path, $Body = $null) {
     }
 }
 function Get-ServiceEnvTable([string]$ServiceId) {
-    $response = Invoke-RenderApi "GET" "/services/$ServiceId/env-vars?limit=100"
+    # Render's list endpoint is cursor-paginated and only returns variables
+    # directly attached to the service (not linked environment groups).
     $table = @{}
-    foreach ($entry in @($response)) {
-        $item = if ($entry.envVar) { $entry.envVar } else { $entry }
-        if ($item.key) { $table[[string]$item.key] = [string]$item.value }
-    }
+    $cursor = $null
+    do {
+        $path = "/services/$ServiceId/env-vars?limit=100"
+        if ($cursor) {
+            $path += "&cursor=" + [uri]::EscapeDataString([string]$cursor)
+        }
+        $response = Invoke-RenderApi "GET" $path
+        $page = @($response)
+        foreach ($entry in $page) {
+            $item = if ($entry.envVar) { $entry.envVar } else { $entry }
+            if ($item.key) { $table[[string]$item.key] = [string]$item.value }
+        }
+        $nextCursor = $null
+        if ($page.Count -gt 0) { $nextCursor = $page[-1].cursor }
+        if ($nextCursor -and $nextCursor -ne $cursor) { $cursor = [string]$nextCursor }
+        else { $cursor = $null }
+    } while ($cursor)
     return $table
 }
 function Get-ServiceObject([string]$ServiceId) {
@@ -195,6 +209,10 @@ try {
         Write-Host "Remote model response received ($($sample.Length) characters)."
         Write-Host "[OK] Candidate is reachable through the configured remote model route." -ForegroundColor Green
 
+        Write-Host "Checking the currently active model as a rollback target..."
+        $previousSample = Test-ModelThroughProxy $proxyUrl $proxyKey $currentModel
+        Write-Host "[OK] Previous production model is still reachable and can serve as rollback." -ForegroundColor Green
+
         $state = [ordered]@{
             schema_version = 1
             service_id = $serviceId
@@ -205,7 +223,6 @@ try {
             status = "preflight_passed"
             deploy_id = $null
         }
-        Save-State $state
 
         Write-Header "2/3 - EXPLICIT PRODUCTION SWITCH"
         Write-Host "Current model : $currentModel"
@@ -217,6 +234,8 @@ try {
             exit 0
         }
 
+        # Write rollback metadata immediately before the first production mutation.
+        Save-State $state
         Set-ModelVariable $serviceId $targetModel
         $state.status = "environment_updated"
         Save-State $state
@@ -245,7 +264,7 @@ try {
             exit 2
         }
 
-        $serviceUrl = [string]$service.serviceDetails.url
+        $serviceUrl = [string]$service.url
         if (-not (Test-BackendHealth $serviceUrl)) {
             Write-Warning "Backend health check did not return status=ok. Restoring the previous model configuration."
             Restore-PreviousModel $serviceId $currentModel
@@ -290,7 +309,7 @@ try {
         Save-State $saved
         Write-Host "Rollback deploy queued: $deployId"
         $deployStatus = Wait-ForDeploy $serviceId $deployId
-        if ($deployStatus -eq "live" -and (Test-BackendHealth ([string]$service.serviceDetails.url))) {
+        if ($deployStatus -eq "live" -and (Test-BackendHealth ([string]$service.url))) {
             $saved.status = "rolled_back"
             Save-State $saved
             Write-Host "[SUCCESS] Previous model restored and backend health check passed." -ForegroundColor Green
