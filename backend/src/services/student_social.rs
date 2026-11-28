@@ -640,6 +640,28 @@ pub async fn handle_callback(
             .await?;
         return Ok(true);
     }
+    if action == "dating:open" {
+        let tracked = sqlx::query_as::<_, (i64, i64)>(
+            "SELECT chat_id,message_id FROM bot_dating_ui_messages WHERE telegram_id=$1"
+        )
+        .bind(actor)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten();
+
+        // The main-menu message is just an entry point, not the dating screen.
+        // Remove it first, then open/reuse the dedicated profile-management
+        // message. If the user is already on that screen, keep editing it in place.
+        if tracked != Some((chat_id.0, i64::from(message_id.0))) {
+            bot.answer_callback_query(query.id.clone()).await?;
+            if let Err(error) = bot.delete_message(chat_id, message_id).await {
+                tracing::debug!("Could not delete the dating entry message: {}", error);
+            }
+            open_dating(bot, db, chat_id, actor).await?;
+            return Ok(true);
+        }
+    }
     if action.starts_with("dating:") {
         remember_dating_screen_message(db, actor, chat_id, message_id).await;
     }
