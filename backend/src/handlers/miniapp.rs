@@ -606,6 +606,20 @@ pub async fn assistant_chat(
             "help",
             "Я могу работать с расписанием, следующей парой, ДЗ, дедлайнами, преподавателями, аудиториями и настройками. В Mini App также доступны личный кабинет, учебные чаты, инструменты, помощник и уведомления. Раздел знакомств и профилей открывается в соответствующей вкладке Mini App.".to_owned(),
         ),
+        Some(crate::services::conversation::Intent::GroupLookup(name)) => {
+            let pattern = format!("%{}%", name);
+            let found = sqlx::query_scalar::<_, uuid::Uuid>(
+                "SELECT id FROM groups WHERE name ILIKE $1 OR external_id ILIKE $1 ORDER BY name LIMIT 1"
+            ).bind(&pattern).fetch_optional(&state.db).await?;
+            match found {
+                Some(group) => ("schedule", crate::bot::schedule_text(&state.db, group, "/week").await),
+                None => ("schedule", format!("Не нашёл учебную группу «{}». Проверь написание или выбери группу из списка в настройках.", name)),
+            }
+        }
+        Some(crate::services::conversation::Intent::ScheduleChanges) => (
+            "schedule",
+            "Уведомления об изменениях расписания настраиваются в личном кабинете. Отдельный журнал всех отмен и переносов по текстовому запросу пока не предоставляется; я не буду утверждать, что изменений нет, если не могу подтвердить это по данным.".to_owned(),
+        ),
         Some(crate::services::conversation::Intent::Today) => {
             let Some(group) = group_id else {
                 return Ok(Json(json!({"kind":"schedule","reply":"Сначала выбери учебную группу в настройках Mini App."})));
