@@ -12,7 +12,14 @@ set "DIR=%ROOT%\scripts\barney_nano"
 set "RAW=%ROOT%\data\barney_nano\teacher_raw.jsonl"
 set "APPROVED=%ROOT%\data\barney_nano\approved.jsonl"
 set "ADAPTER=%ROOT%\training\barney-nano-adapter"
-cd /d "%ROOT%" || (echo [ERROR] Project folder not found.& pause & exit /b 1)
+set "RELEASE_MANAGER=%DIR%\release_manager.py"
+set "RENDER_RELEASE=%DIR%\render_release.ps1"
+
+cd /d "%ROOT%" || (
+  echo [ERROR] Project folder not found.
+  pause
+  exit /b 1
+)
 
 :MENU
 cls
@@ -28,14 +35,23 @@ echo   Student : SmolLM2-360M-Instruct + LoRA
 echo   Hardware: NVIDIA GPU / local training
 echo  ----------------------------------------------------------------
 echo.
-echo   [1] Automatic installation / repair (Python, CUDA PyTorch, Ollama, models)
+echo   TRAINING
+echo   [1] Automatic installation / repair
 echo   [2] Hardware and dependencies check
 echo   [3] Generate candidates with LFM3 teacher
 echo   [4] Review / approve dataset
 echo   [5] Train BARNEY-NANO
 echo   [6] Evaluate trained adapter
-echo   [7] Merge adapter for GGUF export
+echo   [7] Merge adapter to HF checkpoint (manual export)
+echo.
+echo   RELEASE / PRODUCTION
 echo   [8] Open project folders
+echo   [9] Readiness report (parameters, sizes, progress)
+echo   [10] Review benchmark answers (required before release)
+echo   [11] Build versioned Ollama candidate (local test only)
+echo   [12] Promote candidate to live Render backend
+echo   [13] Roll back to previous live model
+echo.
 echo   [0] Exit
 echo.
 set "CHOICE="
@@ -49,6 +65,11 @@ if "%CHOICE%"=="5" goto TRAIN
 if "%CHOICE%"=="6" goto EVALUATE
 if "%CHOICE%"=="7" goto MERGE
 if "%CHOICE%"=="8" goto OPEN_FOLDERS
+if "%CHOICE%"=="9" goto REPORT
+if "%CHOICE%"=="10" goto QA_REVIEW
+if "%CHOICE%"=="11" goto BUILD_CANDIDATE
+if "%CHOICE%"=="12" goto PROMOTE
+if "%CHOICE%"=="13" goto ROLLBACK
 if "%CHOICE%"=="0" exit /b
 goto MENU
 
@@ -65,6 +86,7 @@ echo   - BARNEY-NANO Python dependencies
 echo   - SmolLM2 student model cache
 echo   - LFM3 teacher model (if available on this Windows setup)
 echo.
+echo  Existing up-to-date components are skipped.
 echo  NVIDIA driver updates are not forced automatically.
 echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%DIR%\install.ps1" -Root "%ROOT%"
@@ -120,6 +142,7 @@ set "COUNT="
 set /p "COUNT=How many candidates? [20] "
 if "%COUNT%"=="" set "COUNT=20"
 "%PY%" "%DIR%\generate_teacher.py" --count %COUNT%
+if errorlevel 1 echo [ERROR] Teacher generation failed.
 pause
 goto MENU
 
@@ -138,31 +161,140 @@ if not exist "%APPROVED%" (echo Approved dataset not found. Run option 4 first.&
 "%PY%" -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)"
 if errorlevel 1 (echo [ERROR] CUDA GPU is not available. Run option 2 and fix the driver/PyTorch setup.& pause & goto MENU)
 echo.
-echo Start LoRA training on the NVIDIA GPU? Keep the laptop plugged in.
+echo A successful new training run invalidates old benchmark/QA reports.
+echo Existing named Ollama models are NOT deleted or overwritten.
+echo Keep the laptop plugged in.
+echo.
 set "CONFIRM="
-set /p "CONFIRM=Continue [Y/N]? "
+set /p "CONFIRM=Start LoRA training now? [Y/N] "
 if /I not "%CONFIRM%"=="Y" goto MENU
 "%PY%" "%DIR%\train_student.py" --data "%APPROVED%" --output "%ADAPTER%" --epochs 3 --batch-size 1 --grad-accum 16 --max-length 512 --rank 8
+if errorlevel 1 (
+  echo.
+  echo [ERROR] Training failed. Previous Ollama production tags are untouched.
+) else (
+  echo.
+  echo [OK] Adapter saved. Updating readiness report...
+  "%PY%" "%RELEASE_MANAGER%" report
+)
 pause
 goto MENU
 
 :EVALUATE
 cls
 if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
+if not exist "%ADAPTER%\adapter_config.json" (echo Trained adapter not found. Run option 5 first.& pause & goto MENU)
 "%PY%" "%DIR%\evaluate_student.py" --adapter "%ADAPTER%"
+if errorlevel 1 (
+  echo.
+  echo [ERROR] Evaluation failed.
+) else (
+  echo.
+  echo [INFO] Benchmark created. Refreshing readiness report...
+  "%PY%" "%RELEASE_MANAGER%" report
+)
 pause
 goto MENU
 
 :MERGE
 cls
 if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
+if not exist "%ADAPTER%\adapter_config.json" (echo Trained adapter not found. Run option 5 first.& pause & goto MENU)
 "%PY%" "%DIR%\merge_adapter.py" --adapter "%ADAPTER%" --output "%ROOT%\training\barney-nano-merged"
+if errorlevel 1 echo [ERROR] Merge failed.
 pause
 goto MENU
 
 :OPEN_FOLDERS
 if not exist "%ROOT%\data\barney_nano" mkdir "%ROOT%\data\barney_nano"
 if not exist "%ROOT%\training" mkdir "%ROOT%\training"
+if not exist "%ROOT%\training\releases" mkdir "%ROOT%\training\releases"
 start "" explorer "%ROOT%\data\barney_nano"
 start "" explorer "%ROOT%\training"
+start "" explorer "%ROOT%\training\releases"
+goto MENU
+
+:REPORT
+cls
+if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
+"%PY%" "%RELEASE_MANAGER%" report
+pause
+goto MENU
+
+:QA_REVIEW
+cls
+if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
+if not exist "%ROOT%\training\barney-nano-benchmark.json" (
+  echo Benchmark not found. Run option 6 first.
+  pause
+  goto MENU
+)
+"%PY%" "%RELEASE_MANAGER%" review
+pause
+goto MENU
+
+:BUILD_CANDIDATE
+cls
+if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
+if not exist "%ADAPTER%\adapter_config.json" (
+  echo Trained adapter not found. Run option 5 first.
+  pause
+  goto MENU
+)
+echo.
+echo This creates a separate versioned Ollama model.
+echo It does NOT overwrite lfm3, change Render, or affect the live bot.
+echo The local Ollama model must be able to import the merged Safetensors checkpoint.
+echo.
+set "CONFIRM="
+set /p "CONFIRM=Build and locally test candidate? [Y/N] "
+if /I not "%CONFIRM%"=="Y" goto MENU
+"%PY%" "%RELEASE_MANAGER%" prepare
+if errorlevel 1 echo [BLOCKED/ERROR] Candidate was not promoted. Review the report above.
+pause
+goto MENU
+
+:PROMOTE
+cls
+if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
+if not exist "%RENDER_RELEASE%" (echo Render release script is missing.& pause & goto MENU)
+echo.
+echo ================================================================
+echo LIVE BARNEY PRODUCTION UPDATE
+echo ================================================================
+echo.
+echo Preflight checks must pass before any Render change.
+echo The script updates only OLLAMA_MODEL, never the whole environment.
+echo It asks for Render Service ID and hidden API key locally.
+echo It requires typing PROMOTE before changing production.
+echo The current model name is saved for rollback.
+echo.
+set "CONFIRM="
+set /p "CONFIRM=Continue to Render preflight? [Y/N] "
+if /I not "%CONFIRM%"=="Y" goto MENU
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RENDER_RELEASE%" -Mode promote -Root "%ROOT%"
+pause
+goto MENU
+
+:ROLLBACK
+cls
+if not exist "%RENDER_RELEASE%" (echo Render release script is missing.& pause & goto MENU)
+if not exist "%ROOT%\training\barney-nano-render-deploy.json" (
+  echo No saved Render deployment state was found. There is nothing to roll back to.
+  pause
+  goto MENU
+)
+echo.
+echo ================================================================
+echo RESTORE PREVIOUS LIVE BARNEY MODEL
+echo ================================================================
+echo.
+echo The script tests the previous model before switching back.
+echo It requires typing ROLLBACK before changing production.
+echo.
+set "CONFIRM="
+set /p "CONFIRM=Continue to rollback preflight? [Y/N] "
+if /I not "%CONFIRM%"=="Y" goto MENU
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%RENDER_RELEASE%" -Mode rollback -Root "%ROOT%"
+pause
 goto MENU
