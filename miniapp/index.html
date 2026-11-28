@@ -144,8 +144,8 @@
                 <label class="control-field"><span>Группа, к которой относится этот чат</span><select id="managed-chat-group"></select></label>
                 <button class="secondary-button" id="managed-chat-group-save" type="button">Изменить группу чата</button>
               </div>
-              <div class="control-divider"></div>
-              <p class="eyebrow">РАСПИСАНИЕ И ДАЙДЖЕСТ</p>
+              <section class="chat-settings-section">
+                <div class="chat-settings-heading"><span class="chat-settings-icon" aria-hidden="true">◷</span><div><p class="eyebrow">РАСПИСАНИЕ</p><h3>Публикации и напоминания</h3></div></div>
               <label class="settings-toggle-row"><span><strong>Ежедневно публиковать расписание</strong><small>Отдельное сообщение в выбранное время</small></span><input id="chat-setting-daily-schedule" type="checkbox" /></label>
               <label class="control-field"><span>Время расписания · Москва</span><input id="chat-setting-schedule-time" type="time" value="07:00" /></label>
               <label class="settings-toggle-row"><span><strong>Групповой дайджест</strong><small>Расписание и активные задания отдельным сообщением</small></span><input id="chat-setting-digest" type="checkbox" /></label>
@@ -156,8 +156,9 @@
               <label class="settings-toggle-row"><span><strong>Напоминания о мероприятиях</strong><small>Только участникам, которые записались и включили личные напоминания</small></span><input id="chat-setting-event-reminders" type="checkbox" /></label>
               <label class="settings-toggle-row"><span><strong>Публиковать изменения расписания</strong><small>Уведомлять группу об изменениях</small></span><input id="chat-setting-changes" type="checkbox" /></label>
 
-              <div class="control-divider"></div>
-              <p class="eyebrow">ДОМАШНИЕ ЗАДАНИЯ И МОДЕРАЦИЯ</p>
+              </section>
+              <section class="chat-settings-section">
+                <div class="chat-settings-heading"><span class="chat-settings-icon" aria-hidden="true">✓</span><div><p class="eyebrow">УПРАВЛЕНИЕ ГРУППОЙ</p><h3>Задания и модерация</h3></div></div>
               <label class="settings-toggle-row"><span><strong>Автосбор кандидатов ДЗ</strong><small>Распознаёт только сообщения с признаками задания; публикация после подтверждения</small></span><input id="chat-setting-autodz" type="checkbox" /></label>
               <label class="control-field"><span>Кто подтверждает найденные задания</span>
                 <select id="chat-setting-approver"><option value="class_leader">Староста</option><option value="moderator">Модератор</option><option value="admin">Администратор Telegram</option></select>
@@ -169,12 +170,14 @@
               <label class="settings-toggle-row"><span><strong>Фильтр повторяющегося спама</strong><small>Создаёт сигнал после повторов; автоматически сообщения не удаляет</small></span><input id="chat-setting-spam" type="checkbox" /></label>
               <label class="settings-toggle-row"><span><strong>Мемы и развлекательные ответы</strong><small>Разрешить необязательные ответы бота</small></span><input id="chat-setting-memes" type="checkbox" /></label>
 
-              <div class="control-divider"></div>
-              <p class="eyebrow">КОНТЕКСТНЫЙ ПОМОЩНИК</p>
+              </section>
+              <section class="chat-settings-section">
+                <div class="chat-settings-heading"><span class="chat-settings-icon" aria-hidden="true">✦</span><div><p class="eyebrow">БАРНИ</p><h3>Помощник и контекст</h3></div></div>
               <label class="settings-toggle-row"><span><strong>Учебный помощник в этом чате</strong><small>Отвечает на вопросы о расписании, ДЗ и учебных сроках</small></span><input id="chat-setting-assistant" type="checkbox" /></label>
               <label class="settings-toggle-row"><span><strong>Сохранять учебный контекст ответов бота</strong><small>Только ответы бота и сообщения-ответы на них; без чтения всей переписки</small></span><input id="chat-setting-context" type="checkbox" /></label>
               <label class="control-field"><span>Срок хранения учебного контекста</span><select id="chat-setting-retention"><option value="1">1 день</option><option value="3">3 дня</option><option value="7">7 дней</option><option value="14">14 дней</option><option value="30">30 дней</option></select></label>
               <label class="consent-row"><input id="chat-setting-consent" type="checkbox" /><span>Я администратор этого чата и подтверждаю, что участники уведомлены о включении ограниченного учебного контекста и его сроке хранения.</span></label>
+              </section>
               <div class="settings-actions">
                 <button class="primary-button" id="managed-chat-settings-save" type="button">Сохранить настройки чата в Neon</button>
                 <p id="managed-chat-status" role="status"></p>
