@@ -329,10 +329,18 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
         status = "READY_FOR_PROMOTION"
         summary = "Все локальные ворота пройдены. Можно рассматривать переключение backend после удалённого preflight."
 
+    gates_passed = sum(1 for gate in gates if gate["passed"])
+    readiness_percent = round(gates_passed / len(gates) * 100, 1) if gates else 0.0
+
     report = {
         "schema_version": 1,
         "generated_at": now_iso(),
         "status": status,
+        "readiness_checklist": {
+            "passed": gates_passed,
+            "total": len(gates),
+            "percent": readiness_percent,
+        },
         "summary": summary,
         "model_id": model_id,
         "production_min_approved_examples": PRODUCTION_MIN_EXAMPLES,
@@ -460,8 +468,9 @@ def print_report(report: dict[str, Any]) -> None:
     passed = sum(1 for gate in report["gates"] if gate["passed"])
     for gate in report["gates"]:
         print(f" [{'OK' if gate['passed'] else '  '}] {gate['label']}")
-    print(f"\nПройдено: {passed}/{len(report['gates'])} контрольных пунктов.")
-    print("Это прогресс чек-листа, не процент качества модели.")
+    readiness_percent = report["readiness_checklist"]["percent"]
+    print(f"\nПройдено: {passed}/{len(report['gates'])} контрольных пунктов ({readiness_percent:.1f}%).")
+    print("Это прогресс чек-листа выпуска, а не процент точности или качества ответов.")
     print(f"\nОтчёт JSON: {READINESS_JSON}")
     print(f"Отчёт Markdown: {READINESS_MD}")
 
