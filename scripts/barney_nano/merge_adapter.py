@@ -7,6 +7,8 @@ import torch
 from peft import AutoPeftModelForCausalLM
 from transformers import AutoTokenizer
 
+BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adapter", default="training/barney-nano-adapter")
@@ -19,7 +21,7 @@ def main():
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     merged.save_pretrained(output, safe_serialization=True)
-    tokenizer = AutoTokenizer.from_pretrained(model.config._name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
     tokenizer.save_pretrained(output)
     print(f"Merged checkpoint saved: {output}")
     print("Next: convert with llama.cpp convert_hf_to_gguf.py and quantize to Q4_K_M.")
