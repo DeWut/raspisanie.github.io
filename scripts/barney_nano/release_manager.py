@@ -541,10 +541,18 @@ def prepare_candidate() -> int:
         print("[ERROR] Сначала выполни пункт [6] Evaluate trained adapter.")
         return 2
     qa = read_json(QA_FILE)
-    if not qa or qa.get("status") != "passed" or not all(
-        row.get("passed") is True for row in qa.get("cases", []) if isinstance(row, dict)
+    current_benchmark_hash = sha256_file(BENCHMARK_JSON)
+    benchmark = benchmark_stats(BENCHMARK_JSON)
+    if (
+        not qa
+        or qa.get("status") != "passed"
+        or qa.get("benchmark_sha256") != current_benchmark_hash
+        or benchmark["cases"] < 6
+        or not isinstance(qa.get("cases"), list)
+        or len(qa["cases"]) != benchmark["cases"]
+        or not all(isinstance(row, dict) and row.get("passed") is True for row in qa["cases"])
     ):
-        print("[BLOCKED] Ручная проверка benchmark не пройдена. Сначала выполни пункт [10].")
+        print("[BLOCKED] Ручная проверка отсутствует, устарела или benchmark не пройден целиком. Запусти [10] повторно.")
         return 3
 
     data = dataset_stats(APPROVED)
