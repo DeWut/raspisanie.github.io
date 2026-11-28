@@ -21,7 +21,7 @@
   const isWeekPage = document.body.dataset.page === 'week';
   const requestedDate = pageParams.get('date');
   const parsedRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? new Date(requestedDate + 'T12:00:00Z') : null;
-  const state = { groups: [], schedule: null, scheduleMeta: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null, currentView: isWeekPage ? 'schedule' : 'home', account: null, control: { managedChats: [], managedGroups: [], selectedChatId: '' } };
+  const state = { groups: [], schedule: null, scheduleMeta: null, selectedDate: parsedRequestedDate && !Number.isNaN(parsedRequestedDate.getTime()) ? parsedRequestedDate : startOfDay(new Date()), view: isWeekPage ? 'week' : 'today', searchQuery: '', filter: 'current', calendarMonth: new Date().getMonth(), calendarYear: new Date().getFullYear(), campus: null, currentView: isWeekPage ? 'schedule' : 'home', account: null, control: { managedChats: [], managedGroups: [], personalGroups: [], selectedChatId: '' } };
   const $ = (selector) => document.querySelector(selector);
   const tg = window.Telegram?.WebApp;
   // Resolve data relative to the app script, not the page URL.
@@ -180,6 +180,13 @@
     try {
       const profile = await accountApi('/api/me');
       state.account = profile;
+      try {
+        const groups = await accountApi('/api/groups');
+        state.control.personalGroups = Array.isArray(groups) ? groups : [];
+      } catch (groupError) {
+        console.warn('Could not load account group catalogue:', groupError);
+        state.control.personalGroups = [];
+      }
       const preferences = await accountApi('/api/me/preferences');
       const settings = preferences.settings || {};
       $('#settings-reminders').checked = settings.reminders_enabled === true;
@@ -275,8 +282,9 @@
     if (!select) return;
     const previous = String(selectedExternalId || select.value || '');
     select.replaceChildren(new Option('Выбери свою группу', ''));
-    state.groups.forEach((group) => select.add(new Option(group.name, String(group.id))));
-    select.value = state.groups.some((group) => String(group.id) === previous) ? previous : '';
+    const groups = state.control.personalGroups.length ? state.control.personalGroups : state.groups.map((group) => ({ external_id: group.id, name: group.name }));
+    groups.forEach((group) => select.add(new Option(group.name, String(group.external_id))));
+    select.value = groups.some((group) => String(group.external_id) === previous) ? previous : '';
     if (button) button.disabled = !hasTelegramAccountApi() || !state.groups.length;
   }
 
@@ -297,9 +305,10 @@
         body: JSON.stringify({ external_id: externalId }),
       });
       if (state.account) state.account.group_id = result.group_id;
-      const group = state.groups.find((item) => String(item.id) === externalId);
-      if (group && String(state.schedule?.id) !== externalId) {
-        await selectGroup(group.id, { persist: false, announce: false });
+      const group = state.control.personalGroups.find((item) => String(item.external_id) === externalId)
+        || state.groups.find((item) => String(item.id) === externalId);
+      if (group && String(state.schedule?.id) !== externalId && state.groups.some((item) => String(item.id) === externalId)) {
+        await selectGroup(externalId, { persist: false, announce: false });
       }
       populatePersonalGroupSelect(externalId);
       status.textContent = 'Группа привязана к Telegram-аккаунту.';
