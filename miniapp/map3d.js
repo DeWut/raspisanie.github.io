@@ -109,7 +109,8 @@
       { id: 'campus-bld-2d', type: 'fill', source: 'footprints', layout: { visibility: 'none' },
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#79766f' } },
       { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.94, 'fill-outline-color': '#625e55' } },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#625e55' } },
+      extrusion('campus-model', 'campusMass', 0, 0.42),
       extrusion('bld', 'solid', 0, 1),
       { id: 'hl-flat', type: 'fill', source: 'hl', layout: { visibility: 'none' },
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.24, 'fill-outline-color': '#e0ad35' } },
@@ -123,6 +124,7 @@
         ground: { type: 'geojson', data: EMPTY },
         footprints: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         solid: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
+        campusMass: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 },
         hl: { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 }
       },
       layers: layers
@@ -154,12 +156,12 @@
     buildings3D = true;
     var hasExtrusions = !!(scene && scene.solid && scene.solid.length);
     var showExtrusions = hasExtrusions;
-    if (map && map.getLayer('bld')) map.setLayoutProperty('bld', 'visibility', showExtrusions ? 'visible' : 'none');
-    if (map && map.getLayer('campus-bld-2d')) map.setLayoutProperty('campus-bld-2d', 'visibility', showExtrusions ? 'none' : 'visible');
+    if (map && map.getLayer('bld')) map.setLayoutProperty('bld', 'visibility', 'none');
+    if (map && map.getLayer('campus-bld-2d')) map.setLayoutProperty('campus-bld-2d', 'visibility', 'visible');
     if (map && map.getLayer('bld-footprint')) map.setLayoutProperty('bld-footprint', 'visibility', 'visible');
+    if (map && map.getLayer('campus-model')) map.setLayoutProperty('campus-model', 'visibility', 'visible');
     if (map && map.getLayer('hl')) map.setLayoutProperty('hl', 'visibility', 'visible');
     if (map && map.getLayer('hl-flat')) map.setLayoutProperty('hl-flat', 'visibility', 'none');
-    if (map) map.easeTo({ pitch: 58, bearing: -18, duration: 650 });
   }
   map.on('error', function (ev) { if (ev && ev.error && window.console) { console.warn('map error:', ev.error.message || ev.error); } });
   map.on('style.load', function () { if (scene) syncSceneData(); setBuildingMode(buildings3D); });
@@ -181,6 +183,7 @@
     next.sources.ground = { type: 'geojson', data: EMPTY };
     next.sources.footprints = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
     next.sources.solid = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
+    next.sources.campusMass = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
     next.sources.hl = { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 };
 
     var campusLayers = [
@@ -188,7 +191,8 @@
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#77736b' } },
       { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
         layout: { visibility: 'visible' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#77736b' } },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#77736b' } },
+      extrusion('campus-model', 'campusMass', 0, 0.42),
       extrusion('bld', 'solid', 0, 1),
       { id: 'hl-flat', type: 'fill', source: 'hl', layout: { visibility: 'none' },
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.24, 'fill-outline-color': '#d99e27' } },
@@ -206,6 +210,8 @@
     if (!scene || !map || !map.isStyleLoaded()) return;
     var source = map.getSource('ground');
     if (source) source.setData({ type: 'FeatureCollection', features: scene.ground || [] });
+    source = map.getSource('campusMass');
+    if (source) source.setData({ type: 'FeatureCollection', features: scene.campusMass || [] });
     source = map.getSource('footprints');
     if (source) source.setData({ type: 'FeatureCollection', features: scene.footprints || [] });
     source = map.getSource('solid');
@@ -287,6 +293,62 @@
     return [x / (3 * area), y / (3 * area)];
   }
 
+  function pointInRing(point, ring) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var a = ring[i], b = ring[j];
+      if ((a[1] > point[1]) !== (b[1] > point[1]) &&
+          point[0] < (b[0] - a[0]) * (point[1] - a[1]) / ((b[1] - a[1]) || 1e-12) + a[0]) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInPolygon(point, rings) {
+    if (!rings.length || !pointInRing(point, rings[0])) return false;
+    for (var i = 1; i < rings.length; i++) if (pointInRing(point, rings[i])) return false;
+    return true;
+  }
+
+  function pointSegmentDistance(point, a, b, kx, ky) {
+    var px = point[0] * kx, py = point[1] * ky;
+    var ax = a[0] * kx, ay = a[1] * ky, bx = b[0] * kx, by = b[1] * ky;
+    var dx = bx - ax, dy = by - ay;
+    var t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / Math.max(1e-9, dx * dx + dy * dy)));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function pointOnBuildingSurface(rings) {
+    if (!rings || !rings.length || rings[0].length < 4) return null;
+    var center = ringCentroid(rings[0]);
+    if (center && pointInPolygon(center, rings)) return center;
+
+    var outer = rings[0], lat = outer.reduce(function (sum, p) { return sum + p[1]; }, 0) / outer.length;
+    var kx = 111320 * Math.cos(lat * Math.PI / 180), ky = 111320;
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    outer.forEach(function (p) {
+      var x = p[0] * kx, y = p[1] * ky;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    });
+    var span = Math.max(maxX - minX, maxY - minY);
+    var step = Math.max(0.75, Math.min(2.5, span / 70));
+    var best = null, bestClearance = -1;
+    for (var y = minY + step / 2; y < maxY; y += step) {
+      for (var x = minX + step / 2; x < maxX; x += step) {
+        var candidate = [x / kx, y / ky];
+        if (!pointInPolygon(candidate, rings)) continue;
+        var clearance = Infinity;
+        rings.forEach(function (ring) {
+          for (var i = 0; i < ring.length - 1; i++) {
+            clearance = Math.min(clearance, pointSegmentDistance(candidate, ring[i], ring[i + 1], kx, ky));
+          }
+        });
+        if (clearance > bestClearance) { bestClearance = clearance; best = candidate; }
+      }
+    }
+    return best || center || null;
+  }
+
   function buildingAnchor(building) {
     var features = sceneSourceData && sceneSourceData.features ? sceneSourceData.features : [];
     var feature = features.find(function (item) {
@@ -294,17 +356,14 @@
       return props.kind === 'building' && String(props.campusNumber || '') === String(building.number);
     });
     if (!feature || !feature.geometry) return [Number(building.longitude), Number(building.latitude)];
-    var geometry = feature.geometry, rings = [];
-    if (geometry.type === 'Polygon') rings = geometry.coordinates || [];
-    else if (geometry.type === 'MultiPolygon') {
-      var polygons = geometry.coordinates || [];
-      polygons.forEach(function (polygon) { if (polygon && polygon[0]) rings.push(polygon[0]); });
-    }
-    var best = null, bestArea = 0;
-    rings.forEach(function (ring) {
-      var point = ringCentroid(ring);
+    var geometry = feature.geometry;
+    var polygons = geometry.type === 'Polygon' ? [geometry.coordinates || []] :
+      geometry.type === 'MultiPolygon' ? (geometry.coordinates || []) : [];
+    var best = null, bestArea = -1;
+    polygons.forEach(function (rings) {
+      var point = pointOnBuildingSurface(rings);
       if (!point) return;
-      var area = Math.abs(ring.reduce(function (sum, p, i) {
+      var ring = rings[0] || [], area = Math.abs(ring.reduce(function (sum, p, i) {
         var q = ring[(i + 1) % ring.length]; return sum + p[0] * q[1] - q[0] * p[1];
       }, 0));
       if (area > bestArea) { bestArea = area; best = point; }
@@ -853,12 +912,12 @@
   }
 
   map.on('click', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'campus-bld-2d', 'bld-footprint'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['campus-model', 'bld', 'campus-bld-2d', 'bld-footprint'] });
     if (!hits.length) { clearSelection(); return; }
     selectBuilding(String(hits[0].properties.pid), e.lngLat);
   });
   map.on('mousemove', function (e) {
-    var hits = map.queryRenderedFeatures(e.point, { layers: ['bld', 'campus-bld-2d', 'bld-footprint'] });
+    var hits = map.queryRenderedFeatures(e.point, { layers: ['campus-model', 'bld', 'campus-bld-2d', 'bld-footprint'] });
     map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
   });
 
@@ -982,7 +1041,7 @@
     applyAtmosphere();
     wire();
     campusData = data[1];
-    scene = G.buildScene(data[0], campusData, { renderTrees: true, renderWindows: true, renderShadows: true });
+    scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
     syncSceneData();
     buildCampusMarkers();
     openFloorPlanFromLocation();
