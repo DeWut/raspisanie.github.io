@@ -63,7 +63,12 @@ assert.match(migration, /FROM bot_dating_swipes/);
 const photoBlock = social.slice(social.indexOf('// Display a candidate\'s optional Telegram-hosted photo'), social.indexOf('if let Some(liker_text)'));
 assert.doesNotMatch(photoBlock, /next_candidate\(/, 'Photo display must use the exact card that was rendered, not fetch another candidate');
 
-assert.doesNotMatch(docs, /Render Dashboard|render\.yaml|onrender\.com/i, 'Deployment guide must not instruct users to use Render');
-assert.equal(fs.existsSync(path.join(root, 'render.yaml')), false, 'Render Blueprint should be removed');
+assert.match(docs, /Render Free/i, 'Deployment guide should explain the no-card Render Free option');
+assert.match(docs, /webhook/i, 'Free sleeping instances must use Telegram webhooks, not long polling');
+const renderBlueprint = read('render.yaml');
+assert.match(renderBlueprint, /runtime: rust/);
+assert.match(renderBlueprint, /plan: free/);
+assert.match(renderBlueprint, /TELEGRAM_WEBHOOK_SECRET/);
+assert.equal(fs.existsSync(path.join(root, 'render.yaml')), true, 'Render Blueprint should be present');
 
 console.log('Dating discovery contract: gender, random order, 1/100 repeat, previous/next and photo-card consistency OK.');
