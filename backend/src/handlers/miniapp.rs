@@ -550,7 +550,26 @@ pub async fn assistant_chat(
     .fetch_one(&state.db)
     .await?;
 
-    let intent = crate::services::conversation::detect(prompt);
+    let mut intent = crate::services::conversation::detect(prompt);
+    if intent.is_none() {
+        let lower = prompt.to_lowercase().replace("ё", "е");
+        let is_subject_followup = lower.starts_with("а по ") || lower.starts_with("и по ");
+        if is_subject_followup {
+            let previous = sqlx::query_scalar::<_, String>(
+                "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='assistant' ORDER BY id DESC LIMIT 1",
+            )
+            .bind(telegram_id)
+            .fetch_optional(&state.db)
+            .await?;
+            if previous.as_deref().is_some_and(|value| {
+                let topic = value.to_lowercase();
+                topic.contains("домаш") || topic.contains("задан") || topic.contains("дз")
+            }) {
+                intent = crate::services::conversation::homework_subject(prompt)
+                    .map(crate::services::conversation::Intent::HomeworkFor);
+            }
+        }
+    }
     let (kind, reply) = match intent {
         Some(crate::services::conversation::Intent::Greeting) => (
             "greeting",
@@ -589,6 +608,12 @@ pub async fn assistant_chat(
                 return Ok(Json(json!({"kind":"homework","reply":"Сначала выбери учебную группу в настройках Mini App."})));
             };
             ("homework", crate::services::group_content::homework_for_group(&state.db, group, telegram_id).await)
+        }
+        Some(crate::services::conversation::Intent::HomeworkFor(subject)) => {
+            let Some(group) = group_id else {
+                return Ok(Json(json!({"kind":"homework","reply":"Сначала выбери учебную группу в настройках Mini App."})));
+            };
+            ("homework", crate::services::group_content::homework_for_group_subject(&state.db, group, telegram_id, &subject).await)
         }
         Some(crate::services::conversation::Intent::Deadlines) => (
             "deadlines",
