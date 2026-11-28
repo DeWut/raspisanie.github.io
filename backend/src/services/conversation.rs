@@ -34,6 +34,120 @@ fn has_any(text: &str, words: &[&str]) -> bool {
     words.iter().any(|word| text.contains(word))
 }
 
+fn intent_tokens(text: &str) -> Vec<String> {
+    const STOP: &[&str] = &[
+        "а","и","но","или","мне","меня","моя","мой","мои","у","в","во","на","по","за","для",
+        "с","со","из","к","ко","от","до","же","ли","бы","это","этот","эта","эти","как",
+        "что","какой","какая","какие","какое","когда","где","почему","можно","нужно","надо",
+        "пожалуйста","мне","ты","вы","у","нас","унас","есть","будет","будут","сейчас"
+    ];
+    text.split_whitespace()
+        .filter(|token| !STOP.contains(token) && token.chars().count() > 1)
+        .map(|token| {
+            let mut word = token.to_owned();
+            for suffix in [
+                "иями","ями","ами","ями","ого","его","ому","ему","ыми","ими","ую","юю",
+                "ая","яя","ое","ее","ые","ие","ый","ий","ой","ей","ам","ям","ах","ях",
+                "ов","ев","ом","ем","а","я","ы","и","е","о","у","ю"
+            ] {
+                if word.ends_with(suffix) && word.chars().count() > suffix.chars().count()+2 {
+                    word.truncate(word.len()-suffix.len());
+                    break;
+                }
+            }
+            word
+        })
+        .collect()
+}
+
+fn edit_distance_at_most_one(a: &str, b: &str) -> bool {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    if a.len().abs_diff(b.len()) > 1 { return false; }
+    let (mut i, mut j, mut edits) = (0usize, 0usize, 0u8);
+    while i < a.len() && j < b.len() {
+        if a[i] == b[j] { i += 1; j += 1; continue; }
+        edits += 1;
+        if edits > 1 { return false; }
+        if a.len() > b.len() { i += 1; }
+        else if b.len() > a.len() { j += 1; }
+        else { i += 1; j += 1; }
+    }
+    if i < a.len() || j < b.len() { edits += 1; }
+    edits <= 1
+}
+
+fn phrase_similarity(message: &[String], example: &[String]) -> f32 {
+    if message.is_empty() || example.is_empty() { return 0.0; }
+    let mut matched = 0usize;
+    for token in message {
+        if example.iter().any(|candidate| {
+            token == candidate || (token.chars().count() >= 5
+                && candidate.chars().count() >= 5
+                && edit_distance_at_most_one(token, candidate))
+        }) {
+            matched += 1;
+        }
+    }
+    (2 * matched) as f32 / (message.len() + example.len()) as f32
+}
+
+fn dictionary_intent(text: &str) -> Option<Intent> {
+    use std::sync::OnceLock;
+    static EXAMPLES: OnceLock<Vec<(String, Vec<Vec<String>>)>> = OnceLock::new();
+    let dictionary = EXAMPLES.get_or_init(|| {
+        let parsed: serde_json::Value = serde_json::from_str(include_str!("../../data/barney_ru_intents.json"))
+            .expect("Barney Russian intent dictionary must be valid JSON");
+        parsed.as_array().into_iter().flatten().filter_map(|entry| {
+            let name = entry.get("intent")?.as_str()?.to_owned();
+            let examples = entry.get("examples")?.as_array()?.iter()
+                .filter_map(|v| v.as_str().map(intent_tokens))
+                .filter(|v| !v.is_empty()).collect::<Vec<_>>();
+            Some((name, examples))
+        }).collect()
+    });
+    let tokens = intent_tokens(text);
+    if tokens.is_empty() { return None; }
+    let mut scores = dictionary.iter().map(|(name, examples)| {
+        let best = examples.iter().map(|example| phrase_similarity(&tokens, example))
+            .fold(0.0_f32, f32::max);
+        (name.as_str(), best)
+    }).collect::<Vec<_>>();
+    scores.sort_by(|a,b| b.1.total_cmp(&a.1));
+    let (name, score) = *scores.first()?;
+    let second = scores.get(1).map(|v| v.1).unwrap_or(0.0);
+    // Conservative fallback: uncertain text is clarified instead of routed to
+    // a potentially destructive or unrelated command.
+    if score < 0.50 || score - second < 0.07 { return None; }
+    match name {
+        "today" => Some(Intent::Today),
+        "tomorrow" => Some(Intent::Tomorrow),
+        "week" => Some(Intent::Week),
+        "next_lesson" => Some(Intent::NextLesson),
+        "homework" => Some(Intent::Homework),
+        "deadlines" => Some(Intent::Deadlines),
+        "free_rooms" => Some(Intent::FreeRooms(time_in(text))),
+        "teacher" => {
+            let query = text.split_whitespace().filter(|word| ![
+                "найди","расписание","преподаватель","преподавателя","преподаватели","препод",
+                "когда","какой","какая","какие","у","занятия","занятие","ведет","ведёт",
+                "читает","кто","пары","пара","будут","есть","сегодня","завтра","во","сколько",
+                "покажи","найти","учителя","доцента","профессора"
+            ].contains(word)).collect::<Vec<_>>().join(" ");
+            (query.chars().count() >= 3).then_some(Intent::Teacher(query))
+        },
+        "profile" => Some(Intent::Profile),
+        "settings" => Some(Intent::Settings),
+        "group_change" => Some(Intent::GroupChangeInfo),
+        "features" => Some(Intent::Features),
+        "schedule_changes" => Some(Intent::ScheduleChanges),
+        "homework_management" => Some(Intent::HomeworkManagement),
+        "help" => Some(Intent::Help),
+        "greeting" => Some(Intent::Greeting),
+        _ => None,
+    }
+}
+
 fn time_in(text: &str) -> Option<String> {
     for token in text.split_whitespace() {
         let value = token.strip_prefix("на").unwrap_or(token);
@@ -146,7 +260,7 @@ pub fn detect(text: &str) -> Option<Intent> {
     if has_any(&text, &["привет", "здравствуй", "здаров", "доброе утро", "добрый день", "добрый вечер", "барни", "барней", "спбфту"]) {
         return Some(Intent::Greeting);
     }
-    None
+    dictionary_intent(&text)
 }
 
 #[cfg(test)]
