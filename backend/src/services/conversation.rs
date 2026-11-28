@@ -7,6 +7,7 @@ pub enum Intent {
     Today,
     Tomorrow,
     Week,
+    Weekday(String),
     NextLesson,
     Homework,
     HomeworkFor(String),
@@ -146,6 +147,21 @@ fn dictionary_intent(text: &str) -> Option<Intent> {
         "greeting" => Some(Intent::Greeting),
         _ => None,
     }
+}
+
+fn weekday_date(text: &str) -> Option<String> {
+    use chrono::{Datelike, Duration, FixedOffset, Utc};
+    let lower = normalize(text);
+    let target = [
+        ("понедельник", 0i64), ("вторник", 1), ("среду", 2), ("среда", 2),
+        ("четверг", 3), ("пятницу", 4), ("пятница", 4), ("субботу", 5),
+        ("суббота", 5), ("воскресенье", 6),
+    ].iter().find(|(word, _)| lower.contains(word))?.1;
+    let moscow = FixedOffset::east_opt(3 * 60 * 60)?;
+    let today = Utc::now().with_timezone(&moscow).date_naive();
+    let current = i64::from(today.weekday().num_days_from_monday());
+    let offset = (target - current + 7) % 7;
+    Some((today + Duration::days(offset)).format("%Y-%m-%d").to_string())
 }
 
 fn time_in(text: &str) -> Option<String> {
@@ -307,7 +323,10 @@ pub fn detect(text: &str) -> Option<Intent> {
         return Some(Intent::Help);
     }
     if has_any(&text, &["завтра", "на завтра"]) { return Some(Intent::Tomorrow); }
-    if has_any(&text, &["недел", "7 дней", "семь дней", "на понедельник", "на вторник", "на среду", "на четверг", "на пятницу", "на субботу", "на воскресенье"]) {
+    if has_any(&text, &["понедельник", "вторник", "среду", "среда", "четверг", "пятницу", "пятница", "субботу", "суббота", "воскресенье"]) {
+        if let Some(date) = weekday_date(&text) { return Some(Intent::Weekday(date)); }
+    }
+    if has_any(&text, &["недел", "7 дней", "семь дней", "ближайшие дни"]) {
         return Some(Intent::Week);
     }
     if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия", "уроки"]) {
@@ -353,6 +372,7 @@ mod tests {
     #[test]
     fn detects_schedule_homework_rooms_and_teacher_without_ai() {
         assert_eq!(detect("какое расписание завтра?"), Some(Intent::Tomorrow));
+        assert!(matches!(detect("покажи расписание на понедельник"), Some(Intent::Weekday(_))));
         assert_eq!(detect("какое дз задали?"), Some(Intent::Homework));
         assert_eq!(detect("свободные аудитории на 20:00"), Some(Intent::FreeRooms(Some("20:00".into()))));
         assert_eq!(detect("найди преподавателя Иванов"), Some(Intent::Teacher("иванов".into())));
