@@ -148,7 +148,7 @@ def main():
         "global_step": trainer.state.global_step,
     }
     (args.output / "training_run.json").write_text(
-        json.dumps(training_run, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(training_run, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     print(f"Adapter saved: {args.output}")
