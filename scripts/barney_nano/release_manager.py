@@ -266,6 +266,7 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
     )
     data = dataset_stats(APPROVED)
     trainer = find_trainer_state(ADAPTER)
+    training_run = read_json(ADAPTER / "training_run.json")
     benchmark = benchmark_stats(BENCHMARK_JSON)
     qa = read_json(QA_FILE)
     candidate = load_candidate()
@@ -310,6 +311,11 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
         and benchmark["non_empty"] == benchmark["cases"]
     )
     eval_ready = bool(trainer and trainer.get("min_eval_loss") is not None)
+    training_data_matches = bool(
+        training_run
+        and training_run.get("dataset_sha256") == data["sha256"]
+        and training_run.get("base_model") == model_id
+    )
     dataset_production_ready = data["examples"] >= PRODUCTION_MIN_EXAMPLES
     candidate_ready = bool(
         candidate
@@ -325,6 +331,7 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
         {"id": "adapter", "label": "Обученный LoRA-адаптер сохранён", "passed": adapter_exists},
         {"id": "dataset", "label": f"Не менее {PRODUCTION_MIN_EXAMPLES} проверенных примеров", "passed": dataset_production_ready},
         {"id": "eval", "label": "Есть eval_loss из обучающей проверки", "passed": eval_ready},
+        {"id": "training_data", "label": "Веса обучены на текущем approved.jsonl и текущей базовой модели", "passed": training_data_matches},
         {"id": "benchmark", "label": "Создан benchmark: базовая и обученная модели", "passed": benchmark_ready},
         {"id": "human_qa", "label": "Ручная проверка ответов пройдена", "passed": qa_pass},
         {"id": "ollama_candidate", "label": "Кандидат импортирован и отвечает через Ollama", "passed": candidate_ready},
@@ -333,6 +340,9 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
     if not adapter_exists:
         status = "NOT_TRAINED"
         summary = "Адаптер не найден. Сначала завершить обучение."
+    elif not training_data_matches:
+        status = "NEEDS_RETRAINING"
+        summary = "Текущий approved.jsonl отличается от набора, на котором обучены эти веса. Переобучи модель перед оценкой и выпуском."
     elif not benchmark_ready or not eval_ready:
         status = "NEEDS_EVALUATION"
         summary = "Обучение найдено, но недостаточно технических результатов. Запустить benchmark."
@@ -387,7 +397,11 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
             "benchmark_sha256": benchmark_hash,
             "qa_benchmark_sha256": qa.get("benchmark_sha256") if qa else None,
         },
-        "training": trainer,
+        "training": {
+            "trainer_state": trainer,
+            "run_metadata": training_run,
+            "dataset_matches_current_approved": training_data_matches,
+        },
         "benchmark": {
             "exists": benchmark["exists"],
             "cases": benchmark["cases"],
@@ -438,6 +452,7 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
         f"- Уникальных пользовательских запросов: {data['unique_user_prompts']}",
         f"- Некорректных строк в датасете: {data['invalid_lines']}",
         f"- Лучший eval_loss: {trainer.get('min_eval_loss')}" if trainer and trainer.get("min_eval_loss") is not None else "- eval_loss: отсутствует",
+        f"- Fingerprint датасета совпадает с обучением: {'да' if training_data_matches else 'НЕТ — нужно переобучить'}",
         f"- Benchmark: {benchmark['non_empty']}/{benchmark['cases']} непустых ответов" if benchmark["exists"] else "- Benchmark: ещё не создан",
         f"- Средняя скорость BARNEY-NANO: {benchmark['avg_candidate_tokens_per_second']:.2f} токенов/с" if benchmark.get("avg_candidate_tokens_per_second") is not None else "- Скорость BARNEY-NANO: не измерена",
         f"- Средняя скорость базовой модели: {benchmark['avg_base_tokens_per_second']:.2f} токенов/с" if benchmark.get("avg_base_tokens_per_second") is not None else "- Скорость базовой модели: не измерена",
@@ -462,6 +477,7 @@ def print_report(report: dict[str, Any]) -> None:
     sizes = report["sizes_bytes"]
     dataset = report["dataset"]
     training = report.get("training") or {}
+    trainer_state = training.get("trainer_state") or {}
     print("\n" + "=" * 68)
     print(" BARNEY-NANO | ОТЧЁТ О ГОТОВНОСТИ")
     print("=" * 68)
@@ -487,7 +503,8 @@ def print_report(report: dict[str, Any]) -> None:
     if report["size_ratios"]["adapter_weights_percent_of_base_cache"] is not None:
         print(f"Вес адаптера / кеш базы: {report['size_ratios']['adapter_weights_percent_of_base_cache']:.5f}%")
     print(f"Одобренные примеры: {dataset['examples']} ({dataset['unique_user_prompts']} уникальных запросов)")
-    print(f"Eval loss: {training.get('min_eval_loss', 'нет данных')}")
+    print(f"Eval loss: {trainer_state.get('min_eval_loss', 'нет данных')}")
+    print(f"Датасет совпадает с обучением: {'ДА' if training.get('dataset_matches_current_approved') else 'НЕТ'}")
     print(f"Benchmark: {report['benchmark']['non_empty_candidate_answers']}/{report['benchmark']['cases']}")
     candidate_tps = report["benchmark"].get("avg_candidate_tokens_per_second")
     base_tps = report["benchmark"].get("avg_base_tokens_per_second")
@@ -600,6 +617,15 @@ def prepare_candidate() -> int:
         return 3
 
     data = dataset_stats(APPROVED)
+    training_run = read_json(ADAPTER / "training_run.json")
+    if (
+        not training_run
+        or training_run.get("dataset_sha256") != data["sha256"]
+        or training_run.get("base_model") != DEFAULT_MODEL
+    ):
+        print("[BLOCKED] Текущие approved.jsonl / базовая модель не совпадают с fingerprint последнего обучения. Сначала переобучи модель.")
+        return 8
+
     release_id = datetime.now().strftime("rc-%Y%m%d-%H%M%S")
     release_dir = TRAINING / "releases" / release_id
     merged_dir = release_dir / "merged"
