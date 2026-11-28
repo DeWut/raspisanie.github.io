@@ -35,8 +35,9 @@ echo    [2]  Hardware and dependencies check
 echo    [3]  Prepare training dataset
 echo    [4]  TRAIN BARNEY (LoRA)
 echo    [5]  Talk to local LFM3 in Ollama
-echo    [6]  Export trained model to Ollama
-echo    [7]  Open training folder
+echo    [6]  LOCAL TEACHER: generate reviewed examples with Ollama
+echo    [7]  Export trained model to Ollama
+echo    [8]  Open training folder
 echo    [0]  Exit
 echo.
 set /p "CHOICE=   Select option ^> "
@@ -130,6 +131,17 @@ if errorlevel 1 (
   echo [OK] LoRA adapter saved in training\barney-lfm3-lora
   echo Merged checkpoint is also saved if merge was enabled in the script.
 )
+pause
+goto MENU
+
+:TEACHER
+cls
+where ollama >nul 2>nul
+if errorlevel 1 (echo Ollama is not installed or not in PATH.& pause & goto MENU)
+echo Local Ollama model will propose examples. You approve or edit each one.
+echo Default teacher model: lfm3. Change BARNEY_TEACHER_MODEL to use another local model.
+echo.
+python "%ROOT%\\scripts\\barney_ai\\teacher_mode.py"
 pause
 goto MENU
 
