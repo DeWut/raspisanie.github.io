@@ -1246,6 +1246,7 @@ async fn reply(
 async fn maybe_answer_bot_reply(
     bot: &Bot,
     db: &PgPool,
+    config: &crate::config::Config,
     webapp_url: &str,
     message: &Message,
     actor: i64,
@@ -1403,7 +1404,7 @@ async fn maybe_answer_bot_reply(
                 let role = if role == "bot" { "assistant" } else { "user" };
                 (role.to_owned(), content.clone())
             }).collect::<Vec<_>>();
-            Some(crate::services::ollama::chat(&state.config, &user_text, &llm_history)
+            Some(crate::services::ollama::chat(config, &user_text, &llm_history)
                 .await.unwrap_or(fallback))
         }
     };
@@ -2228,7 +2229,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     // participant is not collected and does not trigger the assistant.
     if is_group_chat && !normalized_text.starts_with('/') {
         match maybe_answer_bot_reply(
-            &bot, db, &state.config.webapp_url, &message, telegram_id, normalized_text,
+            &bot, db, &state.config, &state.config.webapp_url, &message, telegram_id, normalized_text,
         ).await {
             Ok(true) => return Ok(()),
             Ok(false) => {}
