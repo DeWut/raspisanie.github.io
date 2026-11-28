@@ -136,13 +136,25 @@ function Test-BackendHealth([string]$ServiceUrl, [int]$MaxChecks = 30) {
 function Save-State($State) {
     $State | ConvertTo-Json -Depth 10 | Set-Content -Path $StatePath -Encoding UTF8
 }
-function Restore-PreviousModel([string]$ServiceId, [string]$PreviousModel) {
+function Restore-PreviousModel([string]$ServiceId, [string]$PreviousModel, [string]$ServiceUrl) {
     Write-Host "[ROLLBACK] Restoring previous OLLAMA_MODEL..." -ForegroundColor Yellow
     Set-ModelVariable $ServiceId $PreviousModel
     $deploy = Trigger-Deploy $ServiceId
     $deployId = [string]$deploy.id
-    if ($deployId) { Write-Host "Rollback deploy queued: $deployId" }
-    else { Write-Warning "Rollback deploy was triggered. Check Render dashboard." }
+    if ($deployId) {
+        Write-Host "Rollback deploy queued: $deployId"
+    } else {
+        Write-Warning "Rollback deploy was triggered but no deploy ID was returned."
+        return @{ deploy_id = $null; deploy_status = "unknown"; healthy = $false }
+    }
+    $rollbackStatus = Wait-ForDeploy $ServiceId $deployId
+    $healthy = ($rollbackStatus -eq "live") -and (Test-BackendHealth $ServiceUrl)
+    if ($healthy) {
+        Write-Host "[OK] Previous model restored; backend health check passed." -ForegroundColor Green
+    } else {
+        Write-Warning "Rollback deploy status is '$rollbackStatus'; backend health is not confirmed. Inspect Render Deploys."
+    }
+    return @{ deploy_id = $deployId; deploy_status = $rollbackStatus; healthy = $healthy }
 }
 
 try {
@@ -251,10 +263,11 @@ try {
         $deployStatus = Wait-ForDeploy $serviceId $deployId
         if ($deployStatus -in @("build_failed", "update_failed", "canceled", "pre_deploy_failed", "deactivated")) {
             Write-Warning "Render deploy failed with status '$deployStatus'. Restoring previous model automatically."
-            Restore-PreviousModel $serviceId $currentModel
-            $state.status = "auto_rollback_triggered"
+            $rollback = Restore-PreviousModel $serviceId $currentModel ([string]$service.url)
+            $state.rollback_deploy_id = $rollback.deploy_id
+            $state.status = if ($rollback.healthy) { "rolled_back_after_failed_promotion" } else { "rollback_needs_attention" }
             Save-State $state
-            throw "Promotion failed; automatic configuration rollback was triggered."
+            throw "Promotion failed. Previous model rollback status: $($rollback.deploy_status); health confirmed: $($rollback.healthy)."
         }
         if ($deployStatus -eq "timeout" -or $deployStatus -eq "unknown") {
             $state.status = "deploy_status_unknown"
@@ -267,10 +280,11 @@ try {
         $serviceUrl = [string]$service.url
         if (-not (Test-BackendHealth $serviceUrl)) {
             Write-Warning "Backend health check did not return status=ok. Restoring the previous model configuration."
-            Restore-PreviousModel $serviceId $currentModel
-            $state.status = "health_failed_rollback_triggered"
+            $rollback = Restore-PreviousModel $serviceId $currentModel $serviceUrl
+            $state.rollback_deploy_id = $rollback.deploy_id
+            $state.status = if ($rollback.healthy) { "rolled_back_after_health_failure" } else { "rollback_needs_attention" }
             Save-State $state
-            throw "Backend health check failed; rollback deploy was triggered."
+            throw "Backend health check failed. Previous model rollback status: $($rollback.deploy_status); health confirmed: $($rollback.healthy)."
         }
 
         $state.status = "live"
