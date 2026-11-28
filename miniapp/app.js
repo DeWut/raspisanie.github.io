@@ -51,12 +51,20 @@
     const candidates = [...new Set([localUrl, ...DATA_FALLBACKS.map((root) => new URL(path, root).href)])];
     let lastError;
     for (const url of candidates) {
+      let timeoutId;
       try {
-        const response = await fetch(url, { cache: 'no-cache' });
+        // Bound each network attempt so a stalled CDN cannot freeze startup.
+        const controller = new AbortController();
+        timeoutId = window.setTimeout(() => controller.abort(), 7000);
+        const response = await fetch(url, { cache: 'no-cache', signal: controller.signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         await cacheDataResponse(localUrl, response);
         return response;
-      } catch (error) { lastError = error; }
+      } catch (error) {
+        lastError = error;
+      } finally {
+        if (timeoutId) window.clearTimeout(timeoutId);
+      }
     }
     const cached = await readCachedData(localUrl);
     if (cached) return cached;
@@ -1891,7 +1899,8 @@ async function addCampusParkLayers(map) {
     updateNotificationButton();
     updatePresence();
     window.setInterval(updatePresence, 45_000);
-    await loadTeacherDirectory();
+    // Teacher profiles are optional; do not let their network request block the timetable.
+    void loadTeacherDirectory();
     await loadData();
     await syncLessonReminders();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
