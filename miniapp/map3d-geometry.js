@@ -352,7 +352,7 @@
     var sx = Math.sin(SHADOW_AZ * Math.PI / 180), sy = Math.cos(SHADOW_AZ * Math.PI / 180);
 
     var out = {
-      ground: [], footprints: [], solid: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
+      ground: [], footprints: [], solid: [], campusMass: [], windows: [], windowFrames: [], trees: [], shadows: [], highlight: {}, index: {},
       stats: { buildings: 0, known: 0, levels: 0, assumed: 0, unknown: 0, windows: 0, trees: 0, mappedTrees: 0, estimatedTrees: 0, dropped: 0 }
     };
     var features = (scene && scene.features) || [];
@@ -478,6 +478,17 @@
         // courtyard holes; trims are mitred offsets so they never share a plane with the wall.
         if (h >= 4) { part(offsetRings(rings, 0.12), 0, 1.0, plinth); }
         part(rings, 0, h, wall);
+        // A single clean, source-grounded mass for each numbered campus building.
+        // This is rendered as the permanent translucent campus model; decorative
+        // ledges, roof trims and window solids are intentionally excluded.
+        if (base.campus) {
+          var campusModel = {};
+          for (var modelKey in base) { campusModel[modelKey] = base[modelKey]; }
+          campusModel.col = '#c5dfcc';
+          campusModel.z0 = 0;
+          campusModel.z1 = h;
+          add(out.campusMass, rings, campusModel);
+        }
         for (var i = 1; i < floors; i++) { part(offsetRings(rings, 0.07), i * fh - 0.12, i * fh + 0.1, ledge); }
         part(offsetRings(rings, 0.25), h - 0.3, h + 0.35, trim);
 
@@ -667,6 +678,7 @@
     out.windowFrames = sanitize(out.windowFrames, out.stats);
     out.trees = sanitize(out.trees, out.stats);
     out.shadows = sanitize(out.shadows, out.stats);
+    out.campusMass = sanitize(out.campusMass, out.stats);
     Object.keys(out.highlight).forEach(function (k) { out.highlight[k] = sanitize(out.highlight[k], out.stats); });
     out.stats.windows = out.windows.length;
 
