@@ -35,6 +35,7 @@ pub async fn chat(config: &Config, prompt: &str, history: &[(String, String)]) -
             "model": config.ollama_model,
             "messages": messages,
             "stream": false,
+            "think": false,
             "options": {"temperature": 0.4, "num_ctx": 4096}
         }))
         .send()
