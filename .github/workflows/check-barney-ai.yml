@@ -1,0 +1,37 @@
+name: Check Barney AI toolkit
+
+on:
+  push:
+    branches:
+      - main
+      - feature/smart-campus-step-1
+    paths:
+      - 'backend/data/barney_knowledge_ru.json'
+      - 'data/barney_training/**'
+      - 'scripts/barney_ai/**'
+      - '.github/workflows/check-barney-ai.yml'
+  pull_request:
+    paths:
+      - 'backend/data/barney_knowledge_ru.json'
+      - 'data/barney_training/**'
+      - 'scripts/barney_ai/**'
+      - '.github/workflows/check-barney-ai.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dataset-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check Python syntax
+        run: python -m py_compile scripts/barney_ai/prepare_dataset.py scripts/barney_ai/train_lfm3_lora.py
+      - name: Build curated dataset
+        run: |
+          python scripts/barney_ai/prepare_dataset.py --output /tmp/barney_sft.jsonl
+          python -c "import json; p='/tmp/barney_sft.jsonl'; rows=[json.loads(x) for x in open(p, encoding='utf-8')]; assert len(rows) >= 100, len(rows); assert all(r['messages'][-1]['role']=='assistant' for r in rows); print(f'Validated {len(rows)} SFT examples')"
