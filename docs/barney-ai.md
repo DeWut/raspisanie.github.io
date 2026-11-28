@@ -32,6 +32,25 @@ Render environment:
 
 Обучение не происходит автоматически после каждого сообщения. Это опасно: пользовательские ошибки, спам, персональные данные и выдуманные ответы могут испортить модель.
 
+### Первый запуск в Windows
+
+1. Установи Python 3.11 x64 (с Python Launcher `py`) и Git for Windows.
+2. Установи Ollama и скачай базовую модель:
+   ```powershell
+   ollama pull lfm3
+   ollama list
+   ```
+3. Скачай ZIP ветки [feature/smart-campus-step-1](https://github.com/DeWut/raspisanie.github.io/archive/refs/heads/feature/smart-campus-step-1.zip) или обнови свой локальный клон этой ветки.
+4. Открой `scripts\\barney_ai\\BARNEY_AI.bat`.
+5. Выбери **[1] First-time setup**. BAT создаст `.venv-barney`. Если PyTorch ещё не установлен, откроется официальный селектор. Выбери Windows, Pip, Python и подходящий CUDA build. Скопируй выданную команду и выполни её в терминале после активации окружения:
+   ```powershell
+   .\.venv-barney\Scripts\Activate.ps1
+   ```
+   Затем снова запусти BAT → **[1]**, чтобы установить остальные библиотеки.
+6. Выбери **[2] Hardware and dependencies check**. Убедись, что `CUDA available: True` и обнаружена RTX 4050.
+
+В обычной работе достаточно запускать этот BAT. Python, Git и Ollama должны быть установлены один раз.
+
 ### Локальный учитель на Ollama
 
 В `scripts/barney_ai/BARNEY_AI.bat` есть режим **[6] LOCAL TEACHER**. Он обращается к локальному Ollama API (`127.0.0.1:11434`) и просит модель `lfm3` предложить учебные пары «вопрос — хороший ответ». Ты можешь принять пример, отредактировать ответ или отклонить его. Только принятые примеры записываются в `approved_dialogues.jsonl`.
