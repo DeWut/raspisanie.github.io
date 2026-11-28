@@ -9,7 +9,7 @@ use teloxide::{
         BotCommand, BotCommandScope, ButtonRequest, CallbackQuery, ChatPermissions, ParseMode,
         InlineKeyboardButton, InlineKeyboardMarkup, InlineQuery, InlineQueryResult,
         InlineQueryResultArticle, InputFile, InputMessageContent, InputMessageContentText,
-        KeyboardButton, KeyboardMarkup, Message, MessageId, Recipient, ReplyParameters, ThreadId, UserId,
+        KeyboardButton, KeyboardMarkup, Message, MessageId, Recipient, ReplyParameters, ThreadId, UserId, Update, UpdateKind,
         WebAppInfo,
     },
 };
@@ -4369,6 +4369,48 @@ async fn register_bot_commands(bot: &Bot) {
             "Could not register administrator Telegram commands: {}",
             error
         );
+    }
+}
+
+/// Starts Telegram in webhook mode for scale-to-zero hosts such as Render Free.
+/// Incoming Telegram updates wake the service; no long-polling connection is required.
+pub async fn start_webhook_mode(state: Arc<AppState>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let token = state.config.teloxide_token.clone()
+        .ok_or("TELOXIDE_TOKEN is not configured")?;
+    let secret = state.config.telegram_webhook_secret.clone()
+        .ok_or("TELEGRAM_WEBHOOK_SECRET is required in webhook mode")?;
+    let base_url = std::env::var("TELEGRAM_WEBHOOK_URL")
+        .or_else(|_| std::env::var("RENDER_EXTERNAL_URL"))?;
+    let webhook_url = format!("{}/telegram/webhook", base_url.trim_end_matches('/'));
+    let webhook = url::Url::parse(&webhook_url)?;
+    let bot = Bot::new(token);
+
+    bot.set_webhook(webhook)
+        .secret_token(secret)
+        .drop_pending_updates(false)
+        .await?;
+
+    register_bot_commands(&bot).await;
+    tracing::info!("Telegram webhook configured: {}", webhook_url);
+
+    let reminder_bot = bot.clone();
+    tokio::spawn(async move {
+        reminder_loop(reminder_bot, state).await;
+    });
+    Ok(())
+}
+
+/// Dispatches a Telegram webhook update through the same handlers as long polling.
+pub async fn handle_webhook_update(state: Arc<AppState>, update: Update) -> ResponseResult<()> {
+    let Some(token) = state.config.teloxide_token.clone() else {
+        return Ok(());
+    };
+    let bot = Bot::new(token);
+    match update.kind {
+        UpdateKind::Message(message) => handle(bot, state, message).await,
+        UpdateKind::InlineQuery(query) => handle_inline_query(bot, state, query).await,
+        UpdateKind::CallbackQuery(query) => handle_ui_callback(bot, state, query).await,
+        _ => Ok(()),
     }
 }
 
