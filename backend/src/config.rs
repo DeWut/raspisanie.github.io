@@ -78,7 +78,7 @@ impl Config {
             openai_api_key: optional("OPENAI_API_KEY"),
             ollama_base_url: optional("OLLAMA_BASE_URL"),
             ollama_api_key: optional("OLLAMA_API_KEY"),
-            ollama_model: value_or("OLLAMA_MODEL", "qwen3:8b"),
+            ollama_model: value_or("OLLAMA_MODEL", "lfm3"),
             openai_base_url: value_or("OPENAI_BASE_URL", "https://api.openai.com/v1"),
             embedding_model: value_or("EMBEDDING_MODEL", "text-embedding-3-small"),
             embedding_dim,
