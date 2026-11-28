@@ -129,12 +129,15 @@
         </section>
 
         <section class="control-pane hidden" data-control-pane="groups">
-          <section class="settings-card">
-            <div class="control-section-title"><p class="eyebrow">ГРУППОВЫЕ ЧАТЫ</p><h2>Настройки чата</h2></div>
-            <p class="control-description">Только реальные чаты, в которых ты состоишь и где добавлен бот.</p>
-            <label class="control-field"><span>Групповой чат</span><select id="managed-chat-select" disabled><option value="">Загрузка…</option></select></label>
-            <button type="button" class="text-button" id="managed-chats-refresh">Обновить список</button>
-            <div id="managed-chat-empty" class="control-empty" hidden>Чатов пока нет. Добавь бота в нужную группу и отправь /setgroup название-группы. Затем нажми «Обновить список».</div>
+          <section class="settings-card chat-management-card">
+            <div class="control-chat-toolbar">
+              <div class="control-section-title"><p class="eyebrow">TELEGRAM · ОБЩИЕ ЧАТЫ</p><h2>Учебные чаты</h2></div>
+              <button type="button" class="control-refresh-button" id="managed-chats-refresh" aria-label="Обновить список чатов" title="Обновить список">↻</button>
+            </div>
+            <p class="control-description">Здесь отображаются чаты, где бот и твой Telegram-аккаунт подтверждены.</p>
+            <div class="control-chat-summary" id="managed-chat-summary" hidden><span class="control-chat-live-dot"></span><strong id="managed-chat-count">0</strong><span>общих чатов</span></div>
+            <label class="control-field"><span>Выбери чат</span><select id="managed-chat-select" disabled><option value="">Загрузка…</option></select></label>
+            <div id="managed-chat-empty" class="control-empty" hidden>Общие чаты не найдены. Бот должен быть добавлен в группу, а администратор должен привязать её через /setgroup. Затем обнови список.</div>
             <div id="managed-chat-readonly" class="control-empty" hidden>Ты можешь пользоваться функциями этого учебного чата во вкладке «Функции», но настройки чата доступны только его администратору Telegram.</div>
             <div id="managed-chat-editor" hidden>
               <div class="control-group-picker">
