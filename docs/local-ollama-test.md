@@ -10,8 +10,9 @@
 
 1. Установить Ollama: https://ollama.com/download/windows
 2. Установить Python 3.11+ (если ещё не установлен).
-3. Установить Tailscale: https://tailscale.com/download/windows и войти в аккаунт.
-4. Открыть PowerShell в корне репозитория и выполнить:
+3. (Необязательно) Чтобы хранить веса на внешнем диске, создай на нём постоянную папку, например `E:\\OllamaModels`, задай пользовательскую переменную Windows `OLLAMA_MODELS` с этим путём и полностью перезапусти Ollama. Буква диска должна оставаться постоянной; отключать диск во время работы нельзя. Официальная инструкция: https://github.com/ollama/ollama/blob/main/docs/windows.mdx.
+4. Установить Tailscale: https://tailscale.com/download/windows и войти в аккаунт.
+5. Открыть PowerShell в корне репозитория и выполнить:
 
 ```powershell
 ollama pull qwen3:8b
