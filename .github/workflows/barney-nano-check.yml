@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  syntax:
+  python-and-files:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,4 +25,22 @@ jobs:
       - name: Validate Windows launcher and guide
         run: |
           test -s scripts/barney_nano/BARNEY_NANO.bat
+          test -s scripts/barney_nano/install.ps1
           test -s docs/barney-nano.md
+
+  windows-installer-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell installer
+        shell: pwsh
+        run: |
+          $source = Get-Content "scripts/barney_nano/install.ps1" -Raw
+          [void][scriptblock]::Create($source)
+      - name: Verify launcher calls installer
+        shell: pwsh
+        run: |
+          $launcher = Get-Content "scripts/barney_nano/BARNEY_NANO.bat" -Raw
+          if ($launcher -notmatch "install\.ps1") {
+            throw "BARNEY_NANO.bat does not invoke install.ps1"
+          }
