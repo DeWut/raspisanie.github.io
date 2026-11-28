@@ -4376,9 +4376,9 @@ async fn register_bot_commands(bot: &Bot) {
 /// Incoming Telegram updates wake the service; no long-polling connection is required.
 pub async fn start_webhook_mode(state: Arc<AppState>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let token = state.config.teloxide_token.clone()
-        .ok_or("TELOXIDE_TOKEN is not configured")?;
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "TELOXIDE_TOKEN is not configured"))?;
     let secret = state.config.telegram_webhook_secret.clone()
-        .ok_or("TELEGRAM_WEBHOOK_SECRET is required in webhook mode")?;
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "TELEGRAM_WEBHOOK_SECRET is required in webhook mode"))?;
     let base_url = std::env::var("TELEGRAM_WEBHOOK_URL")
         .or_else(|_| std::env::var("RENDER_EXTERNAL_URL"))?;
     let webhook_url = format!("{}/telegram/webhook", base_url.trim_end_matches('/'));
