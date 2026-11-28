@@ -140,12 +140,20 @@
   }
 
   function syncSceneData() {
-    if (!scene || !map || !map.isStyleLoaded()) return;
+    if (!scene || !map) return;
+    // The style can report "not loaded" while external raster tiles are still
+    // arriving. GeoJSON sources already exist after installCampusLayers and
+    // setData is safe here; gating on isStyleLoaded left campusMass empty.
     var source = map.getSource('campusMass');
-    if (source) source.setData({ type: 'FeatureCollection', features: scene.campusMass || [] });
+    if (!source) {
+      console.warn('[Campus map] campusMass source is not installed yet');
+      return;
+    }
+    source.setData({ type: 'FeatureCollection', features: scene.campusMass || [] });
     source = map.getSource('hl');
     if (source) source.setData(EMPTY);
-    setBuildingMode(buildings3D);
+    setBuildingMode();
+    console.info('[Campus map] Permanent campus models loaded:', (scene.campusMass || []).length);
   }
 
   function setMode(next) {
@@ -317,31 +325,16 @@
         window.setTimeout(function () { selectCampusBuilding(building, coordinate); }, 650);
       });
       var anchor = buildingAnchor(building);
-      var pid = resolveBuildingPid(building);
-      var info = pid && scene && scene.index[pid];
-      var height = info && Number(info.hm) > 0 ? Number(info.hm) : 0;
       var marker = new maplibregl.Marker({ element: markerButton, anchor: 'center', offset: [0, 0] })
         .setLngLat(anchor)
         .addTo(map);
       marker.getElement().style.zIndex = '12';
-      marker._campusHeight = height;
-      marker._campusLatitude = anchor[1];
+      // Keep the marker attached to the footprint's geographic coordinate.
+      // A screen-space height offset drifts as zoom/pitch changes and is not
+      // a valid substitute for MapLibre's terrain/elevation projection.
       campusMarkers.push(marker);
     });
   }
-
-  function updateCampusMarkerHeights() {
-    if (!map || !campusMarkers || !campusMarkers.length) return;
-    var zoom = map.getZoom();
-    var pitch = map.getPitch() * Math.PI / 180;
-    campusMarkers.forEach(function (marker) {
-      var metersPerPixel = 156543.03392 * Math.cos((marker._campusLatitude || map.getCenter().lat) * Math.PI / 180) / Math.pow(2, zoom);
-      var lift = marker._campusHeight > 0 && metersPerPixel > 0
-        ? marker._campusHeight * Math.sin(pitch) / metersPerPixel : 0;
-      marker.setOffset([0, -lift]);
-    });
-  }
-  map.on('render', updateCampusMarkerHeights);
 
   function applyAtmosphere() {
     try { map.setLight({ anchor: 'map', color: '#fff1d4', intensity: 0.5, position: [1.3, G.SUN_FROM_AZ, 42] }); } catch (e) { /* older/newer API */ }
