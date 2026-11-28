@@ -530,11 +530,22 @@ async fn handle_chat_settings_callback(
             ).bind(chat_id.0).bind(actor).bind(enabled).execute(&state.db).await;
         }
         "chatsettings:autodz" => {
+            let can_manage: bool = sqlx::query_scalar(
+                r#"SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND owner_telegram_id=$2 AND is_active=TRUE)
+                   OR EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status IN ('creator','administrator'))
+                   OR EXISTS(SELECT 1 FROM bot_chat_member_roles WHERE chat_id=$1 AND telegram_id=$2 AND role='class_leader')"#
+            ).bind(chat_id.0).bind(actor).fetch_one(&state.db).await.unwrap_or(false);
+            if !can_manage {
+                bot.answer_callback_query(query.id.clone())
+                    .text("Изменить автосбор может староста или администратор чата.")
+                    .show_alert(true).await?;
+                return Ok(true);
+            }
             let result = sqlx::query(
                 "UPDATE bot_chat_settings SET homework_autocollect_enabled=NOT homework_autocollect_enabled,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE"
             ).bind(chat_id.0).execute(&state.db).await;
             if !matches!(result, Ok(ref r) if r.rows_affected()==1) {
-                bot.answer_callback_query(query.id.clone()).text("Не удалось изменить настройку автосбора ДЗ.").show_alert(true).await?;
+                bot.answer_callback_query(query.id.clone()).text("Не удалось изменить настройку автосбора ДЗ. Сначала настрой учебный чат через /setgroup.").show_alert(true).await?;
                 return Ok(true);
             }
         }
