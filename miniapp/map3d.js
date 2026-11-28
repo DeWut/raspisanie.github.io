@@ -107,7 +107,7 @@
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#f4eedd', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 20, 1.6] } },
       { id: 'campus-bld-2d', type: 'fill', source: 'footprints', layout: { visibility: 'none' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#79766f' } },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#79766f' } },
       { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#625e55' } },
       extrusion('campus-model', 'campusMass', 0, 0.42),
@@ -188,7 +188,7 @@
 
     var campusLayers = [
       { id: 'campus-bld-2d', type: 'fill', source: 'footprints', layout: { visibility: 'none' },
-        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.96, 'fill-outline-color': '#77736b' } },
+        paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#77736b' } },
       { id: 'bld-footprint', type: 'fill', source: 'ground', filter: ['==', ['get', 'kind'], 'building-footprint'],
         layout: { visibility: 'visible' },
         paint: { 'fill-color': ['get', 'col'], 'fill-opacity': 0.14, 'fill-outline-color': '#77736b' } },
