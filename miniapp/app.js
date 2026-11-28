@@ -161,6 +161,11 @@
     const status = $('#settings-save-status');
     const note = $('#home-account-note');
     const saveButton = $('#settings-save');
+
+    // The legacy root and week pages intentionally do not render the account
+    // control center. Never let optional settings UI abort schedule startup.
+    if (!status || !note || !saveButton) return;
+
     const controls = ['#settings-reminders', '#settings-digest', '#settings-changes', '#settings-reminder-minutes', '#settings-digest-time', '#personal-group-select'];
     const online = hasTelegramAccountApi();
     controls.forEach((selector) => { const el = $(selector); if (el) el.disabled = !online; });
@@ -984,8 +989,15 @@
     }
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = next === 'dark' ? '#101b16' : '#173d2e';
-    if (tg) {
-      tg.setHeaderColor?.(next === 'dark' ? '#101b16' : '#173d2e');
+    // Telegram added theme color methods in Mini Apps 6.1.
+    // Custom RGB header colors are supported from 6.9; older clients must use a theme key.
+    if (tg?.isVersionAtLeast?.('6.1')) {
+      const headerColor = next === 'dark' ? '#101b16' : '#173d2e';
+      if (tg.isVersionAtLeast('6.9')) {
+        tg.setHeaderColor?.(headerColor);
+      } else {
+        tg.setHeaderColor?.('bg_color');
+      }
       tg.setBackgroundColor?.(next === 'dark' ? '#101b16' : '#f5f7f2');
     }
     if (persist) safeStorageSet(THEME_KEY, next);
@@ -1021,8 +1033,15 @@
   function setGreeting() {
     const name = tg?.initDataUnsafe?.user?.first_name;
     const greeting = name ? 'Привет, ' + name + '!' : 'Привет!';
-    $('#greeting').textContent = greeting;
-    $('#home-greeting').textContent = name ? 'Добро пожаловать, ' + name : 'Добро пожаловать';
+    const pageGreeting = $('#greeting');
+    const homeGreeting = $('#home-greeting');
+
+    // The root schedule and weekly pages use the compact legacy shell and do
+    // not contain the optional Mini App home-view heading.
+    if (pageGreeting) pageGreeting.textContent = greeting;
+    if (homeGreeting) {
+      homeGreeting.textContent = name ? 'Добро пожаловать, ' + name : 'Добро пожаловать';
+    }
   }
   function showToast(message) {
     const toast = $('#toast');
@@ -2721,9 +2740,12 @@ async function addCampusParkLayers(map) {
     // Load them in the background while the group list and schedule render.
     void loadTeacherDirectory();
     await loadData();
-    if (hasTelegramAccountApi()) {
+    const hasAccountSettingsUi = Boolean(
+      $('#settings-save-status') && $('#home-account-note') && $('#settings-save')
+    );
+    if (hasAccountSettingsUi && hasTelegramAccountApi()) {
       await loadMiniAppAccount();
-    } else {
+    } else if (hasAccountSettingsUi) {
       const note = !tg?.initData
         ? 'Открой Mini App через Telegram, чтобы настройки привязались к аккаунту.'
         : 'Адрес backend не настроен. Доступно локальное расписание.';
@@ -2733,7 +2755,9 @@ async function addCampusParkLayers(map) {
       if (apiNote) { apiNote.textContent = note; apiNote.dataset.state = 'error'; }
     }
     updateGroupCommandHint();
-    if (!isWeekPage) showView('home');
+    // Only the full Mini App shell has a separate home view. The public root
+    // schedule page must keep its timetable and floating quick actions visible.
+    if (!isWeekPage && $('#home-view')) showView('home');
     await syncLessonReminders();
     window.setInterval(() => { if (state.schedule) { renderHero(); renderSchedule(); } }, 60_000);
   }
