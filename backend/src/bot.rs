@@ -1318,28 +1318,12 @@ async fn maybe_answer_bot_reply(
         .map(|(_, content)| content.as_str())
         .unwrap_or(original.as_str());
 
-    let mut intent = crate::services::conversation::detect(&user_text);
-    if intent.is_none() {
-        let lower = user_text.to_lowercase().replace("ё","е");
-        let follow_up = lower.starts_with("а ") || lower.starts_with("и ") || lower.starts_with("почему ")
-            || lower.starts_with("а если") || lower.starts_with("а когда");
-        if follow_up {
-            if !previous_bot_text.is_empty() {
-                let topic = previous_bot_text.to_lowercase();
-                if topic.contains("расписан") || topic.contains("пара") {
-                    intent = Some(crate::services::conversation::Intent::Tomorrow);
-                } else if topic.contains("домаш") || topic.contains("задан") || topic.contains("дз") {
-                    intent = Some(
-                        crate::services::conversation::homework_subject(&lower)
-                            .map(crate::services::conversation::Intent::HomeworkFor)
-                            .unwrap_or(crate::services::conversation::Intent::Homework)
-                    );
-                } else if topic.contains("дедлайн") || topic.contains("срок") {
-                    intent = Some(crate::services::conversation::Intent::Deadlines);
-                }
-            }
-        }
-    }
+    let previous_user_text = history.iter()
+        .find(|(role, _)| role == "member")
+        .map(|(_, content)| content.as_str());
+    let intent = crate::services::conversation::detect_with_context(
+        &user_text, previous_user_text, Some(previous_bot_text)
+    );
 
     let answer = match intent {
         Some(crate::services::conversation::Intent::Greeting) => Some(
