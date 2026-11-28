@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Единая 3D-карта кампуса СПбГЛТУ</title>
+  <title>Карта кампуса СПбГЛТУ</title>
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
   <style>
     :root {
@@ -18,9 +18,9 @@
       :root { --glass: rgba(28, 34, 42, .88); --ink: #eef2f6; --muted: #aab4bf; --accent: #7fb2ea; }
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #cfd8c8; }
-    #app { position: fixed; inset: 0; }
-    #map { position: absolute; inset: 0; background: linear-gradient(#8fb6de 0%, #dfeaf2 46%, #cfd8c8 100%); }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #cfd8c8 !important; }
+    #app { position: fixed; inset: 0; isolation: isolate; background: #cfd8c8; }
+    #map { position: absolute; inset: 0; background: #cfd8c8 linear-gradient(#8fb6de 0%, #dfeaf2 46%, #cfd8c8 100%); }
     .hud { position: absolute; z-index: 5; }
     .title {
       top: calc(var(--safe-top) + 10px); left: 10px; max-width: calc(100% - 80px);
@@ -29,89 +29,156 @@
     }
     .title b { display: block; font-size: 15px; }
     .title span { color: var(--muted); font-size: 12px; }
-    .tools {
-      top: calc(var(--safe-top) + 152px); right: 10px;
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
-      width: min(260px, calc(100% - 20px)); padding: 8px;
-      border: 1px solid rgba(255,255,255,.45); border-radius: 15px;
-      background: rgba(25,35,30,.48); backdrop-filter: blur(12px);
-      box-shadow: 0 4px 18px rgba(0,0,0,.22);
-    }
-    .tools[hidden] { display: none !important; }
-    .tools button, .chip, #infoBtn {
-      font: inherit; color: var(--ink); background: var(--glass); backdrop-filter: blur(8px);
-      border: 0; border-radius: 10px; padding: 7px 10px; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
-      min-height: 36px;
-    }
-    .tools button { touch-action: manipulation; user-select: none; -webkit-user-select: none; font-size: 12px; }
-    .tools button[aria-pressed="true"] { outline: 2px solid var(--accent); background: rgba(255,255,255,.98); }
-    .tools button[aria-pressed="false"] { outline: 1px solid rgba(70,80,90,.16); opacity: .82; }
-    .tools button:focus-visible { outline: 3px solid var(--accent); }
-    .tools button:active, .chip:active { transform: scale(.97); }
-    #btn-controls {
-      top: calc(var(--safe-top) + 66px); right: 10px; min-width: 42px; min-height: 42px;
-      padding: 7px 12px; border-radius: 12px; font-weight: 650;
-      background: var(--glass); color: var(--ink); backdrop-filter: blur(10px);
-      border: 0; box-shadow: 0 2px 10px rgba(0,0,0,.2);
-    }
-    #btn-controls[aria-expanded="true"] { outline: 2px solid var(--accent); }
-    .chips {
-      left: 10px; right: 10px; bottom: calc(var(--safe-bottom) + 34px);
-      display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; scrollbar-width: none;
-    }
-    .chips::-webkit-scrollbar { display: none; }
-    .chip { white-space: nowrap; flex: 0 0 auto; }
-    #infoBtn {
-      left: 10px; bottom: calc(var(--safe-bottom) + 84px); width: 38px; padding: 0; font-weight: 700; display: grid; place-items: center;
-    }
-    #info {
-      left: 10px; right: 10px; bottom: calc(var(--safe-bottom) + 130px); max-height: 46vh; overflow: auto;
-      padding: 12px 14px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(8px);
-      box-shadow: 0 2px 12px rgba(0, 0, 0, .22); font-size: 13px;
-    }
-    #info p { margin: 0 0 8px; }
-    #info .muted, .muted { color: var(--muted); }
+    .floor-open { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:9px 14px; border:0; border-radius:10px; background:#176b4c; color:#fff; font:650 13px system-ui,sans-serif; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+    .floor-open:active { background:#0e5138; transform:scale(.98); }
+    .map-style-toggle { position:absolute; z-index:8; top:calc(var(--safe-top) + 12px); right:12px; display:flex; align-items:center; gap:7px; min-height:42px; padding:8px 11px; border:1px solid rgba(255,255,255,.75); border-radius:13px; background:rgba(20,31,27,.9); color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.22); font:650 12px system-ui,sans-serif; cursor:pointer; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); touch-action:manipulation; }
+    .map-style-toggle svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .map-style-toggle:active { transform:scale(.96); }
+    .map-style-toggle:focus-visible { outline:3px solid #8ab7ff; outline-offset:2px; }
+    .map-attribution { position:absolute; z-index:4; right:8px; bottom:calc(var(--safe-bottom) + 5px); max-width:calc(100% - 16px); padding:3px 6px; border-radius:6px; background:rgba(255,255,255,.72); color:#26352d; font:9px/1.25 system-ui,sans-serif; pointer-events:none; text-align:right; }
+    .muted { color: var(--muted); }
     .status {
       position: absolute; z-index: 9; left: 50%; top: 50%; transform: translate(-50%, -50%);
       max-width: 86%; padding: 12px 16px; border-radius: 12px; background: var(--glass); text-align: center;
       box-shadow: 0 4px 18px rgba(0, 0, 0, .25);
     }
     .status.error { color: #b3261e; }
-    .stats { position: absolute; z-index: 5; left: 58px; bottom: calc(var(--safe-bottom) + 88px); right: 10px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); pointer-events: none; }
     .bpop .maplibregl-popup-content { background: var(--glass); color: var(--ink); border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(8px); }
     .bpop .maplibregl-popup-tip { display: none; }
-    .pop { max-height: 34vh; overflow: auto; font-size: 13px; }
+    .pop { max-height: min(58dvh, 520px); overflow: auto; font-size: 13px; overscroll-behavior: contain; }
     .pop h3 { margin: 0 20px 6px 0; font-size: 15px; }
     .pop p { margin: 0 0 6px; }
     .pop ul { margin: 6px 0 0; padding-left: 18px; }
     .pop a { color: var(--accent); }
+    .wiki-card { margin-top: 10px; padding: 10px; border: 1px solid rgba(90,110,95,.22); border-radius: 10px; background: rgba(120,145,120,.10); }
+    .wiki-card b { display: block; margin-bottom: 5px; font-size: 12px; }
+    .wiki-card p { margin: 0 0 6px; font-size: 11px; line-height: 1.45; }
+    .wiki-card a { font-size: 11px; font-weight: 700; }
     .campus-photo { margin: 0 0 9px; }
     .campus-photo img { display: block; width: 100%; max-height: 170px; object-fit: cover; border-radius: 8px; }
     .campus-photo figcaption { margin-top: 4px; color: var(--muted); font-size: 10px; }
-    .maplibregl-ctrl-attrib { font-size: 10px; }
+    .campus-number-marker {
+      position: relative; display: grid; place-items: center; width: 38px; height: 38px; padding: 0;
+      border: 3px solid rgba(255,255,255,.98); border-radius: 50% 50% 50% 8px;
+      transform: rotate(-45deg); background: #176b4c; color: #fff;
+      box-shadow: 0 3px 12px rgba(0,0,0,.48); font: 850 16px/1 system-ui, sans-serif;
+      cursor: pointer; touch-action: manipulation; pointer-events: auto;
+      transition: background .16s ease, box-shadow .16s ease;
+    }
+    .campus-number-marker span { display: block; transform: rotate(45deg); }
+    .campus-number-marker:active { background: #0e5138; box-shadow: 0 4px 16px rgba(0,0,0,.55); }
+    .campus-number-marker:focus-visible { outline: 3px solid #d8f27a; outline-offset: 3px; }
+    .campus-photo-link { display: block; border-radius: 8px; overflow: hidden; }
+    .campus-photo-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .commons-card { overflow: hidden; }
+    .commons-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 7px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+    .commons-item { flex: 0 0 min(72%, 220px); min-width: 0; overflow: hidden; border-radius: 9px; background: rgba(100,110,120,.12); scroll-snap-align: start; text-decoration: none; }
+    .commons-item img { display: block; width: 100%; height: 116px; object-fit: cover; }
+    .commons-image-link { display: block; overflow: hidden; }
+    .commons-license { display: block; padding: 0 7px 6px; font-size: 10px; line-height: 1.3; }
+    .commons-caption { display: block; padding: 5px 7px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+    .commons-more { display: inline-block; margin-top: 7px; font-size: 11px; font-weight: 650; }
+    .building-history, .building-units { margin-top: 9px; }
+    .building-history b, .building-units > b { display: block; margin-bottom: 4px; font-size: 12px; }
+    .building-history p { margin: 0; line-height: 1.45; }
+    .campus-photo { margin: 0 0 7px; }
+    .campus-photo img { display: block; width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; }
+    .campus-photo figcaption { margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .building-units ul { margin: 5px 0 0; padding-left: 18px; }
+    .building-units li { margin: 0 0 4px; }
+
+    @media (max-width: 600px) { .campus-number-marker { width: 34px; height: 34px; font-size: 14px; } }
     .floor-open { border: 0; border-radius: 8px; padding: 8px 11px; background: #2f6fb3; color: white; font: inherit; cursor: pointer; }
-    #floorplan { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(10,18,25,.58); backdrop-filter: blur(5px); }
+    #floorplan { position: fixed; z-index: 10000; inset: 0; display: grid; place-items: center; padding: 12px; background: rgba(13,24,19,.48); backdrop-filter: blur(7px); }
     #floorplan[hidden] { display: none !important; }
-    .floorplan-card { width: min(620px, 100%); max-height: min(82vh, 760px); overflow: auto; border-radius: 16px; padding: 16px; background: var(--glass); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.32); }
-    .floorplan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    .floorplan-head h3 { margin: 0 0 4px; font-size: 18px; }
-    #floorplan-close { flex: 0 0 auto; border: 0; border-radius: 9px; padding: 7px 11px; background: rgba(100,110,120,.16); color: inherit; font: inherit; }
-    .floorplan-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 14px 0 10px; }
-    .floor-tab { min-height: 38px; border: 1px solid rgba(100,110,120,.2); border-radius: 10px; background: rgba(100,110,120,.08); color: var(--ink); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
-    .floor-tab.active { border-color: var(--accent); background: var(--accent); color: #fff; }
-    .interior-toolbar { display:flex; gap:8px; margin:12px 0; }
-    .interior-toolbar button { flex:1; min-height:38px; border:1px solid rgba(100,110,120,.25); border-radius:9px; background:rgba(100,110,120,.08); color:var(--ink); font:inherit; }
-    .interior-toolbar button.active { background:var(--accent); color:#fff; }
-    .interior-stage { overflow:auto; border:1px solid rgba(100,110,120,.18); border-radius:12px; background:linear-gradient(145deg,#e8ece8,#d7dfd7); }
-    #interior-canvas { display:block; width:100%; min-width:520px; height:auto; }
-    #floorplan-note { margin-bottom:0; }
-    .floor-section { margin-top: 14px; }
-    .floor-section h4 { margin: 0 0 8px; font-size: 14px; }
-    .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 7px; }
-    .room-card { display: flex; flex-direction: column; gap: 4px; min-height: 62px; padding: 9px; border: 1px solid rgba(100,110,120,.2); border-radius: 10px; background: rgba(130,140,150,.08); }
-    .room-card b { font-size: 15px; }
-    .room-card span { font-size: 12px; }
-    .floor-note { margin: 14px 0 0; padding: 10px; border-radius: 9px; background: rgba(210,160,70,.13); color: var(--muted); font-size: 11px; }
+    .floorplan-card { width: min(1040px, 100%); max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); overflow: auto; border: 1px solid #dce5dc; border-radius: 20px; padding: 18px; background: #f7f9f5; color: #1e3328; box-shadow: 0 18px 56px rgba(0,0,0,.28); }
+    .floorplan-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+    .floorplan-head h3 { margin: 0 0 3px; color: #183d2d; font-size: 19px; line-height: 1.25; }
+    .floorplan-head .muted { color: #65756b; font-size: 12px; }
+    #floorplan-close { flex: 0 0 auto; border: 1px solid #d9e2da; border-radius: 11px; padding: 8px 13px; background: #fff; color: #234b37; font: inherit; font-weight: 650; min-height: 40px; }
+    .floor-tabs { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: thin; }
+    .floor-tab, .floor-toolbar button { border: 1px solid #d7e0d8; border-radius: 11px; padding: 9px 14px; background: #fff; color: #294536; font: inherit; font-weight: 650; white-space: nowrap; }
+    .floor-tab.active { background: #216c50; color: #fff; border-color: #216c50; }
+    .floor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 9px; color: #496052; font-size: 13px; font-weight: 700; }
+    .floor-toolbar > div { display: flex; align-items: center; gap: 6px; }
+    .floor-toolbar output { min-width: 42px; color: #617267; text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .floor-toolbar button { min-width: 40px; min-height: 38px; padding: 6px 11px; }
+    .floorplan-viewport { display: grid; place-items: center; width: 100%; height: min(54dvh, 560px); min-height: 190px; overflow: auto; padding: 5px; border: 1px solid #d9e1d9; border-radius: 13px; background: #fff; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+    .floorplan-drawing { width: 100%; min-width: 0; transition: width .15s ease; }
+    .floorplan-svg { display: block; width: 100%; height: auto; background: #fff; }
+    /* SPDS/GOST-inspired monochrome drafting hierarchy for a readable campus directory. */
+    .fp-shell { fill: none; stroke: #111; stroke-width: 5; vector-effect: non-scaling-stroke; }
+    .fp-room { fill: #fff; stroke: #222; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .fp-corridor, .fp-connector { fill: #f1f3f4; stroke: #222; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .fp-stair { fill: #f7f7f7; stroke: #111; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .fp-step { stroke: #333; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .fp-stair-label { fill: #111; font-size: 10px; font-weight: 750; text-anchor: middle; }
+    .fp-wing-label { fill: #333; font-size: 13px; font-weight: 700; text-anchor: middle; }
+    .fp-heading { fill: #111; font-size: 25px; font-weight: 800; letter-spacing: .5px; }
+    .fp-subheading { fill: #444; font-size: 14px; }
+    .fp-room-shape rect { fill: #fff; stroke: #111; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .fp-room-number { fill: #fff; stroke: #111; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+    .fp-room-number-text { fill: #111; font: 750 12px system-ui, sans-serif; text-anchor: middle; }
+    .fp-room-caption { fill: #333; font: 600 8px system-ui, sans-serif; text-anchor: middle; }
+    .fp-room-name { fill: #111; font: 700 12px system-ui, sans-serif; text-anchor: middle; }
+    .fp-room-shape text { pointer-events: none; }
+    .fp-corridor-center { fill: none; stroke: #777; stroke-width: 1; stroke-dasharray: 5 8; }
+    .fp-stairs rect { fill: #f7f7f7; stroke: #111; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .fp-stairs path { stroke: #333; stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+    .fp-stairs text { fill: #111; font: 750 9px system-ui, sans-serif; text-anchor: middle; }
+    .fp-hall rect { fill: #fff; stroke: #111; stroke-width: 2.5; }
+    .fp-hall text { fill: #111; font: 800 18px system-ui, sans-serif; text-anchor: middle; }
+    .fp-hall .fp-hall-sub { font-size: 12px; font-weight: 600; }
+    .fp-plan-label { fill: #333; font: 700 12px system-ui, sans-serif; text-anchor: middle; letter-spacing: .5px; }
+    .fp-title-block path { fill: none; stroke: #111; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .fp-title-block text { fill: #111; font: 650 12px system-ui, sans-serif; }
+    .fp-title-block text:first-of-type { font-weight: 800; }
+    .fp-north { fill: #111; font-size: 12px; font-weight: 800; text-anchor: middle; stroke: #111; stroke-width: 1.5; }
+    .fp-north text { stroke: none; }
+    .fp-legend rect:first-child { fill: #fff; stroke: #111; stroke-width: 1.2; }
+    .fp-legend text { fill: #111; font-size: 12px; font-weight: 650; }
+    .fp-legend-room { fill: #fff; stroke: #111; stroke-width: 1.5; }
+    .fp-legend-corridor { fill: #f1f3f4; stroke: #111; stroke-width: 1.2; }
+    .floor-units { margin-top: 14px; }
+    .floor-units h4 { margin: 0 0 8px; color: #294536; font-size: 14px; }
+    .room-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); gap: 8px; }
+    .room-selection { display: grid; gap: 3px; margin: 9px 0; padding: 10px; border: 1px solid #9bbba6; border-radius: 11px; background: #edf5ee; color: #234b37; }
+    .room-selection[hidden] { display: none !important; }
+    .room-selection span { font-size: 13px; }
+    .room-selection small { color: #617267; font-size: 11px; }
+    .room-card { display: flex; flex-direction: column; gap: 4px; min-height: 62px; padding: 10px; border: 1px solid #dbe4dc; border-radius: 11px; background: #fff; color: #20382b; text-align: left; font: inherit; cursor: pointer; box-shadow: 0 1px 2px rgba(25,55,35,.04); }
+    .room-card.is-selected, .room-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .fp-room-shape[data-room] { cursor: pointer; }
+    .fp-room-shape[data-room]:focus .fp-room-number { fill: #f1d7b7; stroke: #8d5a32; stroke-width: 3; }
+    .fp-room-shape[data-room].is-selected .fp-room-number { fill: #f1d7b7; stroke: #8d5a32; stroke-width: 3.5; }
+
+    .room-card b { color: #1d4f36; font-size: 15px; }
+    .room-card span { color: #596b60; font-size: 12px; line-height: 1.35; }
+    .floor-note { margin: 12px 0 0; padding: 8px 10px; border-radius: 9px; background: #edf2ec; color: #647268; font-size: 10px; line-height: 1.4; }
+    @media (max-width: 600px) {
+      .title { top: calc(var(--safe-top) + 8px); left: 8px; max-width: calc(100% - 68px); padding: 7px 9px; }
+      .title b { font-size: 13px; }
+      .title span { display: block; max-width: 100%; font-size: 10px; line-height: 1.25; }
+      .map-style-toggle { top: calc(var(--safe-top) + 8px); right: 8px; min-height: 40px; }
+      #floorplan { padding: max(6px, var(--safe-top)) 6px max(6px, var(--safe-bottom)); place-items: center; }
+      .floorplan-card { width: 100%; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 12px); padding: 12px; border-radius: 17px; }
+      .floorplan-head { gap: 8px; margin-bottom: 11px; }
+      .floorplan-head h3 { font-size: 17px; }
+      #floorplan-close { min-height: 38px; padding: 7px 10px; font-size: 12px; }
+      .floorplan-viewport { height: min(48dvh, 430px); min-height: 180px; padding: 3px; }
+      .floorplan-drawing { min-width: 0; }
+      .floor-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; gap: 5px; }
+      .floor-tab { min-width: 0; min-height: 39px; padding: 7px 2px; font-size: 12px; text-align: center; }
+      .floor-toolbar { align-items: center; flex-direction: row; margin-bottom: 7px; }
+      .floor-toolbar button { min-width: 39px; min-height: 38px; padding: 5px 9px; }
+      .room-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); }
+      .room-card { min-height: 56px; padding: 8px; }
+      .floor-note { margin-top: 10px; font-size: 10px; }
+    }
+    @media (max-height: 520px) {
+      .title span { display: none; }
+      #info { max-height: 34dvh; }
+    }
     @media (min-width: 720px) {
       .chips { right: auto; max-width: 70%; }
       #info { right: auto; width: 420px; }
@@ -123,40 +190,25 @@
     <div id="map"></div>
 
     <div class="hud title">
-      <b>3D-карта кампуса</b>
-      <span>СПбГЛТУ · OpenStreetMap + Overture · без API-ключей · два пальца — наклон</span>
+      <b>Карта кампуса</b>
+      <span>СПбГЛТУ · территория и корпуса</span>
     </div>
 
-    <button class="hud" id="btn-controls" type="button" aria-expanded="false" aria-controls="tools">Слои ⚙</button>
-    <div class="hud tools" id="tools" hidden>
-      <button id="btn-mode" type="button">Схема</button>
-      <button id="btn-orbit" type="button" aria-pressed="false">Облёт</button>
-      <button id="btn-home" type="button">Сброс</button>
-    </div>
+    <button class="hud map-style-toggle" id="btn-mode" type="button" aria-label="Переключить тип карты" title="Переключить на спутник">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+      <span id="map-mode-label">Схема</span>
+    </button>
 
     <div id="floorplan" hidden aria-hidden="true">
       <section class="floorplan-card" role="dialog" aria-modal="true" aria-labelledby="floorplan-title">
-        <div class="floorplan-head"><div><h3 id="floorplan-title">Схема корпуса</h3><div class="muted">Кабинеты и подразделения</div></div><button id="floorplan-close" type="button" aria-label="Закрыть">Закрыть</button></div>
-        <div id="floorplan-tabs" class="floorplan-tabs" role="group" aria-label="Выбор этажа"></div>
-        <div class="interior-toolbar"><button type="button" id="interior-2d" class="active" aria-pressed="true">План 2D</button><button type="button" id="interior-3d" aria-pressed="false">Объём 3D</button></div>
-        <div class="interior-stage"><canvas id="interior-canvas" width="1000" height="660" aria-label="Векторная схема этажа"></canvas></div>
-        <p id="floorplan-note" class="floor-note"></p>
+        <div class="floorplan-head"><div><h3 id="floorplan-title">Схема корпуса</h3><div class="muted">Планы этажей</div></div><button id="floorplan-close" type="button" aria-label="Вернуться к карте">На карту</button></div>
+        <div id="floorplan-content"></div>
       </section>
     </div>
 
-    <button class="hud" id="infoBtn" type="button" aria-label="О карте">i</button>
-    <div class="hud" id="info" hidden>
-      <p><b>Схема.</b> Полноценная векторная карта OpenFreeMap Bright: улицы, кварталы, здания, парки, вода и подписи. В этом режиме спутниковые снимки не подмешиваются.</p>
-      <p><b>Здания.</b> Контуры взяты из картографических данных. Высота строится только по тегу height или оценивается по числу этажей. Если высоты и этажности нет, остаётся плоский контур — без выдуманного объёма. Крыша и материал учитываются только при наличии соответствующих тегов.</p>
-      <p><b>Объекты.</b> Корпуса отображаются в 3D постоянно. Там, где в данных есть высота или этажность, используется она; остальные объёмы остаются условными.</p>
-      
-      <p><b>Внутренние планы.</b> Для главного корпуса строится собственная векторная схема по предоставленным планам: можно переключать этажи и 2D/3D-вид. Геометрия схематическая, не является обмерным архитектурным чертежом.</p>
-      <p><b>Спутник.</b> Снимки Esri World Imagery. На схеме используются картографические данные OpenStreetMap через OpenFreeMap; локальные корпуса дополнены источником Overture Maps.</p><p class="muted">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri/Maxar.</p>
-    </div>
-    <div class="stats" id="stats"></div>
 
-    <div class="hud chips" id="chips"></div>
-    <div class="status" id="status">Строим сцену…</div>
+    <div class="map-attribution">© OpenStreetMap contributors · © Overture Maps Foundation · Imagery © Esri / Maxar</div>
+    <div class="status" id="status">Загрузка карты…</div>
   </div>
 
   <script>
@@ -173,8 +225,9 @@
     })();
   </script>
   <script src="./vendor/maplibre-gl.js"></script>
-  <script src="./map3d-geometry.js"></script>
-  <script src="./interior-model.js?v=20261127-18"></script>
-  <script src="./map3d.js?v=20261127-18"></script>
+  <script src="./map3d-geometry.js?v=20261127-43"></script>
+  <script src="./floorplans.js?v=20261127-43"></script>
+  <script src="./floorplans-building1.js?v=20261127-43"></script>
+  <script src="./map3d.js?v=20261127-43"></script>
 </body>
 </html>
