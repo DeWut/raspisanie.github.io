@@ -412,6 +412,24 @@ pub async fn handle_homework(
 /// Returns active homework for a study group in private bot conversations.
 /// The records themselves remain owned by the configured Telegram group chat.
 pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -> String {
+    homework_for_group_filtered(db, group_id, actor, None).await
+}
+
+pub async fn homework_for_group_subject(
+    db: &PgPool,
+    group_id: uuid::Uuid,
+    actor: i64,
+    subject: &str,
+) -> String {
+    homework_for_group_filtered(db, group_id, actor, Some(subject)).await
+}
+
+async fn homework_for_group_filtered(
+    db: &PgPool,
+    group_id: uuid::Uuid,
+    actor: i64,
+    subject: Option<&str>,
+) -> String {
     let rows = sqlx::query_as::<_, (i64, String, String, Option<String>, String, i64)>(
         r#"SELECT h.id,h.subject,h.description,
                   CASE WHEN h.due_at IS NULL THEN NULL
@@ -426,10 +444,12 @@ pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -
              ON p.chat_id=h.chat_id AND p.homework_id=h.id AND p.telegram_id=$2
            WHERE c.group_id=$1 AND c.is_active=TRUE AND h.status='active'
              AND p.completed_at IS NULL
+             AND ($3::text IS NULL OR h.subject ILIKE '%' || $3 || '%' OR h.description ILIKE '%' || $3 || '%')
            ORDER BY h.due_at NULLS LAST,h.created_at DESC LIMIT 30"#
     )
     .bind(group_id)
     .bind(actor)
+    .bind(subject)
     .fetch_all(db)
     .await
     .unwrap_or_default();
@@ -437,14 +457,18 @@ pub async fn homework_for_group(db: &PgPool, group_id: uuid::Uuid, actor: i64) -
     // Keep assignments created by the legacy private /homework command visible
     // while showing the newer, chat-persisted homework records in the same view.
     let legacy_rows = sqlx::query_as::<_, (String, Option<DateTime<Utc>>)>(
-        "SELECT title,due_at FROM group_tasks WHERE group_id=$1 ORDER BY due_at NULLS LAST,created_at DESC LIMIT 15"
+        "SELECT title,due_at FROM group_tasks WHERE group_id=$1 AND ($2::text IS NULL OR title ILIKE '%' || $2 || '%') ORDER BY due_at NULLS LAST,created_at DESC LIMIT 15"
     )
     .bind(group_id)
+    .bind(subject)
     .fetch_all(db)
     .await
     .unwrap_or_default();
 
     if rows.is_empty() && legacy_rows.is_empty() {
+        if let Some(subject) = subject {
+            return format!("📚 Не нашёл активных домашних заданий по предмету «{subject}». Проверь название предмета или спроси обо всех заданиях группы.");
+        }
         return "📚 В привязанном учебном чате пока нет активных домашних заданий. Если староста уже добавлял ДЗ, проверь, что групповой чат привязан к этой же учебной группе.".into();
     }
 
