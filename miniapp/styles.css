@@ -648,3 +648,7 @@ button { font-family: inherit; }
   }
   .map-dialog > .campus-map-frame { border-radius: 11px; }
 }
+
+
+/* A closed native dialog must never render as an inline section. */
+.map-dialog:not([open]) { display: none !important; }
