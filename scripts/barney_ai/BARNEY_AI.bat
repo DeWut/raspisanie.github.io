@@ -141,7 +141,8 @@ if errorlevel 1 (echo Ollama is not installed or not in PATH.& pause & goto MENU
 echo Local Ollama model will propose examples. You approve or edit each one.
 echo Default teacher model: lfm3. Change BARNEY_TEACHER_MODEL to use another local model.
 echo.
-python "%ROOT%\\scripts\\barney_ai\\teacher_mode.py"
+if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
+"%PY%" "%ROOT%\\scripts\\barney_ai\\teacher_mode.py"
 pause
 goto MENU
 
