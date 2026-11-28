@@ -1172,6 +1172,34 @@ async fn ensure_user(db: &PgPool, message: &Message) -> Result<i64, sqlx::Error>
     .await
 }
 
+async fn store_barney_exchange(db: &PgPool, telegram_id: i64, user_text: &str, assistant_text: &str) {
+    let Ok(mut tx) = db.begin().await else {
+        tracing::warn!("Could not open Barney context transaction");
+        return;
+    };
+    let saved = sqlx::query(
+        "INSERT INTO bot_user_assistant_messages(telegram_id,role,content) VALUES($1,'user',$2),($1,'assistant',$3)"
+    )
+    .bind(telegram_id)
+    .bind(user_text.chars().take(600).collect::<String>())
+    .bind(assistant_text.chars().take(4000).collect::<String>())
+    .execute(&mut *tx)
+    .await;
+    if saved.is_err() {
+        tracing::warn!("Could not save Barney conversation context");
+        return;
+    }
+    let _ = sqlx::query(
+        "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND created_at<now()-interval '7 days'"
+    ).bind(telegram_id).execute(&mut *tx).await;
+    let _ = sqlx::query(
+        "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND id IN (SELECT id FROM bot_user_assistant_messages WHERE telegram_id=$1 ORDER BY id DESC OFFSET 24)"
+    ).bind(telegram_id).execute(&mut *tx).await;
+    if let Err(error) = tx.commit().await {
+        tracing::warn!("Could not commit Barney conversation context: {}", error);
+    }
+}
+
 async fn reply(
     bot: &Bot,
     db: &PgPool,
@@ -2450,6 +2478,9 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     })
                 });
                 if let Some(answer) = answer {
+                    if !is_group_chat {
+                        store_barney_exchange(db, telegram_id, normalized_text, &answer).await;
+                    }
                     reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
                     return Ok(());
                 }
@@ -2470,32 +2501,7 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 let answer = generated.unwrap_or_else(|| {
                     "Пока не смог уверенно разобрать этот вопрос. Можешь уточнить его или спросить меня об учёбе, технологиях, программировании и повседневных задачах. Если локальная модель не подключена, свободный диалог ограничен.".to_owned()
                 });
-                match db.begin().await {
-                    Ok(mut tx) => {
-                        let saved = sqlx::query(
-                            "INSERT INTO bot_user_assistant_messages(telegram_id,role,content) VALUES($1,'user',$2),($1,'assistant',$3)"
-                        )
-                        .bind(telegram_id)
-                        .bind(normalized_text.chars().take(600).collect::<String>())
-                        .bind(answer.chars().take(4000).collect::<String>())
-                        .execute(&mut *tx)
-                        .await;
-                        if saved.is_ok() {
-                            let _ = sqlx::query(
-                                "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND created_at<now()-interval '7 days'"
-                            ).bind(telegram_id).execute(&mut *tx).await;
-                            let _ = sqlx::query(
-                                "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND id IN (SELECT id FROM bot_user_assistant_messages WHERE telegram_id=$1 ORDER BY id DESC OFFSET 24)"
-                            ).bind(telegram_id).execute(&mut *tx).await;
-                            if let Err(error) = tx.commit().await {
-                                tracing::warn!("Could not save Barney conversation context: {}", error);
-                            }
-                        } else {
-                            tracing::warn!("Could not save Barney conversation context");
-                        }
-                    }
-                    Err(error) => tracing::warn!("Could not open Barney context transaction: {}", error),
-                }
+                store_barney_exchange(db, telegram_id, normalized_text, &answer).await;
                 reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
                 return Ok(());
             }
