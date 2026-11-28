@@ -4,7 +4,7 @@
 
 ## Ресурсы компьютера
 
-32 ГБ RAM достаточно для тестирования Qwen 3 8B в квантовании Q4. Сначала используем CPU/GPU автоматически через Ollama. Модель можно хранить на внешнем диске, но HDD будет заметно медленнее SSD. Внешний диск нужен для свободного места, не для увеличения RAM.
+32 ГБ RAM достаточно для тестирования LFM3 1.7B в квантовании Q4. Сначала используем CPU/GPU автоматически через Ollama. Модель можно хранить на внешнем диске, но HDD будет заметно медленнее SSD. Внешний диск нужен для свободного места, не для увеличения RAM.
 
 ## Установка на Windows (режим Render + локальная модель)
 
@@ -15,7 +15,7 @@
 5. Открыть PowerShell в корне репозитория и выполнить:
 
 ```powershell
-ollama pull qwen3:8b
+ollama pull lfm3
 $env:OLLAMA_PROXY_TOKEN = [guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
 Write-Host "Сохрани этот секрет в Render как OLLAMA_API_KEY: $env:OLLAMA_PROXY_TOKEN"
 python .\scripts\ollama_proxy.py
@@ -38,7 +38,7 @@ Tailscale покажет публичный HTTPS URL вида `https://имя-�
 
 - `OLLAMA_BASE_URL` — URL Funnel без завершающего слеша, например `https://имя-устройства.<tailnet>.ts.net`.
 - `OLLAMA_API_KEY` — значение `OLLAMA_PROXY_TOKEN` из PowerShell.
-- `OLLAMA_MODEL` — `qwen3:8b`.
+- `OLLAMA_MODEL` — `lfm3`.
 
 Не добавляй токен в репозиторий, исходники Mini App или публичные сообщения.
 
