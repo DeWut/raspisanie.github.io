@@ -66,7 +66,7 @@ pub fn homework_subject(text: &str) -> Option<String> {
     } else if (subject.ends_with("ой") || subject.ends_with("ей")) && subject.len() > 4 {
         subject.truncate(subject.len() - 2);
     }
-    (subject.chars().count() >= 3).then_some(subject)
+    (subject.chars().count() >= 4).then_some(subject)
 }
 
 pub fn detect(text: &str) -> Option<Intent> {
