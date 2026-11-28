@@ -2285,7 +2285,19 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         let may_answer = !is_group_chat || (assistant_enabled && explicitly_addressed);
 
         if may_answer {
-            if let Some(intent) = crate::services::conversation::detect(normalized_text) {
+            let previous_user = if !is_group_chat {
+                sqlx::query_scalar::<_, String>(
+                    "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='user' ORDER BY id DESC LIMIT 1"
+                ).bind(telegram_id).fetch_optional(db).await.ok().flatten()
+            } else { None };
+            let previous_assistant = if !is_group_chat {
+                sqlx::query_scalar::<_, String>(
+                    "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='assistant' ORDER BY id DESC LIMIT 1"
+                ).bind(telegram_id).fetch_optional(db).await.ok().flatten()
+            } else { None };
+            if let Some(intent) = crate::services::conversation::detect_with_context(
+                normalized_text, previous_user.as_deref(), previous_assistant.as_deref()
+            ) {
                 let answer = match intent {
                     crate::services::conversation::Intent::Greeting => {
                         Some("Привет! Я Барни, учебный помощник СПбГЛТУ. Могу подсказать расписание, домашние задания, дедлайны, преподавателей и свободные аудитории. Напиши вопрос обычным сообщением или выбери раздел кнопками.".to_owned())
