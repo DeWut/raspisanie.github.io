@@ -1665,6 +1665,12 @@ fn period(command: &str) -> (DateTime<Utc>, DateTime<Utc>) {
     let now = Utc::now();
     let local_now = now.with_timezone(&moscow_offset());
     let today = local_now.date_naive();
+    if let Some(date) = command.strip_prefix("/date:")
+        .and_then(|value| NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()) {
+        let from = moscow_midnight_utc(date);
+        let to = moscow_midnight_utc(date + ChronoDuration::days(1));
+        return (from, to);
+    }
     match command {
         "/today" | "📅 Сегодня" => {
             let tomorrow = today + ChronoDuration::days(1);
@@ -1776,6 +1782,8 @@ pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> 
     let local_now = now.with_timezone(&moscow_offset());
     let is_today = command == "/today" || command == "📅 Сегодня";
     let is_tomorrow = command == "/tomorrow" || command == "📅 Завтра";
+    let selected_date = command.strip_prefix("/date:")
+        .and_then(|value| NaiveDate::parse_from_str(value, "%Y-%m-%d").ok());
     let (from, to) = period(command);
     let mut rows = load_schedule_rows(db, group_id, if is_today { now } else { from }, to, is_today).await;
     let mut nearest_day_label: Option<String> = None;
@@ -1823,6 +1831,10 @@ pub async fn schedule_text(db: &PgPool, group_id: uuid::Uuid, command: &str) -> 
             "/tomorrow" | "📅 Завтра" => "📅 *РАСПИСАНИЕ НА ЗАВТРА*".to_owned(),
             "/next" | "⏭ Следующая пара" => "⏭ *СЛЕДУЮЩАЯ ПАРА*".to_owned(),
             "/week" | "🗓 Неделя" => "🗓 *РАСПИСАНИЕ НА 7 ДНЕЙ*".to_owned(),
+            _ if selected_date.is_some() => {
+                let date = selected_date.unwrap();
+                format!("📅 *РАСПИСАНИЕ НА {} · {}*", weekday_ru(date), date.format("%d.%m.%Y"))
+            }
             _ => "🎓 *РАСПИСАНИЕ*".to_owned(),
         }
     };
