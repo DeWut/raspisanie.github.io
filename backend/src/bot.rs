@@ -2289,6 +2289,28 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                             }
                         }
                     }
+                    crate::services::conversation::Intent::HomeworkFor(subject) => {
+                        let group_id = if is_group_chat {
+                            sqlx::query_scalar::<_, uuid::Uuid>(
+                                "SELECT group_id FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE",
+                            )
+                            .bind(message.chat.id.0)
+                            .fetch_optional(db)
+                            .await
+                            .ok()
+                            .flatten()
+                        } else {
+                            selected_group(db, telegram_id, message.chat.id.0).await
+                        };
+                        match group_id {
+                            Some(group_id) => Some(
+                                crate::services::group_content::homework_for_group_subject(
+                                    db, group_id, telegram_id, &subject,
+                                ).await
+                            ),
+                            None => Some("Сначала привяжи учебную группу к этому чату командой /setgroup или выбери её в личных настройках /group.".into()),
+                        }
+                    }
                     crate::services::conversation::Intent::Deadlines => {
                         crate::services::student_tools::handle(
                             db, message.chat.id.0, telegram_id, "/deadlines", "", None, None,
