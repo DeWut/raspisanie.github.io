@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """LoRA fine-tuning of a compact pretrained student using LFM3-distilled dialogues."""
 from __future__ import annotations
-import argparse, json
+import argparse, hashlib, json
+from datetime import datetime, timezone
 from pathlib import Path
 import torch
 from peft import LoraConfig, get_peft_model
@@ -77,6 +78,8 @@ def main():
     if tokenizer.pad_token_id is None: tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
     dataset = DialogueDataset(args.data, tokenizer, args.max_length)
+    dataset_hash = hashlib.sha256(args.data.read_bytes()).hexdigest()
+    training_started = datetime.now(timezone.utc).isoformat()
     if len(dataset) < 30:
         raise SystemExit(f"Only {len(dataset)} examples. Add at least 30 for a smoke test; aim for 500+ diverse approved examples.")
     eval_size = max(1, int(len(dataset) * 0.1))
@@ -91,6 +94,9 @@ def main():
         task_type="CAUSAL_LM",
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]))
     model.print_trainable_parameters()
+    trainable_params, total_params = model.get_nb_trainable_parameters()
+    trainable_percent = (trainable_params / total_params * 100) if total_params else 0.0
+    print(f"Trainable parameters: {trainable_params:,} / {total_params:,} ({trainable_percent:.5f}%)")
     args.output.mkdir(parents=True, exist_ok=True)
     training_args = TrainingArguments(
         output_dir=str(args.output), num_train_epochs=args.epochs,
@@ -107,8 +113,43 @@ def main():
         eval_dataset=eval_dataset, data_collator=PadCollator(tokenizer.pad_token_id))
     trainer.train()
     trainer.save_model(str(args.output))
+    trainer.state.save_to_json(str(args.output / "trainer_state.json"))
     tokenizer.save_pretrained(str(args.output))
+
+    eval_losses = [
+        float(row["eval_loss"])
+        for row in trainer.state.log_history
+        if "eval_loss" in row and isinstance(row["eval_loss"], (int, float))
+    ]
+    training_run = {
+        "schema_version": 1,
+        "started_at": training_started,
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "base_model": args.model,
+        "dataset_path": str(args.data.resolve()),
+        "dataset_sha256": dataset_hash,
+        "approved_examples": len(dataset),
+        "trainable_parameters": int(trainable_params),
+        "total_parameters_with_adapter": int(total_params),
+        "trainable_percent": round(trainable_percent, 6),
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "gradient_accumulation": args.grad_accum,
+        "max_length": args.max_length,
+        "lora_rank": args.rank,
+        "torch_version": torch.__version__,
+        "cuda_version": torch.version.cuda,
+        "gpu": torch.cuda.get_device_name(0),
+        "best_eval_loss": trainer.state.best_metric,
+        "min_logged_eval_loss": min(eval_losses) if eval_losses else None,
+        "global_step": trainer.state.global_step,
+    }
+    (args.output / "training_run.json").write_text(
+        json.dumps(training_run, ensure_ascii=False, indent=2) + "\\n",
+        encoding="utf-8",
+    )
     print(f"Adapter saved: {args.output}")
-    print("Run evaluate_student.py. Do not deploy based on training loss alone.")
+    print(f"Trainable parameters: {trainable_params:,} / {total_params:,} ({trainable_percent:.5f}%)")
+    print("Run evaluate_student.py, then inspect the readiness report and human review. Do not deploy based on training loss alone.")
 
 if __name__ == "__main__": main()
