@@ -2008,9 +2008,44 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                 }
             }
         }
-        // Telegram keeps file captions separate from message text. Support
-        // `/attach_dz ID` captions and store only the Telegram file reference.
+        // Telegram keeps file captions separate from message text. Run
+        // homework detection on ordinary group captions too, while preserving
+        // the dedicated /attach_dz caption command below.
         if let Some(caption) = message.caption() {
+            if message.chat.id.0 < 0 && !caption.trim_start().starts_with('/') {
+                if let Some(actor) = telegram_user_id(&message) {
+                    if ensure_user(&state.db, &message).await.is_ok() {
+                        match crate::services::homework_candidates::maybe_create(
+                            &state.db,
+                            message.chat.id.0,
+                            message.id.0,
+                            actor,
+                            caption,
+                        )
+                        .await
+                        {
+                            Ok(Some(candidate)) => {
+                                let request = bot
+                                    .send_message(
+                                        message.chat.id,
+                                        crate::services::homework_candidates::candidate_text(&candidate),
+                                    )
+                                    .reply_markup(crate::services::homework_candidates::review_keyboard(candidate.id));
+                                let request = match message.thread_id.clone() {
+                                    Some(thread) => request.message_thread_id(thread),
+                                    None => request,
+                                };
+                                request.await?;
+                                return Ok(());
+                            }
+                            Ok(None) => {}
+                            Err(error) => tracing::warn!("Could not inspect media caption for homework: {}", error),
+                        }
+                    }
+                }
+            }
+
+            // /attach_dz ID captions store only the Telegram file reference.
             let mut words = caption.split_whitespace();
             if words.next().map(|v| v.split('@').next().unwrap_or(v)) == Some("/attach_dz") {
                 let Some(actor) = telegram_user_id(&message) else {
