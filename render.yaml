@@ -30,3 +30,5 @@ services:
         value: info
       - key: EMBEDDING_DIM
         value: "1536"
+      - key: OLLAMA_MODEL
+        value: lfm3
