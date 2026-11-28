@@ -13,6 +13,10 @@ pub enum Intent {
     Deadlines,
     FreeRooms(Option<String>),
     Teacher(String),
+    Profile,
+    Settings,
+    GroupChangeInfo,
+    Features,
 }
 
 fn normalize(text: &str) -> String {
@@ -70,65 +74,65 @@ pub fn homework_subject(text: &str) -> Option<String> {
 }
 
 pub fn detect(text: &str) -> Option<Intent> {
-    let text = normalize(text);
-    if text.trim().is_empty() {
-        return None;
+    let text = normalize(text)
+        .replace("дщ", "дз")
+        .replace("дс", "дз")
+        .replace("расписане", "расписание")
+        .replace("расписанье", "расписание");
+    if text.trim().is_empty() { return None; }
+
+    if has_any(&text, &["какая у меня группа", "какая моя группа", "моя группа", "что ты обо мне знаешь", "мои персональные данные", "мой профиль", "мой аккаунт"]) {
+        return Some(Intent::Profile);
+    }
+    if has_any(&text, &["если я изменю группу", "при смене группы", "сменю группу", "поменяю группу", "изменю учебную группу", "настройки останутся", "настройки сохранятся"]) {
+        return Some(Intent::GroupChangeInfo);
+    }
+    if has_any(&text, &["настройк", "параметр аккаунта", "уведомления включ", "личный кабинет", "центр управления", "что можно изменить"]) {
+        return Some(Intent::Settings);
+    }
+    if has_any(&text, &["знакомств", "возможности mini app", "функции mini app", "какие функции", "что умеешь", "что можешь", "список возможностей"]) {
+        return Some(Intent::Features);
+    }
+    if has_any(&text, &["список команд", "какие команды", "команды бота", "команду", "команды", "помощь", "как пользоваться", "меню", "help"]) {
+        return Some(Intent::Help);
     }
 
-    if has_any(&text, &["аудитор", "свободн", "свободна аудитория", "свободные кабинеты"])
-        && has_any(&text, &["аудитор", "свободн", "кабинет"])
-    {
-        return Some(Intent::FreeRooms(time_in(&text)));
-    }
-
-    if has_any(&text, &["преподавател", "препод", "кто ведет", "когда у", "занятия у", "пары у"])
-        && text.split_whitespace().count() >= 2
-    {
-        let query = text
-            .split_whitespace()
-            .filter(|word| {
-                ![
-                    "найди", "расписание", "преподаватель", "преподавателя",
-                    "препод", "когда", "какой", "какая", "какие", "у",
-                    "занятия", "занятие", "ведет", "кто", "пары", "пара",
-                    "будут", "есть", "сегодня", "завтра", "во", "сколько",
-                ]
-                .contains(word)
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-        if query.chars().count() >= 3 {
-            return Some(Intent::Teacher(query));
-        }
-    }
-
-    if has_any(&text, &["дедлайн", "срок сдач", "когда сда", "что сдать", "надо сдать", "сроки"]) {
-        return Some(Intent::Deadlines);
-    }
-    if has_any(&text, &["домашн", "домашк", "дз", "задали", "задание", "задания", "домашка"])
-        && has_any(&text, &["какое", "какие", "покажи", "есть", "задан", "дз", "домашн", "что"])
-    {
-        return Some(homework_subject(&text).map(Intent::HomeworkFor).unwrap_or(Intent::Homework));
-    }
-    if has_any(&text, &["завтра", "на завтра"]) {
-        return Some(Intent::Tomorrow);
-    }
-    if has_any(&text, &["недел", "7 дней", "семь дней"]) {
-        return Some(Intent::Week);
-    }
-    if has_any(&text, &["следующ", "ближайш", "после этого", "дальше"])
-        && has_any(&text, &["пар", "занят", "урок", "что"])
-    {
+    if has_any(&text, &["следующая пара", "следующую пару", "ближайшая пара", "ближайшую пару", "что за пара дальше", "какая пара дальше", "после какой пары"]) {
         return Some(Intent::NextLesson);
     }
-    if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия"]) {
+    if has_any(&text, &["свободн", "пустые аудитории", "свободные кабинеты"]) {
+        return Some(Intent::FreeRooms(time_in(&text)));
+    }
+    if has_any(&text, &["преподавател", "препод", "кто ведет", "кто ведёт", "кто читает", "занятия у", "пары у"]) {
+        let query = text.split_whitespace().filter(|word| ![
+            "найди","расписание","преподаватель","преподавателя","преподаватели","препод",
+            "когда","какой","какая","какие","у","занятия","занятие","ведет","ведёт",
+            "читает","кто","пары","пара","будут","есть","сегодня","завтра","во","сколько",
+            "покажи","найти"
+        ].contains(word)).collect::<Vec<_>>().join(" ");
+        if query.chars().count() >= 3 { return Some(Intent::Teacher(query)); }
+    }
+    if has_any(&text, &["дедлайн", "срок сдач", "когда сда", "что сдать", "надо сдать", "сроки", "к какому числу", "до какого числа"]) {
+        return Some(Intent::Deadlines);
+    }
+    if has_any(&text, &["домашн", "домашк", "дз", "задали", "задание", "задания", "список дз", "список заданий", "что задали", "что задано", "домашка"]) {
+        return Some(homework_subject(&text).map(Intent::HomeworkFor).unwrap_or(Intent::Homework));
+    }
+    if has_any(&text, &["изменения в расписании", "изменилось расписание", "изменения или отмены", "отменили пары", "перенесли пары", "замены", "переносы занятий"]) {
+        return Some(Intent::Help);
+    }
+    if has_any(&text, &["экзамен", "зачет", "зачёт", "сессия"]) {
+        return Some(Intent::Help);
+    }
+    if has_any(&text, &["завтра", "на завтра"]) { return Some(Intent::Tomorrow); }
+    if has_any(&text, &["недел", "7 дней", "семь дней", "на понедельник", "на вторник", "на среду", "на четверг", "на пятницу", "на субботу", "на воскресенье"]) {
+        return Some(Intent::Week);
+    }
+    if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия", "уроки"]) {
         return Some(Intent::Today);
     }
     if has_any(&text, &["привет", "здравствуй", "здаров", "доброе утро", "добрый день", "добрый вечер", "барни", "барней", "спбфту"]) {
         return Some(Intent::Greeting);
-    }
-    if has_any(&text, &["помощь", "что умеешь", "что можешь", "как пользоваться", "команды", "меню"]) {
-        return Some(Intent::Help);
     }
     None
 }
