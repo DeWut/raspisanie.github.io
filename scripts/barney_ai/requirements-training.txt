@@ -1,7 +1,5 @@
-# Versions aligned with Liquid AI's published LFM3 TRL fine-tuning notebook.
-torch==2.14.1
-torchvision==0.29.1
-torchao==0.18.0
+# Install PyTorch separately from https://pytorch.org/get-started/locally/
+# Choose the wheel matching your Windows/Linux, Python and CUDA version.
 trl==1.16.0
 transformers==5.20.2
 peft==0.21.2
