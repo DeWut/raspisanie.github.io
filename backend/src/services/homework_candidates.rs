@@ -210,12 +210,14 @@ pub async fn maybe_create(
     .fetch_all(db)
     .await?;
     let lower = text.to_lowercase();
-    let Some((subject, _)) = aliases
+    // A missing exact subject match must not silently discard an otherwise
+    // valid homework message. Keep it in the review queue with an explicit
+    // placeholder so the approver can correct the subject before publishing.
+    let subject = aliases
         .into_iter()
-        .find(|(_, alias)| lower.contains(&alias.to_lowercase()))
-    else {
-        return Ok(None);
-    };
+        .find(|(_, alias)| !alias.trim().is_empty() && lower.contains(&alias.to_lowercase()))
+        .map(|(subject, _)| subject)
+        .unwrap_or_else(|| "Предмет не указан — уточнить".to_owned());
     let description: String = text.trim().chars().take(8000).collect();
     let excerpt: String = text.trim().chars().take(1200).collect();
     let normalized = text
@@ -266,8 +268,59 @@ async fn can_review(db: &PgPool, chat_id: i64, actor: i64) -> bool {
         Some("admin") => sqlx::query_scalar::<_, bool>(r#"SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND owner_telegram_id=$2)
              OR EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status IN ('creator','administrator'))"#)
             .bind(chat_id).bind(actor).fetch_one(db).await.unwrap_or(false),
+        // Older chat settings may have a NULL role. Do not lock everyone out:
+        // allow the chat owner, Telegram admins and the designated class leader.
+        None => sqlx::query_scalar::<_, bool>(r#"SELECT
+             EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND owner_telegram_id=$2 AND is_active=TRUE)
+             OR EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status IN ('creator','administrator'))
+             OR EXISTS(SELECT 1 FROM bot_chat_member_roles WHERE chat_id=$1 AND telegram_id=$2 AND role='class_leader')"#)
+            .bind(chat_id).bind(actor).fetch_one(db).await.unwrap_or(false),
         _ => false,
     }
+}
+
+pub async fn send_pending_queue(
+    bot: &Bot,
+    db: &PgPool,
+    chat_id: ChatId,
+    actor: i64,
+) -> Result<(), String> {
+    if chat_id.0 >= 0 {
+        bot.send_message(chat_id, "Очередь автосбора доступна в учебном групповом чате.")
+            .await.map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    if !can_review(db, chat_id.0, actor).await {
+        bot.send_message(chat_id, "⛔ Просматривать и подтверждать собранные задания может выбранная роль подтверждающих.")
+            .await.map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    let enabled: bool = sqlx::query_scalar(
+        "SELECT homework_autocollect_enabled FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE"
+    ).bind(chat_id.0).fetch_optional(db).await.map_err(|e| e.to_string())?.unwrap_or(false);
+    let rows = sqlx::query_as::<_, (i64, String, String, Option<DateTime<Utc>>)>(
+        "SELECT id,subject,description,due_at FROM bot_homework_candidates WHERE chat_id=$1 AND status='pending' AND expires_at>now() ORDER BY created_at DESC LIMIT 20"
+    ).bind(chat_id.0).fetch_all(db).await.map_err(|e| e.to_string())?;
+
+    bot.send_message(
+        chat_id,
+        format!("📥 Очередь автосбора ДЗ\nАвтосбор: {}\nОжидают проверки: {}", if enabled { "ВКЛ" } else { "ВЫКЛ" }, rows.len())
+    ).await.map_err(|e| e.to_string())?;
+
+    if rows.is_empty() {
+        bot.send_message(chat_id, "Новых кандидатов на проверку нет. Когда бот обнаружит задание, оно появится здесь и в сообщении группы.")
+            .await.map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    for (id, subject, description, due_at) in rows {
+        let candidate = Candidate { id, subject, description, due_at };
+        bot.send_message(chat_id, candidate_text(&candidate))
+            .reply_markup(review_keyboard(id))
+            .await.map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 pub async fn handle_callback(
