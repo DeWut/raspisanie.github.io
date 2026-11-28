@@ -4374,7 +4374,7 @@ async fn register_bot_commands(bot: &Bot) {
 
 /// Starts Telegram in webhook mode for scale-to-zero hosts such as Render Free.
 /// Incoming Telegram updates wake the service; no long-polling connection is required.
-pub async fn start_webhook_mode(state: Arc<AppState>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn start_webhook_mode(state: Arc<AppState>) -> Result<(), Box<dyn std::error::Error>> {
     let token = state.config.teloxide_token.clone()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "TELOXIDE_TOKEN is not configured"))?;
     let secret = state.config.telegram_webhook_secret.clone()
