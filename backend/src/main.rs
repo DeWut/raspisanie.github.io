@@ -66,11 +66,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bot_state: Arc<_> = state.clone();
 
     if config.teloxide_token.is_some() {
-        tokio::spawn(async move {
-            bot::run(bot_state).await;
-        });
+        let webhook_configured = config.telegram_webhook_secret.is_some()
+            && (std::env::var("TELEGRAM_WEBHOOK_URL").is_ok()
+                || std::env::var("RENDER_EXTERNAL_URL").is_ok());
+        if webhook_configured {
+            bot::start_webhook_mode(bot_state).await?;
+        } else {
+            tokio::spawn(async move {
+                bot::run(bot_state).await;
+            });
+        }
     } else {
-        tracing::warn!("Telegram bot token missing; polling disabled");
+        tracing::warn!("Telegram bot token missing; bot disabled");
     }
 
     let origins = config
