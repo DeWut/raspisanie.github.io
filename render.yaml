@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: spbftuit-smart-campus-api
+    runtime: rust
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: cargo build --release
+    startCommand: ./target/release/smart-campus-backend
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      - key: TELOXIDE_TOKEN
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      - key: WEBAPP_URL
+        sync: false
+      - key: ADMIN_TELEGRAM_ID
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://dewut.github.io
+      - key: DEV_BYPASS_AUTH
+        value: "false"
+      - key: RUST_LOG
+        value: info
+      - key: EMBEDDING_DIM
+        value: "1536"
