@@ -152,6 +152,9 @@ mod tests {
         assert_eq!(detect("Покажи домашку"), Some(Intent::Homework));
         assert_eq!(detect("Что задали по математике?"), Some(Intent::HomeworkFor("математик".into())));
         assert_eq!(homework_subject("а по физике?"), Some("физик".into()));
+        assert_eq!(homework_subject("ДЗ по математике"), Some("математик".into()));
+        assert_eq!(homework_subject("задали по истории"), Some("истор".into()));
+        assert_eq!(homework_subject("а по английскому?"), Some("английск".into()));
         assert_eq!(detect("Какие занятия у Иванова?"), Some(Intent::Teacher("иванова".into())));
         assert_eq!(detect("Во сколько у нас пара?"), Some(Intent::Today));
         assert_eq!(detect("Добрый вечер!"), Some(Intent::Greeting));
