@@ -570,6 +570,7 @@ pub async fn assistant_chat(
             }
         }
     }
+    let mut engine = "local_rules";
     let (kind, reply) = match intent {
         Some(crate::services::conversation::Intent::Greeting) => (
             "greeting",
@@ -665,7 +666,7 @@ pub async fn assistant_chat(
                 } else {
                     None
                 };
-                let response = if let Some(previous) = previous {
+                let fallback = if let Some(previous) = previous {
                     let topic = previous.to_lowercase();
                     if topic.contains("расписан") || topic.contains("пара") {
                         "Понял продолжение вопроса о расписании. Уточни день: сегодня, завтра или вся неделя.".to_owned()
@@ -679,13 +680,28 @@ pub async fn assistant_chat(
                 } else {
                     "Я учебный помощник, поэтому храню только короткий контекст, связанный с учёбой. Могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и свободными аудиториями.".to_owned()
                 };
+                let history = sqlx::query_as::<_, (String, String)>(
+                    "SELECT role,content FROM bot_user_assistant_messages WHERE telegram_id=$1 ORDER BY id DESC LIMIT 8",
+                )
+                .bind(telegram_id)
+                .fetch_all(&state.db)
+                .await?;
+                let history = history.into_iter().rev().collect::<Vec<_>>();
+                let response = if let Some(generated) =
+                    crate::services::ollama::chat(&state.config, prompt, &history).await
+                {
+                    engine = "ollama";
+                    generated
+                } else {
+                    fallback
+                };
                 ("conversation", response)
             }
         }
     };
 
     // Store only education-related exchanges. Personal, unrelated messages are not retained.
-    if !matches!(kind, "greeting" | "help" | "conversation") {
+    if !matches!(kind, "greeting" | "help") {
         let mut tx = state.db.begin().await?;
         sqlx::query(
             "INSERT INTO bot_user_assistant_messages(telegram_id,role,content) VALUES($1,'user',$2),($1,'assistant',$3)",
@@ -710,7 +726,7 @@ pub async fn assistant_chat(
         tx.commit().await?;
     }
 
-    Ok(Json(json!({"kind": kind, "reply": reply, "engine": "local_rules"})))
+    Ok(Json(json!({"kind": kind, "reply": reply, "engine": engine})))
 }
 
 pub async fn notification_health(
