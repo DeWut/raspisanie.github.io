@@ -550,26 +550,15 @@ pub async fn assistant_chat(
     .fetch_one(&state.db)
     .await?;
 
-    let mut intent = crate::services::conversation::detect(prompt);
-    if intent.is_none() {
-        let lower = prompt.to_lowercase().replace("ё", "е");
-        let is_subject_followup = lower.starts_with("а по ") || lower.starts_with("и по ");
-        if is_subject_followup {
-            let previous = sqlx::query_scalar::<_, String>(
-                "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='assistant' ORDER BY id DESC LIMIT 1",
-            )
-            .bind(telegram_id)
-            .fetch_optional(&state.db)
-            .await?;
-            if previous.as_deref().is_some_and(|value| {
-                let topic = value.to_lowercase();
-                topic.contains("домаш") || topic.contains("задан") || topic.contains("дз")
-            }) {
-                intent = crate::services::conversation::homework_subject(prompt)
-                    .map(crate::services::conversation::Intent::HomeworkFor);
-            }
-        }
-    }
+    let previous_user = sqlx::query_scalar::<_, String>(
+        "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='user' ORDER BY id DESC LIMIT 1"
+    ).bind(telegram_id).fetch_optional(&state.db).await?;
+    let previous_assistant = sqlx::query_scalar::<_, String>(
+        "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='assistant' ORDER BY id DESC LIMIT 1"
+    ).bind(telegram_id).fetch_optional(&state.db).await?;
+    let intent = crate::services::conversation::detect_with_context(
+        prompt, previous_user.as_deref(), previous_assistant.as_deref()
+    );
     let mut engine = "local_rules";
     let (kind, reply) = match intent {
         Some(crate::services::conversation::Intent::Greeting) => (
