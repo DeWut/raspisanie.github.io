@@ -88,11 +88,46 @@ fn has_homework_intent(text: &str) -> bool {
     HOMEWORK_WORDS.iter().any(|word| lower.contains(word))
 }
 
+fn subject_tokens(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .replace('ё', "е")
+        .split(|ch: char| !ch.is_alphanumeric())
+        .filter(|token| token.chars().count() >= 3)
+        .map(|token| {
+            let mut stem = token.to_owned();
+            for suffix in [
+                "иями", "ями", "ами", "ого", "его", "ому", "ему", "ыми", "ими",
+                "ую", "юю", "ая", "яя", "ое", "ее", "ые", "ие", "ый", "ий",
+                "ой", "ей", "ам", "ям", "ах", "ях", "ов", "ев", "ом", "ем",
+                "а", "я", "ы", "и", "е", "о", "у", "ю",
+            ] {
+                if stem.ends_with(suffix) && stem.chars().count() > suffix.chars().count() + 2 {
+                    stem.truncate(stem.len() - suffix.len());
+                    break;
+                }
+            }
+            stem
+        })
+        .collect()
+}
+
 fn resolve_subject(text: &str, aliases: Vec<(String, String)>) -> String {
-    let lower = text.to_lowercase();
+    let text_lower = text.to_lowercase().replace('ё', "е");
+    let text_tokens = subject_tokens(text);
     aliases
         .into_iter()
-        .find(|(_, alias)| !alias.trim().is_empty() && lower.contains(&alias.to_lowercase()))
+        .find(|(_, alias)| {
+            if alias.trim().is_empty() {
+                return false;
+            }
+            let alias_lower = alias.to_lowercase().replace('ё', "е");
+            if text_lower.contains(&alias_lower) {
+                return true;
+            }
+            let alias_tokens = subject_tokens(alias);
+            !alias_tokens.is_empty()
+                && alias_tokens.iter().all(|token| text_tokens.iter().any(|value| value == token))
+        })
         .map(|(subject, _)| subject)
         .unwrap_or_else(|| "Предмет не указан — уточнить".to_owned())
 }
