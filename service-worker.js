@@ -1,8 +1,8 @@
-const SHELL_CACHE = "spbftuit-shell-v33";
+const SHELL_CACHE = "spbftuit-shell-v34";
 const DATA_CACHE = "spbftuit-data-v1";
 const SHELL_FILES = [
   "./", "./index.html", "./miniapp/index.html", "./miniapp/week.html",
-  "./miniapp/app.js", "./miniapp/styles.css", "./miniapp/native-bridge.js", "./miniapp/campus-map-config.js",
+  "./miniapp/app.js", "./miniapp/navigation.html", "./miniapp/styles.css", "./miniapp/native-bridge.js", "./miniapp/campus-map-config.js",
   "./miniapp/map3d.html", "./miniapp/map3d.js", "./miniapp/map3d-geometry.js", "./miniapp/floorplans.js", "./miniapp/floorplans-building1.js", "./miniapp/interior-model.js",
   "./week.html", "./manifest.webmanifest", "./offline.html", "./favicon.png",
   "./data/groups.json", "./data/teachers.json", "./data/campus.json",
