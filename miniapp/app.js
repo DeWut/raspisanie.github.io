@@ -410,6 +410,10 @@
     try {
       const data = await accountApi('/api/me/chats');
       state.control.managedChats = Array.isArray(data.chats) ? data.chats : [];
+      const summary = $('#managed-chat-summary');
+      const count = $('#managed-chat-count');
+      if (summary) summary.hidden = state.control.managedChats.length === 0;
+      if (count) count.textContent = String(state.control.managedChats.length);
       select.replaceChildren();
       commandSelect.replaceChildren(new Option('Выбери групповой чат', ''));
       state.control.managedChats.forEach((chat) => {
@@ -423,8 +427,8 @@
       commandSelect.disabled = state.control.managedChats.length === 0;
       empty.hidden = state.control.managedChats.length > 0;
       if (!state.control.managedChats.length) {
-        select.add(new Option('Нет подключённых чатов', ''));
-        commandSelect.replaceChildren(new Option('Нет подключённых чатов', ''));
+        select.add(new Option('Нет общих чатов', ''));
+        commandSelect.replaceChildren(new Option('Нет общих чатов', ''));
         state.control.selectedChatId = '';
         editor.hidden = true;
         $('#managed-chat-readonly').hidden = true;
