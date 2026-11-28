@@ -64,14 +64,14 @@
     .campus-photo img { display: block; width: 100%; max-height: 170px; object-fit: cover; border-radius: 8px; }
     .campus-photo figcaption { margin-top: 4px; color: var(--muted); font-size: 10px; }
     .campus-number-marker {
-      position: relative; display: grid; place-items: center; width: 38px; height: 38px; padding: 0;
-      border: 3px solid rgba(255,255,255,.98); border-radius: 50% 50% 50% 8px;
-      transform: rotate(-45deg); background: #176b4c; color: #fff;
-      box-shadow: 0 3px 12px rgba(0,0,0,.48); font: 850 16px/1 system-ui, sans-serif;
+      position: relative; display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+      border: 2px solid rgba(255,255,255,.98); border-radius: 50%;
+      transform: none; background: #176b4c; color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.42); font: 850 14px/1 system-ui, sans-serif;
       cursor: pointer; touch-action: manipulation; pointer-events: auto;
       transition: background .16s ease, box-shadow .16s ease;
     }
-    .campus-number-marker span { display: block; transform: rotate(45deg); }
+    .campus-number-marker span { display: block; transform: none; }
     .campus-number-marker:active { background: #0e5138; box-shadow: 0 4px 16px rgba(0,0,0,.55); }
     .campus-number-marker:focus-visible { outline: 3px solid #d8f27a; outline-offset: 3px; }
     .campus-photo-link { display: block; border-radius: 8px; overflow: hidden; }
@@ -232,9 +232,9 @@
     })();
   </script>
   <script src="./vendor/maplibre-gl.js"></script>
-  <script src="./map3d-geometry.js?v=20261128-45"></script>
-  <script src="./floorplans.js?v=20261128-45"></script>
-  <script src="./floorplans-building1.js?v=20261128-45"></script>
-  <script src="./map3d.js?v=20261128-45"></script>
+  <script src="./map3d-geometry.js?v=20261128-46"></script>
+  <script src="./floorplans.js?v=20261128-46"></script>
+  <script src="./floorplans-building1.js?v=20261128-46"></script>
+  <script src="./map3d.js?v=20261128-46"></script>
 </body>
 </html>
