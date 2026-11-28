@@ -355,7 +355,7 @@ pub async fn handle_callback(
                 // clear their visible content and keyboard after routing to the DM.
                 if let Err(error) = bot
                     .edit_message_text_inline(inline_message_id, "\u{2063}")
-                    .reply_markup(InlineKeyboardMarkup::new(Vec::new()))
+                    .reply_markup(InlineKeyboardMarkup::new(Vec::<Vec<teloxide::types::InlineKeyboardButton>>::new()))
                     .await
                 {
                     if !error.to_string().contains("message is not modified") {
