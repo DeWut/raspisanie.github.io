@@ -342,7 +342,6 @@ pub fn detect(text: &str) -> Option<Intent> {
         .replace("расписане", "расписание")
         .replace("расписанье", "расписание");
     if text.trim().is_empty() { return None; }
-    if let Some(intent) = knowledge_intent(&text) { return Some(intent); }
 
     if has_any(&text, &["расписание", "расписан"]) && has_any(&text, &["группа", "группы", "группу"]) {
         if let Some(candidate) = text.split_whitespace().find(|word| word.contains('-') && word.chars().any(|c| c.is_ascii_digit())) {
@@ -401,6 +400,7 @@ pub fn detect(text: &str) -> Option<Intent> {
     if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия", "уроки"]) {
         return Some(Intent::Today);
     }
+    if let Some(intent) = knowledge_intent(&text) { return Some(intent); }
     if has_any(&text, &["привет", "здравствуй", "здаров", "доброе утро", "добрый день", "добрый вечер"]) {
         return Some(Intent::Greeting);
     }
