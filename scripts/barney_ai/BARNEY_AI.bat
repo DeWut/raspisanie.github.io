@@ -46,8 +46,9 @@ if "%CHOICE%"=="2" goto CHECK
 if "%CHOICE%"=="3" goto PREPARE
 if "%CHOICE%"=="4" goto TRAINING
 if "%CHOICE%"=="5" goto CHAT
-if "%CHOICE%"=="6" goto EXPORT
-if "%CHOICE%"=="7" start "" "%ROOT%\training" & goto MENU
+if "%CHOICE%"=="6" goto TEACHER
+if "%CHOICE%"=="7" goto EXPORT
+if "%CHOICE%"=="8" start "" "%ROOT%\training" & goto MENU
 if "%CHOICE%"=="0" exit /b
 goto MENU
 
@@ -142,7 +143,7 @@ echo Local Ollama model will propose examples. You approve or edit each one.
 echo Default teacher model: lfm3. Change BARNEY_TEACHER_MODEL to use another local model.
 echo.
 if not exist "%PY%" (echo Run option 1 first.& pause & goto MENU)
-"%PY%" "%ROOT%\\scripts\\barney_ai\\teacher_mode.py"
+"%PY%" "%ROOT%\scripts\barney_ai\teacher_mode.py"
 pause
 goto MENU
 
