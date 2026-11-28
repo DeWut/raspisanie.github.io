@@ -439,6 +439,12 @@ mod tests {
     }
 
     #[test]
+    fn fuzzy_knowledge_retrieval_handles_longer_questions() {
+        assert!(knowledge_context("можешь объяснить фотосинтез простыми словами").contains("photosynthesis"));
+        assert!(knowledge_context("расскажи простыми словами про нейронные сети").contains("neural_network"));
+    }
+
+    #[test]
     fn answers_common_conversation_and_general_knowledge_without_ai() {
         assert_eq!(detect("Барни, ты теперь умный?"), Some(Intent::Knowledge("self_assessment".into())));
         assert_eq!(detect("Ты умный?"), Some(Intent::Knowledge("self_assessment".into())));
