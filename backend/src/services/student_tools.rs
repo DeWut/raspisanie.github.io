@@ -380,8 +380,13 @@ async fn set_autocollect(db: &PgPool, chat_id: i64, actor: i64, enabled: bool) -
     }
     let result = sqlx::query("UPDATE bot_chat_settings SET homework_autocollect_enabled=$2,updated_at=now() WHERE chat_id=$1 AND is_active=TRUE")
         .bind(chat_id).bind(enabled).execute(db).await;
-    if result.is_err() {
-        return "Не удалось изменить настройку.".into();
+    match result {
+        Ok(result) if result.rows_affected() == 1 => {}
+        Ok(_) => return "Для этого чата нет активной привязки к учебной группе. Сначала выполни /setgroup, затем повтори команду.".into(),
+        Err(error) => {
+            tracing::error!("Could not change homework auto-collection setting for chat {}: {}", chat_id, error);
+            return "Не удалось изменить настройку автосбора. Проверь подключение к базе данных.".into();
+        }
     }
     let _ = sqlx::query("INSERT INTO bot_chat_audit_logs(chat_id,actor_telegram_id,action,details) VALUES($1,$2,'homework_autocollect_toggled',jsonb_build_object('enabled',$3))")
         .bind(chat_id).bind(actor).bind(enabled).execute(db).await;
