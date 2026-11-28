@@ -580,6 +580,32 @@ pub async fn assistant_chat(
             "help",
             "Спроси, например: «какое расписание завтра?», «что задали?», «какие дедлайны?», «когда пары у Иванова?» или «свободные аудитории на 15:00». Для данных своей группы привяжи её в настройках.".to_owned(),
         ),
+        Some(crate::services::conversation::Intent::Profile) => {
+            let row = sqlx::query_as::<_, (Option<String>, Value)>(
+                "SELECT g.name, COALESCE(u.settings,'{}'::jsonb) FROM users u LEFT JOIN groups g ON g.id=u.group_id WHERE u.telegram_id=$1"
+            ).bind(telegram_id).fetch_optional(&state.db).await?;
+            let (group_name, settings) = row.unwrap_or((None, json!({})));
+            ("profile", format!(
+                "Твой профиль\\nУчебная группа: {}\\nЛичные уведомления: {}\\nНапоминание о паре: за {} мин.\\nЕжедневная сводка: {}\\nУведомления об изменениях: {}\\nЧасовой пояс: Europe/Moscow",
+                group_name.unwrap_or_else(|| "не привязана".into()),
+                if settings["reminders_enabled"] == true { "включены" } else { "выключены" },
+                settings["reminder_minutes"].as_i64().unwrap_or(10),
+                if settings["daily_digest_enabled"] == true { "включена" } else { "выключена" },
+                if settings["schedule_changes_enabled"] == true { "включены" } else { "выключены" }
+            ))
+        }
+        Some(crate::services::conversation::Intent::Settings) => (
+            "settings",
+            "В личном кабинете можно изменить учебную группу, личные напоминания, интервал напоминания, ежедневную сводку и уведомления об изменениях расписания. В учебных чатах администраторы настраивают автопубликацию, уведомления о парах, помощника, контекст и сбор ДЗ.".to_owned(),
+        ),
+        Some(crate::services::conversation::Intent::GroupChangeInfo) => (
+            "settings",
+            "Личная учебная группа хранится отдельно от остальных настроек аккаунта. При смене группы должны сохраниться личные уведомления и параметры аккаунта; настройки группового чата управляются отдельно его администраторами.".to_owned(),
+        ),
+        Some(crate::services::conversation::Intent::Features) => (
+            "help",
+            "Я могу работать с расписанием, следующей парой, ДЗ, дедлайнами, преподавателями, аудиториями и настройками. В Mini App также доступны личный кабинет, учебные чаты, инструменты, помощник и уведомления. Раздел знакомств и профилей открывается в соответствующей вкладке Mini App.".to_owned(),
+        ),
         Some(crate::services::conversation::Intent::Today) => {
             let Some(group) = group_id else {
                 return Ok(Json(json!({"kind":"schedule","reply":"Сначала выбери учебную группу в настройках Mini App."})));
