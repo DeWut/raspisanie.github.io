@@ -6,4 +6,4 @@ window.CAMPUS_MAP_CONFIG = {
 
 // Set this to the public HTTPS origin of the deployed SPBFTUIT backend.
 // Leave empty during static/offline development; account settings then remain disabled.
-window.SMART_CAMPUS_API_URL = window.SMART_CAMPUS_API_URL || '';
+window.SMART_CAMPUS_API_URL = window.SMART_CAMPUS_API_URL || 'https://raspisanie-github-io.onrender.com';
