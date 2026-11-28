@@ -989,6 +989,20 @@
     showStats(scene.stats);
     setStatus('');
     if (campusData && campusData.map && campusData.map.center) { HOME.center = campusData.map.center; }
+    // Frame every mapped campus building on first load so its anchored marker is visible.
+    var mappedBuildings = ((campusData && campusData.buildings) || []).filter(function (building) {
+      return building && isFinite(Number(building.longitude)) && isFinite(Number(building.latitude));
+    });
+    if (mappedBuildings.length > 1) {
+      var west = Math.min.apply(null, mappedBuildings.map(function (building) { return Number(building.longitude); }));
+      var east = Math.max.apply(null, mappedBuildings.map(function (building) { return Number(building.longitude); }));
+      var south = Math.min.apply(null, mappedBuildings.map(function (building) { return Number(building.latitude); }));
+      var north = Math.max.apply(null, mappedBuildings.map(function (building) { return Number(building.latitude); }));
+      map.fitBounds([[west, south], [east, north]], {
+        padding: { top: 125, right: 48, bottom: 115, left: 48 },
+        maxZoom: 16.1, pitch: 58, bearing: -18, duration: 0
+      });
+    }
     setTimeout(function () {
       var drawn = 0;
       try { drawn = map.queryRenderedFeatures({ layers: ['bld', 'bld-footprint', 'campus-bld-2d'] }).length; } catch (e) { drawn = -1; }
