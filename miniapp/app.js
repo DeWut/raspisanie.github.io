@@ -1791,7 +1791,7 @@ async function addCampusParkLayers(map) {
     $('#open-map').addEventListener('click', () => {
       closeQuickMenu();
       // Navigate away from the timetable: the campus map is a separate page.
-      window.location.assign(new URL('./map3d.html?v=20261128-48', APP_SCRIPT_URL).href);
+      window.location.assign(new URL('./map3d.html?v=20261128-49', APP_SCRIPT_URL).href);
     });
     $('#campus-search')?.addEventListener('input', (event) => renderCampusDirectory(event.target.value));
     $('#campus-open-online')?.addEventListener('click', () => {
