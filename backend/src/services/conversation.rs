@@ -21,6 +21,7 @@ pub enum Intent {
     GroupLookup(String),
     ScheduleChanges,
     HomeworkManagement,
+    Knowledge(String),
 }
 
 fn normalize(text: &str) -> String {
@@ -142,6 +143,41 @@ fn dictionary_intent(text: &str) -> Option<Intent> {
         "greeting" => Some(Intent::Greeting),
         _ => None,
     }
+}
+
+fn knowledge_entries() -> &'static Vec<(String, Vec<String>, String)> {
+    use std::sync::OnceLock;
+    static ENTRIES: OnceLock<Vec<(String, Vec<String>, String)>> = OnceLock::new();
+    ENTRIES.get_or_init(|| {
+        let parsed: serde_json::Value = serde_json::from_str(include_str!("../../data/barney_knowledge_ru.json"))
+            .expect("Barney knowledge bank must be valid JSON");
+        parsed.as_array().into_iter().flatten().filter_map(|entry| {
+            let id = entry.get("id")?.as_str()?.to_owned();
+            let answer = entry.get("answer")?.as_str()?.to_owned();
+            let phrases = entry.get("phrases")?.as_array()?.iter()
+                .filter_map(|value| value.as_str().map(normalize))
+                .collect::<Vec<_>>();
+            Some((id, phrases, answer))
+        }).collect()
+    })
+}
+
+fn knowledge_intent(text: &str) -> Option<Intent> {
+    let normalized = normalize(text);
+    knowledge_entries().iter()
+        .filter_map(|(id, phrases, _)| {
+            let best = phrases.iter().filter(|phrase| normalized.contains(phrase.as_str()))
+                .map(|phrase| phrase.chars().count()).max()?;
+            Some((id, best))
+        })
+        .max_by_key(|(_, length)| *length)
+        .map(|(id, _)| Intent::Knowledge(id.clone()))
+}
+
+pub fn knowledge_answer(id: &str) -> Option<String> {
+    knowledge_entries().iter()
+        .find(|(entry_id, _, _)| entry_id == id)
+        .map(|(_, _, answer)| answer.clone())
 }
 
 fn weekday_date(text: &str) -> Option<String> {
@@ -283,6 +319,7 @@ pub fn detect(text: &str) -> Option<Intent> {
         .replace("расписане", "расписание")
         .replace("расписанье", "расписание");
     if text.trim().is_empty() { return None; }
+    if let Some(intent) = knowledge_intent(&text) { return Some(intent); }
 
     if has_any(&text, &["расписание", "расписан"]) && has_any(&text, &["группа", "группы", "группу"]) {
         if let Some(candidate) = text.split_whitespace().find(|word| word.contains('-') && word.chars().any(|c| c.is_ascii_digit())) {
@@ -341,7 +378,7 @@ pub fn detect(text: &str) -> Option<Intent> {
     if has_any(&text, &["сегодня", "сейчас", "расписан", "пары", "пара", "занятия", "уроки"]) {
         return Some(Intent::Today);
     }
-    if has_any(&text, &["привет", "здравствуй", "здаров", "доброе утро", "добрый день", "добрый вечер", "барни", "барней", "спбфту"]) {
+    if has_any(&text, &["привет", "здравствуй", "здаров", "доброе утро", "добрый день", "добрый вечер"]) {
         return Some(Intent::Greeting);
     }
     dictionary_intent(&text)
@@ -376,6 +413,17 @@ mod tests {
             detect_with_context("а какие сроки?", Some("Покажи список домашних заданий"), None),
             Some(Intent::Deadlines)
         );
+    }
+
+    #[test]
+    fn answers_common_conversation_and_general_knowledge_without_ai() {
+        assert_eq!(detect("Барни, ты теперь умный?"), Some(Intent::Knowledge("self_assessment".into())));
+        assert_eq!(detect("Ты умный?"), Some(Intent::Knowledge("self_assessment".into())));
+        assert_eq!(detect("Кто ты?"), Some(Intent::Knowledge("identity".into())));
+        assert_eq!(detect("Как дела?"), Some(Intent::Knowledge("how_are_you".into())));
+        assert_eq!(detect("Что такое API?"), Some(Intent::Knowledge("api".into())));
+        assert_eq!(detect("Объясни фотосинтез"), Some(Intent::Knowledge("photosynthesis".into())));
+        assert!(knowledge_answer("self_assessment").unwrap().contains("без подключённой языковой модели"));
     }
 
     #[test]
