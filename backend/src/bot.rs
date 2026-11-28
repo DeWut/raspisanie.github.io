@@ -1329,6 +1329,9 @@ async fn maybe_answer_bot_reply(
         Some(crate::services::conversation::Intent::Greeting) => Some(
             "Привет! Я могу помочь с расписанием, ДЗ, дедлайнами, преподавателями и аудиториями.".to_owned()
         ),
+        Some(crate::services::conversation::Intent::Knowledge(id)) => {
+            crate::services::conversation::knowledge_answer(&id)
+        },
         Some(crate::services::conversation::Intent::Help) => Some(commands_text(true)),
         Some(crate::services::conversation::Intent::Profile) => {
             let group_name = if let Some(group) = group_id {
