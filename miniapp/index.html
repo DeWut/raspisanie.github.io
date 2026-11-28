@@ -83,19 +83,17 @@
         </nav>
 
         <section class="control-pane" data-control-pane="personal">
-          <section class="settings-card">
-            <div class="control-card-heading">
-              <div><p class="eyebrow">УЧЕБНАЯ ГРУППА</p><strong id="settings-group-name">Не выбрана</strong></div>
-              <div class="control-inline-actions">
-                <button class="text-button" id="settings-group-button" type="button">Изменить</button>
-                <button class="text-button" id="settings-link-group" type="button" hidden>Привязать</button>
-              </div>
-            </div>
-            <p class="control-description">Группа связана с твоим Telegram-аккаунтом. Бот использует её для расписания, ДЗ и дедлайнов.</p>
+          <section class="settings-card compact-settings-card">
+            <p class="eyebrow">МОЯ УЧЕБНАЯ ГРУППА</p>
+            <label class="control-field" for="personal-group-select"><span>Группа аккаунта</span>
+              <select id="personal-group-select"><option value="">Выбери свою группу</option></select>
+            </label>
+            <button class="primary-button" id="personal-group-save" type="button" disabled>Сохранить группу</button>
+            <p class="settings-inline-status" id="personal-group-status" role="status">Группа будет привязана к твоему Telegram-аккаунту.</p>
           </section>
 
           <section class="settings-card">
-            <div class="control-section-title"><p class="eyebrow">ЛИЧНЫЕ УВЕДОМЛЕНИЯ</p><h2>Что присылать в Telegram</h2></div>
+            <div class="control-section-title"><p class="eyebrow">ЛИЧНЫЕ УВЕДОМЛЕНИЯ</p><h2>Уведомления</h2></div>
             <label class="settings-toggle-row">
               <span><strong>Напоминания о парах</strong><small>Сообщение перед началом занятия</small></span>
               <input id="settings-reminders" type="checkbox" disabled />
@@ -132,14 +130,14 @@
 
         <section class="control-pane hidden" data-control-pane="groups">
           <section class="settings-card">
-            <div class="control-section-title"><p class="eyebrow">ГРУППОВЫЕ ЧАТЫ</p><h2>Управление учебным чатом</h2></div>
-            <p class="control-description">Здесь появятся чаты, где Telegram подтвердил, что ты владелец или администратор. Настройки сохраняются отдельно для каждого чата.</p>
+            <div class="control-section-title"><p class="eyebrow">ГРУППОВЫЕ ЧАТЫ</p><h2>Настройки чата</h2></div>
+            <p class="control-description">Только реальные чаты, в которых ты состоишь и где добавлен бот.</p>
             <label class="control-field"><span>Выбери чат</span><select id="managed-chat-select" disabled><option value="">Загрузка доступных чатов…</option></select></label>
-            <div id="managed-chat-empty" class="control-empty" hidden>Не найдено учебных чатов для твоей группы. Сначала привяжи личную учебную группу и убедись, что бот добавлен в групповой чат.</div>
+            <div id="managed-chat-empty" class="control-empty" hidden>Чатов пока нет. Добавь бота в нужную группу и отправь там /chat_settings. Затем обнови Mini App.</div>
             <div id="managed-chat-readonly" class="control-empty" hidden>Ты можешь пользоваться функциями этого учебного чата во вкладке «Функции», но настройки чата доступны только его администратору Telegram.</div>
             <div id="managed-chat-editor" hidden>
               <div class="control-group-picker">
-                <label class="control-field"><span>Учебная группа этого чата</span><select id="managed-chat-group"></select></label>
+                <label class="control-field"><span>Группа, к которой относится этот чат</span><select id="managed-chat-group"></select></label>
                 <button class="secondary-button" id="managed-chat-group-save" type="button">Изменить группу чата</button>
               </div>
               <div class="control-divider"></div>
@@ -184,7 +182,7 @@
         <section class="control-pane hidden" data-control-pane="tools">
           <section class="settings-card">
             <div class="control-section-title"><p class="eyebrow">ФУНКЦИИ БОТА В MINI APP</p><h2>Учебная группа</h2></div>
-            <p class="control-description">Mini App вызывает те же обработчики, что и бот, с теми же проверками ролей. Действия, зависящие от ответа на конкретное Telegram-сообщение или отправки файла, по-прежнему выполняются в чате.</p>
+            <p class="control-description">Команды выполняются в выбранном учебном чате.</p>
             <label class="control-field"><span>Чат, в котором выполнить действие</span><select id="command-chat-select"><option value="">Выбери групповой чат</option></select></label>
             <div class="command-shortcuts">
               <button type="button" data-group-command="/dz">Домашние задания</button>
@@ -246,7 +244,7 @@
         <section class="control-pane hidden" data-control-pane="assistant">
           <section class="settings-card assistant-card">
             <div class="control-section-title"><p class="eyebrow">УЧЕБНЫЙ ПОМОЩНИК</p><h2>Задай вопрос</h2></div>
-            <p class="control-description">Помощник использует только учебные данные SPBFTUIT: расписание, ДЗ, дедлайны, преподавателей и аудитории. Он работает на локальном классификаторе, не отправляет запросы внешним AI API и хранит только короткий учебный контекст.</p>
+            <p class="control-description">Расписание, пары, ДЗ и сроки сдачи.</p>
             <div class="assistant-quick-prompts">
               <button type="button" data-assistant-prompt="Какая следующая пара?">Следующая пара</button>
               <button type="button" data-assistant-prompt="Что задали по домашнему заданию?">Мои ДЗ</button>
