@@ -564,6 +564,11 @@ pub async fn assistant_chat(
             "greeting",
             "Привет! Я учебный помощник СПбГЛТУ. Могу подсказать расписание, следующую пару, домашние задания, дедлайны, преподавателей и свободные аудитории.".to_owned(),
         ),
+        Some(crate::services::conversation::Intent::Knowledge(id)) => (
+            "knowledge",
+            crate::services::conversation::knowledge_answer(&id)
+                .unwrap_or_else(|| "Пока не нашёл ответ в локальном справочнике. Попробуй сформулировать вопрос иначе.".to_owned()),
+        ),
         Some(crate::services::conversation::Intent::Help) => (
             "help",
             "Спроси, например: «какое расписание завтра?», «что задали?», «какие дедлайны?», «когда пары у Иванова?» или «свободные аудитории на 15:00». Для данных своей группы привяжи её в настройках.".to_owned(),
