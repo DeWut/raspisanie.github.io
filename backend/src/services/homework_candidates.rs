@@ -88,6 +88,15 @@ fn has_homework_intent(text: &str) -> bool {
     HOMEWORK_WORDS.iter().any(|word| lower.contains(word))
 }
 
+fn resolve_subject(text: &str, aliases: Vec<(String, String)>) -> String {
+    let lower = text.to_lowercase();
+    aliases
+        .into_iter()
+        .find(|(_, alias)| !alias.trim().is_empty() && lower.contains(&alias.to_lowercase()))
+        .map(|(subject, _)| subject)
+        .unwrap_or_else(|| "Предмет не указан — уточнить".to_owned())
+}
+
 fn next_weekday(today: NaiveDate, target: u32) -> Option<NaiveDate> {
     let current = today.weekday().num_days_from_monday();
     let offset = (target + 7 - current) % 7;
@@ -209,15 +218,10 @@ pub async fn maybe_create(
     .bind(group_id)
     .fetch_all(db)
     .await?;
-    let lower = text.to_lowercase();
     // A missing exact subject match must not silently discard an otherwise
     // valid homework message. Keep it in the review queue with an explicit
     // placeholder so the approver can correct the subject before publishing.
-    let subject = aliases
-        .into_iter()
-        .find(|(_, alias)| !alias.trim().is_empty() && lower.contains(&alias.to_lowercase()))
-        .map(|(subject, _)| subject)
-        .unwrap_or_else(|| "Предмет не указан — уточнить".to_owned());
+    let subject = resolve_subject(text, aliases);
     let description: String = text.trim().chars().take(8000).collect();
     let excerpt: String = text.trim().chars().take(1200).collect();
     let normalized = text
@@ -475,12 +479,28 @@ pub fn candidate_text(candidate: &Candidate) -> String {
                 .to_string()
         })
         .unwrap_or_else(|| "не распознан".into());
-    format!("🔎 Возможно, задали ДЗ\n\nПредмет: {}\nОписание: {}\nСрок: {}\n\nЭто только предложение: в общий список попадёт после подтверждения.",candidate.subject,candidate.description,due)
+    let description: String = candidate.description.chars().take(2500).collect();
+    format!("🔎 Возможно, задали ДЗ\n\nПредмет: {}\nОписание: {}\nСрок: {}\n\nЭто только предложение: в общий список попадёт после подтверждения.",candidate.subject,description,due)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unresolved_subjects_are_kept_for_manual_review() {
+        assert_eq!(
+            resolve_subject("ДЗ к пятнице: решить задачи 1–5", vec![]),
+            "Предмет не указан — уточнить"
+        );
+        assert_eq!(
+            resolve_subject(
+                "По высшей математике решить задачи 1–5",
+                vec![("Высшая математика".into(), "Высшая математика".into())]
+            ),
+            "Высшая математика"
+        );
+    }
 
     #[test]
     fn recognizes_homework_without_ai_and_extracts_common_due_dates() {
