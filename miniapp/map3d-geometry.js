@@ -414,6 +414,7 @@
     }).sort(function (a, b) { return (b.isCampus - a.isCampus) || (b.area - a.area); });
 
     prepared.forEach(function (item) {
+      if (opts.campusOnly && !item.isCampus) return;
       var props = item.f.properties;
       var pid = item.pid;
       var hi = heightInfo(props);
@@ -688,7 +689,7 @@
   /* Returns a list of human-readable problems found in a built scene (empty = fine). */
   function validateScene(out) {
     var problems = [];
-    var lists = { footprints: out.footprints || [], solid: out.solid, windows: out.windows, windowFrames: out.windowFrames, trees: out.trees, shadows: out.shadows };
+    var lists = { footprints: out.footprints || [], solid: out.solid, campusMass: out.campusMass || [], windows: out.windows, windowFrames: out.windowFrames, trees: out.trees, shadows: out.shadows };
     Object.keys(lists).forEach(function (name) {
       lists[name].forEach(function (f, i) {
         if (!featureIsSane(f)) { problems.push(name + '[' + i + '] is invalid or oversized'); return; }
