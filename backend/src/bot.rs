@@ -2316,9 +2316,10 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     "SELECT content FROM bot_user_assistant_messages WHERE telegram_id=$1 AND role='assistant' ORDER BY id DESC LIMIT 1"
                 ).bind(telegram_id).fetch_optional(db).await.ok().flatten()
             } else { None };
-            if let Some(intent) = crate::services::conversation::detect_with_context(
+            let detected_intent = crate::services::conversation::detect_with_context(
                 normalized_text, previous_user.as_deref(), previous_assistant.as_deref()
-            ) {
+            );
+            if let Some(intent) = detected_intent.clone() {
                 let answer = match intent {
                     crate::services::conversation::Intent::Greeting => {
                         Some("Привет! Я Барни, учебный помощник СПбГЛТУ. Могу подсказать расписание, домашние задания, дедлайны, преподавателей и свободные аудитории. Напиши вопрос обычным сообщением или выбери раздел кнопками.".to_owned())
@@ -2452,6 +2453,47 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
                     reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
                     return Ok(());
                 }
+            } else if !is_group_chat {
+                // Free-form questions go to the user's optional local LFM3 endpoint.
+                // Deterministic intents above always win for schedule and account data.
+                let rows = sqlx::query_as::<_, (String, String)>(
+                    "SELECT role,content FROM bot_user_assistant_messages WHERE telegram_id=$1 ORDER BY id DESC LIMIT 8"
+                )
+                .bind(telegram_id)
+                .fetch_all(db)
+                .await
+                .unwrap_or_default();
+                let history = rows.into_iter().rev().collect::<Vec<_>>();
+                let generated = crate::services::ollama::chat(
+                    &state.config, normalized_text, &history
+                ).await;
+                let answer = generated.unwrap_or_else(|| {
+                    "Пока не смог уверенно разобрать этот вопрос. Можешь уточнить его или спросить меня об учёбе, технологиях, программировании и повседневных задачах. Если локальная модель не подключена, свободный диалог ограничен.".to_owned()
+                });
+                let mut tx = db.begin().await?;
+                sqlx::query(
+                    "INSERT INTO bot_user_assistant_messages(telegram_id,role,content) VALUES($1,'user',$2),($1,'assistant',$3)"
+                )
+                .bind(telegram_id)
+                .bind(normalized_text.chars().take(600).collect::<String>())
+                .bind(answer.chars().take(4000).collect::<String>())
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND created_at<now()-interval '7 days'"
+                )
+                .bind(telegram_id)
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "DELETE FROM bot_user_assistant_messages WHERE telegram_id=$1 AND id IN (SELECT id FROM bot_user_assistant_messages WHERE telegram_id=$1 ORDER BY id DESC OFFSET 24)"
+                )
+                .bind(telegram_id)
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
+                reply(&bot, db, &message, answer, &state.config.webapp_url).await?;
+                return Ok(());
             }
         }
     }
