@@ -163,10 +163,12 @@ fn knowledge_entries() -> &'static Vec<(String, Vec<String>, String)> {
 }
 
 fn knowledge_intent(text: &str) -> Option<Intent> {
-    let normalized = normalize(text);
+    let normalized = format!(" {} ", normalize(text));
     knowledge_entries().iter()
         .filter_map(|(id, phrases, _)| {
-            let best = phrases.iter().filter(|phrase| normalized.contains(phrase.as_str()))
+            let best = phrases.iter().filter(|phrase| {
+                normalized.contains(&format!(" {} ", phrase))
+            })
                 .map(|phrase| phrase.chars().count()).max()?;
             Some((id, best))
         })
@@ -422,6 +424,7 @@ mod tests {
         assert_eq!(detect("Кто ты?"), Some(Intent::Knowledge("identity".into())));
         assert_eq!(detect("Как дела?"), Some(Intent::Knowledge("how_are_you".into())));
         assert_eq!(detect("Что такое API?"), Some(Intent::Knowledge("api".into())));
+        assert_eq!(detect("Покажи расписание завтра"), Some(Intent::Tomorrow));
         assert_eq!(detect("Объясни фотосинтез"), Some(Intent::Knowledge("photosynthesis".into())));
         assert!(knowledge_answer("self_assessment").unwrap().contains("без подключённой языковой модели"));
     }
