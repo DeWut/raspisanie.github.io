@@ -63,9 +63,9 @@
 
   var params = new URLSearchParams(location.search);
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
-  var mode = 'sat';
+  var mode = 'scheme';
   var buildings3D = true;
-  var DEFAULT_MAP_MODE = 'sat';
+  var DEFAULT_MAP_MODE = 'scheme';
   var DEFAULT_BUILDINGS_3D = true;
   var schemeLayerIds = [];
   var SCHEME_STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
@@ -109,9 +109,9 @@
   // independent sources and survives every basemap toggle.
   function installCampusLayers() {
     schemeLayerIds = map.getStyle().layers.map(function (layer) { return layer.id; });
-    map.addSource('esri', { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 19,
+    map.addSource('campus-satellite-source', { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, maxzoom: 19,
       attribution: 'Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community' });
-    map.addLayer({ id: 'sat', type: 'raster', source: 'esri', layout: { visibility: 'none' },
+    map.addLayer({ id: 'campus-satellite', type: 'raster', source: 'campus-satellite-source', layout: { visibility: 'none' },
       paint: { 'raster-fade-duration': 0, 'raster-opacity': 1 } }, schemeLayerIds[0]);
     map.addSource('campusMass', { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 });
     map.addSource('hl', { type: 'geojson', data: EMPTY, maxzoom: 20, tolerance: 0 });
@@ -152,7 +152,7 @@
     if (next !== 'sat' && next !== 'scheme') return;
     mode = next;
     var satellite = mode === 'sat';
-    if (map.getLayer('sat')) map.setLayoutProperty('sat', 'visibility', satellite ? 'visible' : 'none');
+    if (map.getLayer('campus-satellite')) map.setLayoutProperty('campus-satellite', 'visibility', satellite ? 'visible' : 'none');
     schemeLayerIds.forEach(function (id) {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', satellite ? 'none' : 'visible');
     });
