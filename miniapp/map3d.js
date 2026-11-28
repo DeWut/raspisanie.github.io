@@ -65,7 +65,7 @@
   var HOME = { center: [30.3399, 59.99455], zoom: 16.6, pitch: 60, bearing: -28 };
   var mode = 'sat';
   var buildings3D = true;
-  var DEFAULT_MAP_MODE = 'scheme';
+  var DEFAULT_MAP_MODE = 'sat';
   var DEFAULT_BUILDINGS_3D = true;
   var satelliteCamera = null;
   var styleRequest = 0;
@@ -982,7 +982,7 @@
     applyAtmosphere();
     wire();
     campusData = data[1];
-    scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false });
+    scene = G.buildScene(data[0], campusData, { renderTrees: true, renderWindows: true, renderShadows: true });
     syncSceneData();
     buildCampusMarkers();
     openFloorPlanFromLocation();
