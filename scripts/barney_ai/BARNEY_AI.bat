@@ -65,7 +65,8 @@ python -c "import torch; print('PyTorch:',torch.__version__); print('CUDA:',torc
 if errorlevel 1 (
   echo.
   echo PyTorch with CUDA is not installed in this venv.
-  echo Open https://pytorch.org/get-started/locally/
+  echo Opening the official PyTorch installer selector...
+  start "" "https://pytorch.org/get-started/locally/"
   echo Select Windows ^> Pip ^> Python ^> CUDA build, then run its command
   echo with this venv activated. Reopen this menu and choose [1] again.
   pause
@@ -130,7 +131,7 @@ if errorlevel 1 (
 ) else (
   echo.
   echo [OK] LoRA adapter saved in training\barney-lfm3-lora
-  echo Merged checkpoint is also saved if merge was enabled in the script.
+  echo Merged checkpoint saved to training\\barney-lfm3-lora-merged
 )
 pause
 goto MENU
