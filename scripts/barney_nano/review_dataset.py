@@ -32,7 +32,8 @@ def main():
         raise SystemExit(f"Source not found: {args.source}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     approved = rejected = 0
-    with args.output.open("a", encoding="utf-8") as out:
+    # Rebuild the approved file on each pass to prevent duplicate examples after re-review.
+    with args.output.open("w", encoding="utf-8") as out:
         for line_no, row in read_rows(args.source):
             messages = row["messages"]
             print("\n" + "=" * 76)
