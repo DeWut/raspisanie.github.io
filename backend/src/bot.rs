@@ -2368,6 +2368,22 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
         return Ok(());
     }
 
+    if command == "/autodz" || command == "/autodz_queue" {
+        if let Err(error) = crate::services::homework_candidates::send_pending_queue(
+            &bot,
+            db,
+            message.chat.id,
+            telegram_id,
+        )
+        .await
+        {
+            tracing::error!("Could not open homework auto-collection queue: {}", error);
+            bot.send_message(message.chat.id, "Не удалось загрузить очередь автосбора ДЗ. Проверь backend log и подключение к базе данных.")
+                .await?;
+        }
+        return Ok(());
+    }
+
     if matches!(
         command,
         "/home"
@@ -2485,17 +2501,8 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
     }
 
     if is_group_chat && !normalized_text.starts_with('/') {
-        if crate::services::student_tools::detect_repeated_spam(
-            db,
-            message.chat.id.0,
-            telegram_id,
-            message.id.0,
-            normalized_text,
-        )
-        .await
-        {
-            return Ok(());
-        }
+        // Homework detection gets first refusal. A repeated-message spam
+        // signal must never swallow the only copy of a homework announcement.
         match crate::services::homework_candidates::maybe_create(
             db,
             message.chat.id.0,
@@ -2523,6 +2530,17 @@ async fn handle(bot: Bot, state: Arc<AppState>, message: Message) -> ResponseRes
             }
             Ok(None) => {}
             Err(error) => tracing::warn!("Could not inspect group message for homework: {}", error),
+        }
+        if crate::services::student_tools::detect_repeated_spam(
+            db,
+            message.chat.id.0,
+            telegram_id,
+            message.id.0,
+            normalized_text,
+        )
+        .await
+        {
+            return Ok(());
         }
     }
 
@@ -4164,6 +4182,7 @@ async fn register_bot_commands(bot: &Bot) {
         BotCommand::new("report", "Пожаловаться на сообщение (ответом)"),
         BotCommand::new("report_queue", "Открытые жалобы"),
         BotCommand::new("report_resolve", "Закрыть жалобу по номеру"),
+        BotCommand::new("autodz", "Очередь собранных заданий на проверку"),
         BotCommand::new("autodz_on", "Включить сбор кандидатов ДЗ"),
         BotCommand::new("autodz_off", "Выключить сбор кандидатов ДЗ"),
         BotCommand::new("autodz_approver", "Выбрать роль подтверждения ДЗ"),
