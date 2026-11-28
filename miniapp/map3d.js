@@ -265,6 +265,34 @@
     return best || [Number(building.longitude), Number(building.latitude)];
   }
 
+  function auditCampusGeometry() {
+    var issues = G.validateScene ? G.validateScene(scene) : [];
+    var seen = {};
+    (scene.campusMass || []).forEach(function (feature) {
+      var props = feature.properties || {};
+      if (props.campus) seen[String(props.campus)] = true;
+      if (!(Number(props.z1) > Number(props.z0))) issues.push('Некорректная высота корпуса ' + (props.campus || props.pid));
+    });
+    var mapped = Object.keys(seen).sort();
+    if (mapped.length !== 4) issues.push('Ожидалось 4 корпуса, построено: ' + mapped.join(', '));
+    ((campusData && campusData.buildings) || []).forEach(function (building) {
+      var feature = (sceneSourceData.features || []).find(function (item) {
+        return item.properties && item.properties.kind === 'building' &&
+          String(item.properties.campusNumber || '') === String(building.number);
+      });
+      if (!feature) { issues.push('Нет контура корпуса ' + building.number); return; }
+      var geometry = feature.geometry;
+      var polygons = geometry.type === 'Polygon' ? [geometry.coordinates] :
+        geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
+      var anchor = buildingAnchor(building);
+      var inside = polygons.some(function (rings) { return pointInPolygon(anchor, rings); });
+      if (!inside) issues.push('Маркер корпуса ' + building.number + ' вне контура');
+    });
+    if (issues.length) console.warn('[Campus map audit]', issues);
+    else console.info('[Campus map audit] OK: 4 корпуса, маркеры внутри контуров, 3D-геометрия валидна');
+    return issues;
+  }
+
   function buildCampusMarkers() {
     campusMarkers.forEach(function (marker) { marker.remove(); });
     campusMarkers = [];
@@ -297,6 +325,7 @@
         .addTo(map);
       marker.getElement().style.zIndex = '12';
       marker._campusHeight = height;
+      marker._campusLatitude = anchor[1];
       campusMarkers.push(marker);
     });
   }
@@ -305,9 +334,8 @@
     if (!map || !campusMarkers || !campusMarkers.length) return;
     var zoom = map.getZoom();
     var pitch = map.getPitch() * Math.PI / 180;
-    var lat = map.getCenter().lat;
-    var metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
     campusMarkers.forEach(function (marker) {
+      var metersPerPixel = 156543.03392 * Math.cos((marker._campusLatitude || map.getCenter().lat) * Math.PI / 180) / Math.pow(2, zoom);
       var lift = marker._campusHeight > 0 && metersPerPixel > 0
         ? marker._campusHeight * Math.sin(pitch) / metersPerPixel : 0;
       marker.setOffset([0, -lift]);
@@ -954,6 +982,7 @@
     wire();
     campusData = data[1];
     scene = G.buildScene(data[0], campusData, { renderTrees: false, renderWindows: false, renderShadows: false, campusOnly: true });
+    auditCampusGeometry();
     syncSceneData();
     buildCampusMarkers();
     openFloorPlanFromLocation();
