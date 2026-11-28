@@ -83,6 +83,20 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def adapter_weights_hash(adapter_dir: Path) -> str | None:
+    files = sorted(
+        p for p in adapter_dir.glob("adapter_model*")
+        if p.is_file() and p.suffix in {".safetensors", ".bin"}
+    )
+    if not files:
+        return None
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.name.encode("utf-8"))
+        digest.update(bytes.fromhex(sha256_file(path)))
+    return digest.hexdigest()
+
+
 def dataset_stats(path: Path) -> dict[str, Any]:
     result = {"examples": 0, "unique_user_prompts": 0, "invalid_lines": 0, "sha256": None}
     if not path.is_file():
@@ -252,14 +266,24 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
     adapter_weights_size = sum(
         p.stat().st_size for p in ADAPTER.glob("adapter_model*") if p.is_file()
     ) if ADAPTER.exists() else 0
-    merged_size = directory_size(MERGED)
+    adapter_hash = adapter_weights_hash(ADAPTER) if adapter_exists else None
+    benchmark_hash = sha256_file(BENCHMARK_JSON) if BENCHMARK_JSON.is_file() else None
+    candidate_merged = (ROOT / candidate.get("merged_checkpoint", "")) if candidate else None
+    merged_size = directory_size(candidate_merged) if candidate_merged and candidate_merged.exists() else directory_size(MERGED)
     candidate_size = candidate.get("ollama_model_size_bytes") if candidate else None
+    adapter_to_base_size_pct = (
+        adapter_weights_size / base_size * 100
+        if base_size and adapter_weights_size else None
+    )
 
+    qa_cases = qa.get("cases", []) if qa else []
     qa_pass = bool(
         qa and qa.get("status") == "passed"
-        and isinstance(qa.get("cases"), list)
-        and len(qa["cases"]) >= 1
-        and all(row.get("passed") is True for row in qa["cases"] if isinstance(row, dict))
+        and qa.get("benchmark_sha256") == benchmark_hash
+        and isinstance(qa_cases, list)
+        and len(qa_cases) >= 6
+        and len(qa_cases) == benchmark["cases"]
+        and all(isinstance(row, dict) and row.get("passed") is True for row in qa_cases)
     )
     benchmark_ready = bool(
         benchmark["exists"] and benchmark["cases"] >= 6
@@ -267,7 +291,15 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
     )
     eval_ready = bool(trainer and trainer.get("min_eval_loss") is not None)
     dataset_production_ready = data["examples"] >= PRODUCTION_MIN_EXAMPLES
-    candidate_ready = bool(candidate and candidate.get("local_smoke_test_passed") is True)
+    candidate_ready = bool(
+        candidate
+        and candidate.get("local_smoke_test_passed") is True
+        and candidate.get("dataset_sha256") == data["sha256"]
+        and candidate.get("adapter_weights_sha256") == adapter_hash
+        and candidate.get("benchmark_sha256") == benchmark_hash
+        and candidate.get("qa_benchmark_sha256") == (qa.get("benchmark_sha256") if qa else None)
+        and qa_pass
+    )
 
     gates = [
         {"id": "adapter", "label": "Обученный LoRA-адаптер сохранён", "passed": adapter_exists},
@@ -318,6 +350,15 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
             "merged_checkpoint": merged_size,
             "ollama_candidate": candidate_size,
         },
+        "size_ratios": {
+            "adapter_weights_percent_of_base_cache": round(adapter_to_base_size_pct, 5) if adapter_to_base_size_pct is not None else None,
+        },
+        "artifact_hashes": {
+            "approved_dataset_sha256": data["sha256"],
+            "adapter_weights_sha256": adapter_hash,
+            "benchmark_sha256": benchmark_hash,
+            "qa_benchmark_sha256": qa.get("benchmark_sha256") if qa else None,
+        },
         "training": trainer,
         "benchmark": {
             "exists": benchmark["exists"],
@@ -327,8 +368,9 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
         "human_review": {
             "status": qa.get("status") if qa else "not_reviewed",
             "reviewed_at": qa.get("reviewed_at") if qa else None,
-            "passed_cases": sum(1 for row in qa.get("cases", []) if row.get("passed") is True) if qa else 0,
+            "passed_cases": sum(1 for row in qa.get("cases", []) if isinstance(row, dict) and row.get("passed") is True) if qa else 0,
             "total_cases": len(qa.get("cases", [])) if qa else 0,
+            "matches_current_benchmark": bool(qa and qa.get("benchmark_sha256") == benchmark_hash),
         },
         "candidate": {
             "tag": candidate.get("tag") if candidate else None,
@@ -355,6 +397,7 @@ def build_report(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
         f"- Кеш базовой модели: {format_bytes(base_size)}",
         f"- Файлы весов адаптера: {format_bytes(adapter_weights_size)}",
         f"- Вся папка адаптера/checkpoints: {format_bytes(adapter_size)}",
+        f"- Весовой файл адаптера составляет {adapter_to_base_size_pct:.5f}% от кеша базовой модели" if adapter_to_base_size_pct is not None else "- Доля размера адаптера от базовой модели: не определена",
         f"- Объединённая HF-модель: {format_bytes(merged_size)}",
         f"- Модель Ollama-кандидат: {format_bytes(candidate_size)}",
         "",
@@ -407,6 +450,8 @@ def print_report(report: dict[str, Any]) -> None:
     ]:
         print(f"{title:<25} {format_bytes(sizes.get(key))}")
     print("\nДАННЫЕ И МЕТРИКИ")
+    if report["size_ratios"]["adapter_weights_percent_of_base_cache"] is not None:
+        print(f"Вес адаптера / кеш базы: {report['size_ratios']['adapter_weights_percent_of_base_cache']:.5f}%")
     print(f"Одобренные примеры: {dataset['examples']} ({dataset['unique_user_prompts']} уникальных запросов)")
     print(f"Eval loss: {training.get('min_eval_loss', 'нет данных')}")
     print(f"Benchmark: {report['benchmark']['non_empty_candidate_answers']}/{report['benchmark']['cases']}")
@@ -454,6 +499,7 @@ def review_benchmark() -> int:
         "schema_version": 1,
         "reviewed_at": now_iso(),
         "benchmark_file": str(BENCHMARK_JSON.relative_to(ROOT)),
+        "benchmark_sha256": sha256_file(BENCHMARK_JSON),
         "status": "passed" if passed else "failed",
         "cases": decisions,
         "note": "Manual reviewer decision. Re-run after any new training or benchmark generation.",
@@ -580,6 +626,10 @@ def prepare_candidate() -> int:
         "modelfile": str(modelfile.relative_to(ROOT)),
         "approved_examples": data["examples"],
         "production_eligible": data["examples"] >= PRODUCTION_MIN_EXAMPLES,
+        "dataset_sha256": data["sha256"],
+        "adapter_weights_sha256": adapter_weights_hash(ADAPTER),
+        "benchmark_sha256": sha256_file(BENCHMARK_JSON),
+        "qa_benchmark_sha256": qa.get("benchmark_sha256"),
         "manual_qa_status": qa.get("status"),
         "local_smoke_test_passed": True,
         "local_smoke_prompt": smoke_prompt,
