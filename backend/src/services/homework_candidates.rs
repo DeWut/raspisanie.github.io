@@ -256,6 +256,21 @@ pub fn review_keyboard(id: i64) -> InlineKeyboardMarkup {
 }
 
 async fn can_review(db: &PgPool, chat_id: i64, actor: i64) -> bool {
+    // The chat owner and Telegram administrators retain moderation access
+    // regardless of the narrower configured approver role.
+    let is_admin: bool = sqlx::query_scalar(
+        r#"SELECT EXISTS(SELECT 1 FROM bot_chat_settings WHERE chat_id=$1 AND owner_telegram_id=$2 AND is_active=TRUE)
+           OR EXISTS(SELECT 1 FROM bot_chat_members WHERE chat_id=$1 AND telegram_id=$2 AND telegram_status IN ('creator','administrator'))"#
+    )
+    .bind(chat_id)
+    .bind(actor)
+    .fetch_one(db)
+    .await
+    .unwrap_or(false);
+    if is_admin {
+        return true;
+    }
+
     let role: Option<String> = sqlx::query_scalar(
         "SELECT homework_approver_role FROM bot_chat_settings WHERE chat_id=$1 AND is_active=TRUE",
     )
