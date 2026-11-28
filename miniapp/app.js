@@ -356,11 +356,13 @@
         body: JSON.stringify({ external_id: String(externalId) }),
       });
       if (state.account) state.account.group_id = result.group_id;
-      $('#settings-group-name').textContent = result.group_name || state.schedule?.name || 'Выбрана';
+      populatePersonalGroupSelect(String(externalId));
       showToast('Группа привязана к Telegram-аккаунту в Neon');
     } catch (error) {
       console.warn('Could not bind selected group to Telegram account:', error);
-      $('#settings-save-status').textContent = 'Расписание сохранено локально, но группа не привязалась к аккаунту Neon.';
+      $('#personal-group-status').textContent = error.status
+        ? 'Не удалось привязать группу (HTTP ' + error.status + ').'
+        : 'Расписание сохранено на устройстве, но группа не привязалась к аккаунту.';
     }
   }
   function switchControlPane(name) {
