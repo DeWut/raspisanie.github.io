@@ -2,6 +2,7 @@ services:
   - type: web
     name: spbftuit-smart-campus-api
     runtime: rust
+    branch: feature/smart-campus-step-1
     plan: free
     region: frankfurt
     rootDir: backend
