@@ -285,7 +285,7 @@
     const groups = state.control.personalGroups.length ? state.control.personalGroups : state.groups.map((group) => ({ external_id: group.id, name: group.name }));
     groups.forEach((group) => select.add(new Option(group.name, String(group.external_id))));
     select.value = groups.some((group) => String(group.external_id) === previous) ? previous : '';
-    if (button) button.disabled = !hasTelegramAccountApi() || !state.groups.length;
+    if (button) button.disabled = !hasTelegramAccountApi() || !groups.length;
   }
 
   async function savePersonalGroup() {
@@ -411,7 +411,9 @@
       select.replaceChildren();
       commandSelect.replaceChildren(new Option('Выбери групповой чат', ''));
       state.control.managedChats.forEach((chat) => {
-        const label = (chat.title || 'Учебный чат') + ' · ' + chat.group_name;
+        const label = chat.title && chat.title !== chat.group_name
+          ? chat.title + ' · ' + chat.group_name
+          : (chat.title || chat.group_name || 'Учебный чат');
         select.add(new Option(label, String(chat.chat_id)));
         commandSelect.add(new Option(label, String(chat.chat_id)));
       });
