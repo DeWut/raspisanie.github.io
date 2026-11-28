@@ -967,3 +967,26 @@ html.campus-map-open .app-shell {
 .chat-management-card #managed-chat-editor > .eyebrow { margin-top:18px; }
 .chat-management-card .settings-toggle-row { min-height:62px; }
 .chat-management-card .control-divider { margin:15px 0; }
+
+.chat-settings-section {
+  margin:16px 0 0; padding:15px 13px 10px;
+  border:1px solid var(--line); border-radius:17px;
+  background:color-mix(in srgb, var(--surface) 72%, transparent);
+}
+.chat-settings-heading { display:flex; align-items:center; gap:11px; margin:0 0 8px; }
+.chat-settings-icon {
+  width:34px; height:34px; flex:0 0 34px; display:grid; place-items:center;
+  border-radius:11px; background:var(--forest); color:#fff;
+  font-size:17px; font-weight:800;
+}
+.chat-settings-heading .eyebrow { margin:0 0 2px; }
+.chat-settings-heading h3 { margin:0; color:var(--ink); font-size:13px; letter-spacing:-.02em; }
+.chat-settings-section .control-divider { display:none; }
+.chat-settings-section > .eyebrow { margin:12px 0 4px; }
+.chat-settings-section .settings-toggle-row { min-height:59px; }
+.chat-settings-section .settings-toggle-row strong { font-size:12px; }
+.chat-settings-section .settings-toggle-row small { max-width:42ch; font-size:10px; }
+.chat-settings-section .control-field { margin-top:9px; }
+.chat-settings-section .control-field > span { font-size:11px; }
+.chat-settings-section .control-hint { margin:8px 0; }
+.chat-management-card .settings-actions { margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
